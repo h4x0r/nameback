@@ -41,7 +41,10 @@
     ],
     "bash_read_patterns": [
       "exiftool",
-      "git status"
+      "git status",
+      "while read f",
+      "do echo",
+      "done"
     ],
     "bash_write_patterns": [],
     "extrasafe": true
