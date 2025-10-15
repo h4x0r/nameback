@@ -40,7 +40,11 @@
       "NotebookEdit"
     ],
     "bash_read_patterns": [
-      "exiftool"
+      "exiftool",
+      "git status",
+      "while read f",
+      "do echo",
+      "done"
     ],
     "bash_write_patterns": [],
     "extrasafe": true

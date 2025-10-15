@@ -3,3 +3,8 @@
 sessions/sessions-state.json
 sessions/transcripts/
 sessions/.archived/
+
+
+# Added by cargo
+
+/target
