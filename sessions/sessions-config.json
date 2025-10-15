@@ -40,7 +40,8 @@
       "NotebookEdit"
     ],
     "bash_read_patterns": [
-      "exiftool"
+      "exiftool",
+      "git status"
     ],
     "bash_write_patterns": [],
     "extrasafe": true
