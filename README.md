@@ -17,19 +17,19 @@ After: `2024-03-15_sunset.jpg`, `Annual_Report_2024.pdf`, `Important_safety_info
 ## Quick Start
 
 ```bash
-# Install (requires Rust)
-cargo build --release
+# Install from crates.io
+cargo install nameback
 
 # Preview what would change (safe, no files modified)
-./target/release/nameback /path/to/folder --dry-run
+nameback /path/to/folder --dry-run
 
 # Actually rename the files
-./target/release/nameback /path/to/folder
+nameback /path/to/folder
 ```
 
 ## Requirements
 
-- **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install)
+- **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install) (for installation)
 - **exiftool** - `brew install exiftool` (macOS) or `apt install libimage-exiftool-perl` (Linux)
 
 ## Options
@@ -51,13 +51,24 @@ cargo build --release
 
 ```bash
 # Preview changes in your Photos folder
-./target/release/nameback ~/Pictures --dry-run
+nameback ~/Pictures --dry-run
 
 # Rename recovered files from PhotoRec
-./target/release/nameback /tmp/photorec
+nameback /tmp/photorec
 
 # Process with detailed logging
-./target/release/nameback ~/Documents --verbose
+nameback ~/Documents --verbose
+```
+
+## Building from Source
+
+If you want to build from source instead of installing from crates.io:
+
+```bash
+git clone https://github.com/h4x0r/nameback.git
+cd nameback
+cargo build --release
+./target/release/nameback /path/to/folder
 ```
 
 ## How it works
