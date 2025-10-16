@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
+use log::debug;
 use serde::Deserialize;
 use std::path::Path;
 use std::process::Command;
 
 use crate::detector::FileCategory;
+use crate::pdf_content;
 
 /// Represents metadata extracted from a file
 #[derive(Debug, Clone)]
@@ -103,16 +105,64 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         .next()
         .context("No metadata found in exiftool output")?;
 
-    Ok(FileMetadata {
+    let author = exif_data.author
+        .or(exif_data.creator)
+        .or(exif_data.last_modified_by);
+
+    // Filter out unhelpful author names (like scanner/printer names)
+    let filtered_author = if is_useful_metadata(&author) {
+        author
+    } else {
+        None
+    };
+
+    let mut metadata = FileMetadata {
         title: exif_data.title,
         artist: exif_data.artist,
         album: exif_data.album,
         date_time_original: exif_data.date_time_original,
         description: exif_data.description,
         subject: exif_data.subject,
-        author: exif_data.author
-            .or(exif_data.creator)
-            .or(exif_data.last_modified_by),
+        author: filtered_author,
         creation_date: exif_data.creation_date.or(exif_data.create_date),
-    })
+    };
+
+    // For PDFs without useful metadata, try extracting text content
+    if is_pdf(path) && !is_useful_metadata(&metadata.title) && !is_useful_metadata(&metadata.subject) {
+        debug!("PDF has no useful metadata, attempting content extraction");
+        if let Ok(Some(content)) = pdf_content::extract_pdf_content(path) {
+            debug!("Extracted PDF content: {}", content);
+            metadata.title = Some(content);
+        }
+    }
+
+    Ok(metadata)
+}
+
+/// Checks if a file is a PDF based on extension
+fn is_pdf(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false)
+}
+
+/// Checks if metadata string is useful (not empty, not just scanner/printer names)
+fn is_useful_metadata(value: &Option<String>) -> bool {
+    if let Some(v) = value {
+        let lower = v.to_lowercase();
+        // Skip common unhelpful metadata
+        if lower.is_empty()
+            || lower.contains("canon")
+            || lower.contains("printer")
+            || lower.contains("scanner")
+            || lower.contains("ipr")
+            || lower.contains("untitled")
+            || lower.len() < 3 {
+            return false;
+        }
+        true
+    } else {
+        false
+    }
 }

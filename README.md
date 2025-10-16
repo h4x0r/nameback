@@ -99,10 +99,11 @@ Files **with useful metadata** get renamed:
 - **OpenDocument** - ODT, ODS, ODP with title or author
 - **Videos** - MP4, AVI with creation date or title
 - **HTML files** - Files with title tags
-- **PDFs** - PDFs with Title metadata (⚠️ see limitation below)
+- **PDFs** - Uses Title metadata when available, falls back to extracting text content from the document
 
 Files **without useful metadata** are skipped:
-- **Scanned PDFs** - Only have scanner/printer names (e.g., "Canon iPR C165")
+- **Image-only scanned PDFs** - Scanned documents without OCR text layer
+- **PDFs with only scanner names** - Metadata like "Canon iPR C165" is filtered out
 - **Plain text** - TXT, CSV, MD files have no embedded metadata
 - **System files** - DLLs, temp files, executables
 - **Recovered files** - Files that lost metadata during recovery

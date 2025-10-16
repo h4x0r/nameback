@@ -7,6 +7,7 @@ mod cli;
 mod detector;
 mod extractor;
 mod generator;
+mod pdf_content;
 mod renamer;
 
 /// Scans a directory recursively and returns paths to all files
