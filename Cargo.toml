@@ -2,8 +2,14 @@
 name = "nameback"
 version = "0.1.0"
 edition = "2021"
-authors = ["4n6h4x0r"]
-description = "A utility to rename files based on their metadata"
+authors = ["Albert Hui"]
+description = "Rename files based on their metadata - automatically extracts titles, dates, and descriptions"
+license = "MIT"
+repository = "https://github.com/h4x0r/nameback"
+homepage = "https://github.com/h4x0r/nameback"
+readme = "README.md"
+keywords = ["metadata", "rename", "exif", "files", "utility"]
+categories = ["command-line-utilities", "filesystem"]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
