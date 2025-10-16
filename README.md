@@ -47,6 +47,21 @@ nameback /path/to/folder
 ✓ **Duplicate handling** - Adds `_1`, `_2` suffixes automatically
 ✓ **Filename sanitization** - Removes special characters safely
 
+## Security
+
+**nameback operates with strong security constraints:**
+
+- **Same-directory only** - Files can only be renamed within their parent directory. No path traversal or directory changes.
+- **Permission-based** - Respects standard Unix/filesystem permissions. Cannot modify files you don't have permission to change.
+- **No privilege escalation** - Cannot access system directories (like `/etc/`) without appropriate permissions.
+- **Overwrite protection** - Will never overwrite existing files, preventing accidental data loss.
+
+**Best Practices:**
+- Always run `--dry-run` first to preview changes
+- Never run as root on system directories (`/etc`, `/usr`, etc.)
+- Use on user data directories where you have write permissions
+- Back up important files before bulk renaming operations
+
 ## Examples
 
 ```bash
