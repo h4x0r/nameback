@@ -46,13 +46,17 @@ pub fn scan_files(directory: &PathBuf, skip_hidden: bool) -> Result<Vec<PathBuf>
 }
 
 fn main() -> Result<()> {
-    // Initialize logger with appropriate level
+    let args = cli::parse_args();
+
+    // Initialize logger with appropriate level based on verbose flag
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
+        if args.verbose {
+            std::env::set_var("RUST_LOG", "debug");
+        } else {
+            std::env::set_var("RUST_LOG", "info");
+        }
     }
     env_logger::init();
-
-    let args = cli::parse_args();
 
     if args.dry_run {
         info!("Running in DRY-RUN mode - no files will be renamed");
@@ -63,8 +67,15 @@ fn main() -> Result<()> {
 
     info!("Processing {} files...", files.len());
 
-    // Track existing names to avoid duplicates
+    // Pre-populate existing names from all files to avoid duplicates
     let mut existing_names = std::collections::HashSet::new();
+    for file_path in &files {
+        if let Some(filename) = file_path.file_name() {
+            if let Some(name) = filename.to_str() {
+                existing_names.insert(name.to_string());
+            }
+        }
+    }
 
     // Process each file
     for file_path in files {
