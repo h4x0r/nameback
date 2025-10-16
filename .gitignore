@@ -1,8 +1,7 @@
 
-# cc-sessions runtime files
-sessions/sessions-state.json
-sessions/transcripts/
-sessions/.archived/
+# Development tools (not needed by end users)
+.claude/
+sessions/
 
 
 # Added by cargo
