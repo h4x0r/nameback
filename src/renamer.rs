@@ -20,6 +20,14 @@ pub fn rename_file(
         anyhow::bail!("Source file does not exist: {}", old_path.display());
     }
 
+    // Check if destination file already exists (prevent overwrite)
+    if new_path.exists() && new_path != old_path {
+        anyhow::bail!(
+            "Destination file already exists: {}. Skipping to prevent data loss.",
+            new_path.display()
+        );
+    }
+
     // Check write permissions on parent directory
     if !dry_run {
         let metadata = fs::metadata(parent)
