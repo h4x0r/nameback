@@ -70,16 +70,19 @@ cargo build --release
 
 ## What gets renamed?
 
-Files **with metadata** get renamed:
-- Photos with EXIF data
-- PDFs with document properties
-- Videos with creation dates
-- HTML files with title tags
+Files **with useful metadata** get renamed:
+- **Photos** - JPEG, PNG with EXIF data (date taken, description)
+- **Office documents** - DOCX, XLSX, PPTX with title or author
+- **OpenDocument** - ODT, ODS, ODP with title or author
+- **Videos** - MP4, AVI with creation date or title
+- **HTML files** - Files with title tags
+- **PDFs** - PDFs with Title metadata (⚠️ see limitation below)
 
-Files **without metadata** are skipped:
-- System files (DLLs, temp files)
-- Files with no embedded information
-- Already well-named files
+Files **without useful metadata** are skipped:
+- **Scanned PDFs** - Only have scanner/printer names (e.g., "Canon iPR C165")
+- **Plain text** - TXT, CSV, MD files have no embedded metadata
+- **System files** - DLLs, temp files, executables
+- **Recovered files** - Files that lost metadata during recovery
 
 ## Troubleshooting
 

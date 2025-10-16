@@ -85,6 +85,10 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         subject: Option<String>,
         #[serde(rename = "Author")]
         author: Option<String>,
+        #[serde(rename = "Creator")]
+        creator: Option<String>,
+        #[serde(rename = "LastModifiedBy")]
+        last_modified_by: Option<String>,
         #[serde(rename = "CreationDate")]
         creation_date: Option<String>,
         #[serde(rename = "CreateDate")]
@@ -106,7 +110,9 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         date_time_original: exif_data.date_time_original,
         description: exif_data.description,
         subject: exif_data.subject,
-        author: exif_data.author,
+        author: exif_data.author
+            .or(exif_data.creator)
+            .or(exif_data.last_modified_by),
         creation_date: exif_data.creation_date.or(exif_data.create_date),
     })
 }
