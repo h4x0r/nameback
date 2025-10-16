@@ -30,7 +30,17 @@ pub fn detect_file_type(path: &Path) -> Result<FileCategory> {
         s if s.contains("image") || s.contains("jpeg") || s.contains("png") || s.contains("gif") => {
             FileCategory::Image
         }
-        s if s.contains("pdf") || s.contains("document") || s.contains("text") => {
+        s if s.contains("pdf")
+            || s.contains("document")
+            || s.contains("text")
+            || s.contains("word")
+            || s.contains("excel")
+            || s.contains("powerpoint")
+            || s.contains("microsoft")
+            || s.contains("opendocument")
+            || s.contains("oasis")
+            || s.contains("rtf")
+            || s.contains("rich text") => {
             FileCategory::Document
         }
         s if s.contains("audio") || s.contains("mp3") || s.contains("flac") || s.contains("wav") => {
