@@ -1,0 +1,105 @@
+# nameback
+
+Rename files based on their metadata. Automatically extracts titles, dates, and descriptions from your files to give them meaningful names.
+
+## What it does
+
+Scans a folder and renames files using metadata embedded in the files themselves:
+
+- **Photos** → Renamed by date taken
+- **PDFs** → Renamed by document title
+- **Videos** → Renamed by creation date or title
+- **HTML files** → Renamed by page title
+
+Before: `IMG_2847.jpg`, `document.pdf`, `f2577888.html`
+After: `2024-03-15_sunset.jpg`, `Annual_Report_2024.pdf`, `Important_safety_information.html`
+
+## Quick Start
+
+```bash
+# Install (requires Rust)
+cargo build --release
+
+# Preview what would change (safe, no files modified)
+./target/release/nameback /path/to/folder --dry-run
+
+# Actually rename the files
+./target/release/nameback /path/to/folder
+```
+
+## Requirements
+
+- **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install)
+- **exiftool** - `brew install exiftool` (macOS) or `apt install libimage-exiftool-perl` (Linux)
+
+## Options
+
+```bash
+--dry-run      # Preview changes before applying
+--verbose      # Show detailed progress
+--skip-hidden  # Skip hidden files (like .DS_Store)
+```
+
+## Safety Features
+
+✓ **Preview mode** - Always test with `--dry-run` first
+✓ **No overwrites** - Skips files if destination already exists
+✓ **Duplicate handling** - Adds `_1`, `_2` suffixes automatically
+✓ **Filename sanitization** - Removes special characters safely
+
+## Examples
+
+```bash
+# Preview changes in your Photos folder
+./target/release/nameback ~/Pictures --dry-run
+
+# Rename recovered files from PhotoRec
+./target/release/nameback /tmp/photorec
+
+# Process with detailed logging
+./target/release/nameback ~/Documents --verbose
+```
+
+## How it works
+
+1. Scans directory recursively
+2. Detects file type (image, document, video, audio)
+3. Extracts metadata using exiftool
+4. Generates clean filename from title/date
+5. Renames file (or shows preview in dry-run mode)
+
+## What gets renamed?
+
+Files **with metadata** get renamed:
+- Photos with EXIF data
+- PDFs with document properties
+- Videos with creation dates
+- HTML files with title tags
+
+Files **without metadata** are skipped:
+- System files (DLLs, temp files)
+- Files with no embedded information
+- Already well-named files
+
+## Troubleshooting
+
+**No files renamed?**
+- Run with `--verbose` to see why files are skipped
+- Many files simply lack useful metadata
+
+**Permission denied?**
+- Ensure you have write access to the directory
+- Try running with appropriate permissions
+
+**Want to undo?**
+- nameback doesn't keep backups - use version control
+- Always test with `--dry-run` first
+- Consider backing up important files before renaming
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+Created by Albert Hui ([@4n6h4x0r](https://github.com/h4x0r))
+
+Built with [Claude Code](https://claude.com/claude-code)
