@@ -40,21 +40,18 @@ nameback /path/to/folder
 --skip-hidden  # Skip hidden files (like .DS_Store)
 ```
 
-## Safety Features
+## Safety & Security
 
-✓ **Preview mode** - Always test with `--dry-run` first
-✓ **No overwrites** - Skips files if destination already exists
-✓ **Duplicate handling** - Adds `_1`, `_2` suffixes automatically
-✓ **Filename sanitization** - Removes special characters safely
+**Operational Safety:**
+- ✓ **Preview mode** - Always test with `--dry-run` first
+- ✓ **No overwrites** - Skips files if destination already exists
+- ✓ **Duplicate handling** - Adds `_1`, `_2` suffixes automatically
+- ✓ **Filename sanitization** - Removes special characters safely
 
-## Security
-
-**nameback operates with strong security constraints:**
-
-- **Same-directory only** - Files can only be renamed within their parent directory. No path traversal or directory changes.
-- **Permission-based** - Respects standard Unix/filesystem permissions. Cannot modify files you don't have permission to change.
-- **No privilege escalation** - Cannot access system directories (like `/etc/`) without appropriate permissions.
-- **Overwrite protection** - Will never overwrite existing files, preventing accidental data loss.
+**Security Constraints:**
+- ✓ **Same-directory only** - Files can only be renamed within their parent directory (no path traversal)
+- ✓ **Permission-based** - Respects standard Unix/filesystem permissions
+- ✓ **No privilege escalation** - Cannot access system directories without appropriate permissions
 
 **Best Practices:**
 - Always run `--dry-run` first to preview changes
