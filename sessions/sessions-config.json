@@ -1,10 +1,12 @@
 {
   "trigger_phrases": {
     "implementation_mode": [
-      "yert"
+      "yert",
+      "go ahead"
     ],
     "discussion_mode": [
-      "SILENCE"
+      "SILENCE",
+      "stop, we need to talk"
     ],
     "task_creation": [
       "mek:"
