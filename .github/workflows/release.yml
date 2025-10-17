@@ -165,11 +165,13 @@ jobs:
           }
           Write-Host "Installing leptonica and tesseract..."
           .\vcpkg integrate install
-          .\vcpkg install leptonica:x64-windows tesseract:x64-windows
+          .\vcpkg install leptonica:x64-windows-static-md tesseract:x64-windows-static-md
 
-      - name: Set VCPKG_ROOT (Windows only)
+      - name: Set VCPKG_ROOT and triplet (Windows only)
         if: matrix.os == 'windows-latest'
-        run: echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
+        run: |
+          echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
+          echo "VCPKGRS_TRIPLET=x64-windows-static-md" >> $GITHUB_ENV
         shell: bash
 
       - name: Build release binary
