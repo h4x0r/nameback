@@ -26,33 +26,25 @@ impl FileMetadata {
     /// Extracts the best candidate name from metadata based on file category
     pub fn extract_name(&self, category: &FileCategory) -> Option<String> {
         match category {
-            FileCategory::Image => {
-                self.title
-                    .as_ref()
-                    .or(self.description.as_ref())
-                    .or(self.date_time_original.as_ref())
-                    .cloned()
-            }
-            FileCategory::Document => {
-                self.title
-                    .as_ref()
-                    .or(self.subject.as_ref())
-                    .or(self.author.as_ref())
-                    .cloned()
-            }
-            FileCategory::Audio => {
-                self.title
-                    .as_ref()
-                    .or(self.artist.as_ref())
-                    .or(self.album.as_ref())
-                    .cloned()
-            }
-            FileCategory::Video => {
-                self.title
-                    .as_ref()
-                    .or(self.creation_date.as_ref())
-                    .cloned()
-            }
+            FileCategory::Image => self
+                .title
+                .as_ref()
+                .or(self.description.as_ref())
+                .or(self.date_time_original.as_ref())
+                .cloned(),
+            FileCategory::Document => self
+                .title
+                .as_ref()
+                .or(self.subject.as_ref())
+                .or(self.author.as_ref())
+                .cloned(),
+            FileCategory::Audio => self
+                .title
+                .as_ref()
+                .or(self.artist.as_ref())
+                .or(self.album.as_ref())
+                .cloned(),
+            FileCategory::Video => self.title.as_ref().or(self.creation_date.as_ref()).cloned(),
             FileCategory::Unknown => None,
         }
     }
@@ -99,15 +91,16 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         create_date: Option<String>,
     }
 
-    let parsed: Vec<ExiftoolOutput> = serde_json::from_str(&json_str)
-        .context("Failed to parse exiftool JSON output")?;
+    let parsed: Vec<ExiftoolOutput> =
+        serde_json::from_str(&json_str).context("Failed to parse exiftool JSON output")?;
 
     let exif_data = parsed
         .into_iter()
         .next()
         .context("No metadata found in exiftool output")?;
 
-    let author = exif_data.author
+    let author = exif_data
+        .author
         .or(exif_data.creator)
         .or(exif_data.last_modified_by);
 
@@ -130,7 +123,10 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
     };
 
     // For PDFs without useful metadata, try extracting text content
-    if is_pdf(path) && !is_useful_metadata(&metadata.title) && !is_useful_metadata(&metadata.subject) {
+    if is_pdf(path)
+        && !is_useful_metadata(&metadata.title)
+        && !is_useful_metadata(&metadata.subject)
+    {
         debug!("PDF has no useful metadata, attempting content extraction");
         if let Ok(Some(content)) = pdf_content::extract_pdf_content(path) {
             debug!("Extracted PDF content: {}", content);
@@ -148,7 +144,10 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
     }
 
     // For videos without useful metadata, try extracting and OCR'ing a frame
-    if is_video(path) && !is_useful_metadata(&metadata.title) && !is_useful_metadata(&metadata.creation_date) {
+    if is_video(path)
+        && !is_useful_metadata(&metadata.title)
+        && !is_useful_metadata(&metadata.creation_date)
+    {
         debug!("Video has no useful metadata, attempting frame extraction and OCR");
         if let Ok(Some(text)) = video_ocr::extract_video_text(path) {
             debug!("Extracted video text: {}", text);
@@ -204,7 +203,8 @@ fn is_useful_metadata(value: &Option<String>) -> bool {
             || lower.contains("scanner")
             || lower.contains("ipr")
             || lower.contains("untitled")
-            || lower.len() < 3 {
+            || lower.len() < 3
+        {
             return false;
         }
         true

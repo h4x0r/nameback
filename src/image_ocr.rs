@@ -125,7 +125,11 @@ fn convert_heic_to_png(heic_path: &Path) -> Result<std::path::PathBuf> {
     let temp_dir = std::env::temp_dir();
     let temp_png = temp_dir.join(format!("nameback_heic_{}.png", std::process::id()));
 
-    debug!("Converting HEIC to PNG: {} -> {}", heic_path.display(), temp_png.display());
+    debug!(
+        "Converting HEIC to PNG: {} -> {}",
+        heic_path.display(),
+        temp_png.display()
+    );
 
     // Try sips first (available on macOS)
     let sips_result = Command::new("sips")

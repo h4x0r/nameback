@@ -82,20 +82,24 @@ fn extract_video_frame(video_path: &Path) -> Result<std::path::PathBuf> {
     let temp_dir = std::env::temp_dir();
     let temp_frame = temp_dir.join(format!("nameback_video_{}.png", std::process::id()));
 
-    debug!("Extracting frame from video: {} -> {}", video_path.display(), temp_frame.display());
+    debug!(
+        "Extracting frame from video: {} -> {}",
+        video_path.display(),
+        temp_frame.display()
+    );
 
     // Extract frame at 1 second mark
     let output = Command::new("ffmpeg")
         .arg("-i")
         .arg(video_path)
         .arg("-ss")
-        .arg("00:00:01")  // 1 second into the video
+        .arg("00:00:01") // 1 second into the video
         .arg("-vframes")
-        .arg("1")         // Extract 1 frame
+        .arg("1") // Extract 1 frame
         .arg("-f")
         .arg("image2")
         .arg(&temp_frame)
-        .arg("-y")        // Overwrite if exists
+        .arg("-y") // Overwrite if exists
         .output()
         .context("Failed to run ffmpeg command")?;
 
@@ -136,7 +140,10 @@ fn run_tesseract_ocr(image_path: &Path) -> Result<String> {
                 let cleaned = clean_text(&text);
                 let char_count = cleaned.chars().count();
 
-                debug!("Video OCR with {}: {} characters extracted", lang, char_count);
+                debug!(
+                    "Video OCR with {}: {} characters extracted",
+                    lang, char_count
+                );
 
                 // Use the result with the most characters as proxy for best match
                 if char_count > best_confidence {

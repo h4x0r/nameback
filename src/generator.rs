@@ -48,10 +48,7 @@ fn sanitize_filename(name: &str) -> String {
     sanitized = sanitized.replace(' ', "_");
 
     // Remove control characters
-    sanitized = sanitized
-        .chars()
-        .filter(|c| !c.is_control())
-        .collect();
+    sanitized = sanitized.chars().filter(|c| !c.is_control()).collect();
 
     // Collapse multiple underscores into one
     let re_multiple = Regex::new(r"_{2,}").unwrap();

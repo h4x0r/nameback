@@ -4,14 +4,8 @@ use std::fs;
 use std::path::Path;
 
 /// Renames a file, either in dry-run mode (preview only) or actual mode
-pub fn rename_file(
-    old_path: &Path,
-    new_filename: &str,
-    dry_run: bool,
-) -> Result<()> {
-    let parent = old_path
-        .parent()
-        .context("File has no parent directory")?;
+pub fn rename_file(old_path: &Path, new_filename: &str, dry_run: bool) -> Result<()> {
+    let parent = old_path.parent().context("File has no parent directory")?;
 
     let new_path = parent.join(new_filename);
 
@@ -30,8 +24,8 @@ pub fn rename_file(
 
     // Check write permissions on parent directory
     if !dry_run {
-        let metadata = fs::metadata(parent)
-            .context("Failed to check parent directory permissions")?;
+        let metadata =
+            fs::metadata(parent).context("Failed to check parent directory permissions")?;
 
         if metadata.permissions().readonly() {
             anyhow::bail!("No write permission for directory: {}", parent.display());
@@ -40,18 +34,13 @@ pub fn rename_file(
 
     // Perform rename or log dry-run
     if dry_run {
-        info!(
-            "[DRY RUN] {} -> {}",
-            old_path.display(),
-            new_filename
-        );
+        info!("[DRY RUN] {} -> {}", old_path.display(), new_filename);
     } else {
-        fs::rename(old_path, &new_path)
-            .context(format!(
-                "Failed to rename {} to {}",
-                old_path.display(),
-                new_path.display()
-            ))?;
+        fs::rename(old_path, &new_path).context(format!(
+            "Failed to rename {} to {}",
+            old_path.display(),
+            new_path.display()
+        ))?;
 
         info!("Renamed: {} -> {}", old_path.display(), new_filename);
     }
@@ -70,8 +59,8 @@ pub fn process_file(
     use crate::generator;
 
     // Detect file type
-    let file_category = detector::detect_file_type(file_path)
-        .context("Failed to detect file type")?;
+    let file_category =
+        detector::detect_file_type(file_path).context("Failed to detect file type")?;
 
     // Skip unknown file types
     if file_category == detector::FileCategory::Unknown {
@@ -108,11 +97,7 @@ pub fn process_file(
     let extension = file_path.extension();
 
     // Generate sanitized, unique filename
-    let new_filename = generator::generate_filename(
-        &candidate_name,
-        extension,
-        existing_names,
-    );
+    let new_filename = generator::generate_filename(&candidate_name, extension, existing_names);
 
     // Rename the file
     rename_file(file_path, &new_filename, dry_run)?;

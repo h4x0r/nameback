@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 mod cli;
+mod deps;
 mod detector;
 mod extractor;
 mod generator;
@@ -62,6 +63,30 @@ fn main() -> Result<()> {
 
     let args = cli::parse_args();
 
+    // Handle dependency check/install commands
+    if args.check_deps {
+        deps::print_dependency_status();
+        return Ok(());
+    }
+
+    if args.install_deps {
+        match deps::run_installer() {
+            Ok(_) => {
+                println!("\nRun 'nameback --check-deps' to verify installation.");
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    // Require directory argument for normal operation
+    let directory = args.directory.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("Directory argument is required. Use --help for usage information.")
+    })?;
+
     // Initialize logger with appropriate level based on verbose flag
     if std::env::var("RUST_LOG").is_err() {
         if args.verbose {
@@ -77,7 +102,7 @@ fn main() -> Result<()> {
     }
 
     // Scan files in the target directory
-    let files = scan_files(&args.directory, args.skip_hidden)?;
+    let files = scan_files(directory, args.skip_hidden)?;
 
     info!("Processing {} files...", files.len());
 

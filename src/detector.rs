@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
-use std::process::Command;
 
 /// Represents the category of a file based on its type
 #[derive(Debug, Clone, PartialEq)]
@@ -12,47 +13,74 @@ pub enum FileCategory {
     Unknown,
 }
 
-/// Detects the file type using the `file` command
+/// Detects the file type using the infer library (pure Rust, cross-platform)
 pub fn detect_file_type(path: &Path) -> Result<FileCategory> {
-    let output = Command::new("file")
-        .arg("-b") // Brief mode
-        .arg(path)
-        .output()
-        .context("Failed to execute `file` command")?;
+    // Read the first 8192 bytes for file type detection
+    let mut file = File::open(path)?;
+    let mut buffer = vec![0u8; 8192];
+    let bytes_read = file.read(&mut buffer)?;
+    buffer.truncate(bytes_read);
 
-    if !output.status.success() {
-        anyhow::bail!("file command failed with status: {}", output.status);
-    }
+    // Use infer to detect file type from magic bytes
+    let category = if let Some(kind) = infer::get(&buffer) {
+        let mime_type = kind.mime_type();
 
-    let file_type = String::from_utf8_lossy(&output.stdout).to_lowercase();
+        match mime_type {
+            // Image types
+            s if s.starts_with("image/") => FileCategory::Image,
 
-    let category = match file_type {
-        s if s.contains("image") || s.contains("jpeg") || s.contains("png") || s.contains("gif") => {
-            FileCategory::Image
+            // Document types
+            "application/pdf" => FileCategory::Document,
+            s if s.starts_with("application/vnd.openxmlformats-officedocument") => {
+                FileCategory::Document
+            }
+            s if s.starts_with("application/vnd.ms-") => FileCategory::Document,
+            s if s.starts_with("application/vnd.oasis.opendocument") => FileCategory::Document,
+            "application/rtf" => FileCategory::Document,
+            "application/msword" => FileCategory::Document,
+            s if s.starts_with("text/") => FileCategory::Document,
+
+            // Audio types
+            s if s.starts_with("audio/") => FileCategory::Audio,
+
+            // Video types
+            s if s.starts_with("video/") => FileCategory::Video,
+
+            _ => FileCategory::Unknown,
         }
-        s if s.contains("pdf")
-            || s.contains("document")
-            || s.contains("text")
-            || s.contains("word")
-            || s.contains("excel")
-            || s.contains("powerpoint")
-            || s.contains("microsoft")
-            || s.contains("opendocument")
-            || s.contains("oasis")
-            || s.contains("rtf")
-            || s.contains("rich text") => {
-            FileCategory::Document
-        }
-        s if s.contains("audio") || s.contains("mp3") || s.contains("flac") || s.contains("wav") => {
-            FileCategory::Audio
-        }
-        s if s.contains("video") || s.contains("mp4") || s.contains("avi") || s.contains("mkv") => {
-            FileCategory::Video
-        }
-        _ => FileCategory::Unknown,
+    } else {
+        // Fallback to extension-based detection if magic bytes don't match
+        detect_by_extension(path)
     };
 
     Ok(category)
+}
+
+/// Fallback file type detection based on extension
+fn detect_by_extension(path: &Path) -> FileCategory {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            let ext_lower = ext.to_lowercase();
+            match ext_lower.as_str() {
+                // Images
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp" | "heic"
+                | "heif" | "ico" | "svg" => FileCategory::Image,
+                // Documents
+                "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "ods"
+                | "odp" | "rtf" | "txt" => FileCategory::Document,
+                // Audio
+                "mp3" | "wav" | "flac" | "aac" | "ogg" | "m4a" | "wma" | "opus" => {
+                    FileCategory::Audio
+                }
+                // Video
+                "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" => {
+                    FileCategory::Video
+                }
+                _ => FileCategory::Unknown,
+            }
+        })
+        .unwrap_or(FileCategory::Unknown)
 }
 
 #[cfg(test)]

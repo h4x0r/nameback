@@ -30,6 +30,12 @@ IMG_3847.heic          → Family_Reunion_2024.heic
 # Install from crates.io
 cargo install nameback
 
+# Check dependency status
+nameback --check-deps
+
+# Automatically install missing dependencies (interactive)
+nameback --install-deps
+
 # Preview what would change (safe, no files modified)
 nameback /path/to/folder --dry-run
 
@@ -37,20 +43,137 @@ nameback /path/to/folder --dry-run
 nameback /path/to/folder
 ```
 
-## Requirements
+## Installation
+
+### Pre-built Binaries (Easiest - No Rust Required)
+
+Download pre-compiled binaries from the [latest release](https://github.com/h4x0r/nameback/releases/latest):
+
+**Windows:**
+```powershell
+# Download nameback-x86_64-pc-windows-msvc.exe from releases
+# Rename to nameback.exe and add to PATH
+```
+
+**macOS (Intel):**
+```bash
+wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-x86_64-apple-darwin
+chmod +x nameback-x86_64-apple-darwin
+sudo mv nameback-x86_64-apple-darwin /usr/local/bin/nameback
+```
+
+**macOS (Apple Silicon):**
+```bash
+wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-aarch64-apple-darwin
+chmod +x nameback-aarch64-apple-darwin
+sudo mv nameback-aarch64-apple-darwin /usr/local/bin/nameback
+```
+
+**Linux (static binary - works on all distros):**
+```bash
+wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-x86_64-unknown-linux-musl
+chmod +x nameback-x86_64-unknown-linux-musl
+sudo mv nameback-x86_64-unknown-linux-musl /usr/local/bin/nameback
+```
+
+### Via Cargo (Requires Rust)
+
+```bash
+cargo install nameback
+```
+
+### Windows
+
+**Option 1: Automated Installation (Recommended)**
+```powershell
+# Install nameback
+cargo install nameback
+
+# Run the automated dependency installer
+nameback --install-deps
+```
+
+The installer uses winget or Chocolatey to install:
+- ExifTool (required)
+- Tesseract OCR (optional, for image/video OCR)
+- FFmpeg (optional, for video frame extraction)
+- ImageMagick (optional, for HEIC support)
+
+**Option 2: Manual Installation**
+```powershell
+# Install with winget
+winget install OliverBetz.ExifTool
+winget install UB-Mannheim.TesseractOCR
+winget install Gyan.FFmpeg
+winget install ImageMagick.ImageMagick
+
+# Or with Chocolatey
+choco install exiftool tesseract ffmpeg imagemagick
+```
+
+### macOS
+
+**Option 1: Automated Installation (Recommended)**
+```bash
+# Install nameback
+cargo install nameback
+
+# Run the automated dependency installer
+nameback --install-deps
+```
+
+The installer uses Homebrew to install all dependencies.
+
+**Option 2: Manual Installation**
+```bash
+# Install Homebrew if you haven't already
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install dependencies
+brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
+```
+
+### Linux
+
+**Option 1: Automated Installation (Recommended)**
+```bash
+# Install nameback
+cargo install nameback
+
+# Run the automated dependency installer (detects your package manager)
+nameback --install-deps
+```
+
+Supports: apt, dnf, yum, pacman, zypper
+
+**Option 2: Manual Installation**
+```bash
+# Debian/Ubuntu
+sudo apt-get install libimage-exiftool-perl tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-chi-sim ffmpeg imagemagick
+
+# Fedora/RHEL
+sudo dnf install perl-Image-ExifTool tesseract tesseract-langpack-chi_tra tesseract-langpack-chi_sim ffmpeg imagemagick
+
+# Arch Linux
+sudo pacman -S perl-image-exiftool tesseract tesseract-data-chi_tra tesseract-data-chi_sim ffmpeg imagemagick
+```
+
+## Dependency Overview
 
 **Required:**
-- **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install) (for installation)
-- **exiftool** - `brew install exiftool` (macOS) or `apt install libimage-exiftool-perl` (Linux)
+- **exiftool** - Core metadata extraction (always needed)
 
-**Optional (for enhanced features):**
-- **tesseract-ocr** - `brew install tesseract` (macOS) or `apt install tesseract-ocr` (Linux)
-  - For multi-language support: `brew install tesseract-lang` (macOS) or `apt install tesseract-ocr-all` (Linux)
-- **poppler-utils** - `brew install poppler` (macOS) or `apt install poppler-utils` (Linux)
-- **ffmpeg** - `brew install ffmpeg` (macOS) or `apt install ffmpeg` (Linux)
-- **sips** (macOS only, pre-installed) or **ImageMagick** - `brew install imagemagick` (macOS) or `apt install imagemagick` (Linux)
+**Optional (installed automatically with `--install-deps`):**
+- **tesseract-ocr** - Enables OCR for images/videos without metadata
+- **ffmpeg** - Enables video frame extraction for OCR
+- **ImageMagick** - Enables HEIC/HEIF support on Windows/Linux (macOS has native support via `sips`)
 
-If these tools are installed, nameback will automatically use:
+Check what's installed:
+```bash
+nameback --check-deps
+```
+
+If optional tools are installed, nameback will automatically use:
 - **OCR** to extract text from:
   - Screenshots and images without EXIF metadata (supports Traditional Chinese, Simplified Chinese, and English)
   - Scanned PDFs that don't have embedded text
@@ -62,6 +185,8 @@ If these tools are installed, nameback will automatically use:
 ## Options
 
 ```bash
+--check-deps   # Check dependency installation status
+--install-deps # Install missing dependencies interactively
 --dry-run      # Preview changes before applying
 --verbose      # Show detailed progress
 --skip-hidden  # Skip hidden files (like .DS_Store)

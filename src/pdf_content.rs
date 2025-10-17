@@ -107,8 +107,7 @@ fn pdf_page_to_image(path: &Path) -> Result<DynamicImage> {
 
     // Load the generated image
     let image_path = temp_prefix.with_extension("png");
-    let img = image::open(&image_path)
-        .context("Failed to open generated PNG")?;
+    let img = image::open(&image_path).context("Failed to open generated PNG")?;
 
     // Clean up temp file
     let _ = std::fs::remove_file(&image_path);
@@ -123,8 +122,7 @@ fn run_tesseract_ocr(image: &DynamicImage) -> Result<String> {
     let temp_dir = std::env::temp_dir();
     let temp_img = temp_dir.join(format!("nameback_ocr_{}.png", std::process::id()));
 
-    image.save(&temp_img)
-        .context("Failed to save temp image")?;
+    image.save(&temp_img).context("Failed to save temp image")?;
 
     let temp_img_str = temp_img.to_str().context("Path not valid UTF-8")?;
 

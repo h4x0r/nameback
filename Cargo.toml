@@ -23,6 +23,12 @@ env_logger = "0.11"
 pdf-extract = "0.7"
 tesseract = "0.14"
 image = "0.25"
+infer = "0.16"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# Security enhancements
+[profile.release]
+# Enable integer overflow checks in release builds for security
+overflow-checks = true

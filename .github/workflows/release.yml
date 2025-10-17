@@ -1,0 +1,271 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.2.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+
+      - name: Extract changelog for version
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if [ -f CHANGELOG.md ]; then
+            # Extract the section for this version
+            CHANGELOG=$(sed -n "/## \[${VERSION#v}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
+            if [ -z "$CHANGELOG" ]; then
+              CHANGELOG="Release ${VERSION}"
+            fi
+          else
+            CHANGELOG="Release ${VERSION}"
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1.1.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          release_name: Release ${{ steps.get_version.outputs.version }}
+          body: |
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Installation
+
+            ### Windows
+            Download `nameback-x86_64-pc-windows-msvc.exe` and rename to `nameback.exe`
+
+            ### macOS (Intel)
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-x86_64-apple-darwin
+            chmod +x nameback-x86_64-apple-darwin
+            sudo mv nameback-x86_64-apple-darwin /usr/local/bin/nameback
+            ```
+
+            ### macOS (Apple Silicon)
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-aarch64-apple-darwin
+            chmod +x nameback-aarch64-apple-darwin
+            sudo mv nameback-aarch64-apple-darwin /usr/local/bin/nameback
+            ```
+
+            ### Linux (static binary - works on all distros)
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-x86_64-unknown-linux-musl
+            chmod +x nameback-x86_64-unknown-linux-musl
+            sudo mv nameback-x86_64-unknown-linux-musl /usr/local/bin/nameback
+            ```
+
+            ### Via Cargo (all platforms)
+            ```bash
+            cargo install nameback
+            ```
+
+            ## Verification
+            All binaries include SHA256 checksums in `checksums.txt`
+
+            ---
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          draft: false
+          prerelease: false
+
+  build-release:
+    name: Build ${{ matrix.target }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+
+          # macOS Intel
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+
+          # macOS Apple Silicon
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+
+          # Linux static (musl - works everywhere)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: tar.gz
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux only)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Unix only)
+        if: matrix.os != 'windows-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/nameback
+
+      - name: Create archive (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../nameback-${{ matrix.target }}.tar.gz nameback
+          cd ../../..
+
+      - name: Create archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path nameback.exe -DestinationPath ../../../nameback-${{ matrix.target }}.zip
+          cd ../../..
+
+      - name: Generate SHA256 checksum (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          shasum -a 256 nameback-${{ matrix.target }}.tar.gz > nameback-${{ matrix.target }}.tar.gz.sha256
+
+      - name: Generate SHA256 checksum (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.zip).Hash.ToLower()
+          "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII nameback-${{ matrix.target }}.zip.sha256
+
+      - name: Upload archive to release
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./nameback-${{ matrix.target }}.${{ matrix.archive }}
+          asset_name: nameback-${{ matrix.target }}.${{ matrix.archive }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload checksum to release
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
+          asset_name: nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
+          asset_content_type: text/plain
+
+      - name: Upload bare binary (for direct download)
+        if: matrix.os != 'windows-latest'
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/nameback
+          asset_name: nameback-${{ matrix.target }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload bare binary (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/nameback.exe
+          asset_name: nameback-${{ matrix.target }}.exe
+          asset_content_type: application/octet-stream
+
+  generate-checksums:
+    name: Generate Combined Checksums
+    needs: [create-release, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all release assets
+        uses: robinraju/release-downloader@a96f54c1b5f5e09e47d9504526e96febd949d4c2 # v1.11
+        with:
+          tag: ${{ needs.create-release.outputs.version }}
+          fileName: '*.sha256'
+          out-file-path: checksums
+
+      - name: Combine checksums
+        run: |
+          cat checksums/*.sha256 > checksums.txt
+          echo "Combined checksums:"
+          cat checksums.txt
+
+      - name: Upload combined checksums
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./checksums.txt
+          asset_name: checksums.txt
+          asset_content_type: text/plain
+
+  publish-crates-io:
+    name: Publish to crates.io
+    needs: [create-release, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+        with:
+          toolchain: stable
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --allow-dirty
