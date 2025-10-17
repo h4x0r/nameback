@@ -172,6 +172,136 @@ For videos without useful metadata:
 - Useful for screen recordings, tutorials, presentations
 - Supports: MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V
 
+## Metadata Extraction Logic
+
+nameback follows a smart priority system for extracting filenames. Each file type has a specific order of metadata fields to try, with intelligent fallbacks when metadata is missing or unhelpful.
+
+### Metadata Field Priority by File Type
+
+#### Images (JPEG, PNG, GIF, BMP, TIFF, WebP, HEIC/HEIF)
+**Priority Order:**
+1. **Title** - EXIF Title tag
+2. **Description** - EXIF Description tag
+3. **DateTimeOriginal** - Date photo was taken (EXIF)
+4. **Fallback:** OCR text extraction
+   - Tries Traditional Chinese (`chi_tra`)
+   - Then Simplified Chinese (`chi_sim`)
+   - Finally English (`eng`)
+   - Selects language with most extracted characters
+   - Uses first 80 characters of best result
+
+**Example:**
+```
+Photo has Title "Sunset Beach" → Uses "Sunset_Beach.jpg"
+Photo has no Title but Description "Family reunion" → Uses "Family_reunion.jpg"
+Screenshot has no metadata → OCR extracts "Error: Database Failed" → Uses "Error_Database_Failed.png"
+```
+
+#### PDFs
+**Priority Order:**
+1. **Title** - PDF metadata Title field
+2. **Subject** - PDF metadata Subject field
+3. **Fallback:** Text content extraction
+   - Extracts embedded text from PDF body
+   - Uses first 80 characters
+   - Requires minimum 10 characters
+4. **Final Fallback:** OCR on first page
+   - Converts page to PNG using `pdftoppm`
+   - Runs multi-language OCR (chi_tra → chi_sim → eng)
+   - Uses first 80 characters
+
+**Example:**
+```
+PDF has Title "Annual Report 2024" → Uses "Annual_Report_2024.pdf"
+PDF has no Title but body text starts with "Executive Summary..." → Uses "Executive_Summary.pdf"
+Scanned PDF has no text → OCR extracts "Invoice #12345" → Uses "Invoice_12345.pdf"
+```
+
+#### Videos (MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V)
+**Priority Order:**
+1. **Title** - Video metadata Title tag
+2. **CreationDate** - Video creation timestamp
+3. **Fallback:** Frame extraction + OCR
+   - Extracts frame at 1 second using `ffmpeg`
+   - Runs multi-language OCR (chi_tra → chi_sim → eng)
+   - Uses first 80 characters
+
+**Example:**
+```
+Video has Title "Product Demo" → Uses "Product_Demo.mp4"
+Video has CreationDate "2024-10-15" → Uses "2024-10-15.mp4"
+Screen recording has no metadata → OCR extracts "Welcome to Tutorial" → Uses "Welcome_to_Tutorial.mp4"
+```
+
+#### Office Documents (DOCX, XLSX, PPTX, ODT, ODS, ODP)
+**Priority Order:**
+1. **Title** - Document Title property
+2. **Subject** - Document Subject property
+3. **Author** - Document Author (filtered for scanner/printer names)
+4. **No fallback** - Documents without useful metadata are skipped
+
+**Filters Applied:**
+- Scanner/printer names removed: "Canon", "iPR", "Printer", "Scanner"
+- "Untitled" documents skipped
+- Minimum 3 characters required
+
+**Example:**
+```
+DOCX has Title "Q4 Sales Report" → Uses "Q4_Sales_Report.docx"
+XLSX has Subject "Budget Planning" → Uses "Budget_Planning.xlsx"
+PPTX has Author "Canon iPR C165" → Filtered out, checks other fields or skips
+```
+
+#### Audio Files (MP3, WAV, FLAC, OGG, M4A)
+**Priority Order:**
+1. **Title** - Audio Title tag (ID3)
+2. **Artist** - Artist name
+3. **Album** - Album name
+4. **No fallback** - Audio files without useful metadata are skipped
+
+**Example:**
+```
+MP3 has Title "Bohemian Rhapsody" → Uses "Bohemian_Rhapsody.mp3"
+MP3 has no Title but Artist "Queen" → Uses "Queen.mp3"
+WAV has no metadata → Skipped (remains unnamed)
+```
+
+### Text Extraction and OCR Details
+
+#### PDF Text Extraction
+When extracting text from PDF files:
+- Uses `pdf-extract` library to read embedded text from PDF body
+- Cleans whitespace, removes newlines, collapses multiple spaces
+- Takes **first 80 characters** as filename
+- Requires **minimum 10 characters** to be considered useful
+- Filters out unhelpful text: scanner/printer names (Canon, iPR, etc.)
+
+#### OCR Processing
+When running OCR on images, PDFs, or video frames:
+- **Language Detection:** Tries multiple languages sequentially
+  1. Traditional Chinese (`chi_tra`)
+  2. Simplified Chinese (`chi_sim`)
+  3. English (`eng`)
+- **Best Result Selection:** Keeps the language that extracted the most characters
+- **Text Cleaning:**
+  - Removes excess whitespace and newlines
+  - Collapses multiple spaces into single space
+  - Truncates to **first 80 characters**
+  - Requires **minimum 10 characters** to be useful
+- **Image Conversion (when needed):**
+  - HEIC → PNG using `sips` (macOS) or ImageMagick
+  - PDF → PNG using `pdftoppm` from poppler-utils
+  - Video → Frame at 1 second using `ffmpeg`
+
+#### Metadata Filtering
+Certain metadata values are considered unhelpful and filtered out:
+- Scanner/printer names: "Canon", "iPR", "Printer", "Scanner"
+- Generic text: "Untitled"
+- Too short: less than 3 characters
+- Empty strings or whitespace-only
+
+When metadata is filtered out, nameback moves to the next priority field or fallback method.
+
 ## What gets renamed?
 
 Files **with useful metadata** get renamed:
