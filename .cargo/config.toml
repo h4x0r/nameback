@@ -18,9 +18,5 @@ user-agent = "cargo (security-hardened)"
 # Set timeout for HTTP requests
 timeout = 60
 
-[source.crates-io]
-replace-with = "crates-io-secure"
-
-[source.crates-io-secure]
-registry = "https://github.com/rust-lang/crates.io-index"
-# Ensure we're using the official registry only
+# Ensure we're using the official crates.io registry
+# The default crates-io source is already secure with HTTPS
