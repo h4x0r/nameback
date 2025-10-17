@@ -11,8 +11,9 @@ Scans a folder and renames files using metadata embedded in the files themselves
 - **Videos** → Renamed by creation date or title
 - **HTML files** → Renamed by page title
 
-Before: `IMG_2847.jpg`, `document.pdf`, `f2577888.html`
-After: `2024-03-15_sunset.jpg`, `Annual_Report_2024.pdf`, `Important_safety_information.html`
+- `IMG_2847.jpg` → `2024-03-15_sunset.jpg`
+- `document.pdf` → `Annual_Report_2024.pdf`
+- `f2577888.html` → `Important_safety_information.html`
 
 ## Quick Start
 
@@ -29,8 +30,15 @@ nameback /path/to/folder
 
 ## Requirements
 
+**Required:**
 - **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install) (for installation)
 - **exiftool** - `brew install exiftool` (macOS) or `apt install libimage-exiftool-perl` (Linux)
+
+**Optional (for scanned PDF support):**
+- **tesseract-ocr** - `brew install tesseract` (macOS) or `apt install tesseract-ocr` (Linux)
+- **poppler-utils** - `brew install poppler` (macOS) or `apt install poppler-utils` (Linux)
+
+If tesseract and poppler are installed, nameback will automatically use OCR to extract text from scanned PDFs that don't have embedded text.
 
 ## Options
 
@@ -52,10 +60,10 @@ nameback /path/to/folder
 - ✓ **Same-directory only** - Files can only be renamed within their parent directory (no path traversal)
 - ✓ **Permission-based** - Respects standard Unix/filesystem permissions
 - ✓ **No privilege escalation** - Cannot access system directories without appropriate permissions
+- ✓ **Root execution blocked** - Refuses to run as root to prevent accidental system directory modification
 
 **Best Practices:**
 - Always run `--dry-run` first to preview changes
-- Never run as root on system directories (`/etc`, `/usr`, etc.)
 - Use on user data directories where you have write permissions
 - Back up important files before bulk renaming operations
 
@@ -100,9 +108,9 @@ Files **with useful metadata** get renamed:
 - **Videos** - MP4, AVI with creation date or title
 - **HTML files** - Files with title tags
 - **PDFs** - Uses Title metadata when available, falls back to extracting text content from the document
+- **Scanned PDFs** - Automatically uses OCR if tesseract is installed (optional)
 
 Files **without useful metadata** are skipped:
-- **Image-only scanned PDFs** - Scanned documents without OCR text layer
 - **PDFs with only scanner names** - Metadata like "Canon iPR C165" is filtered out
 - **Plain text** - TXT, CSV, MD files have no embedded metadata
 - **System files** - DLLs, temp files, executables

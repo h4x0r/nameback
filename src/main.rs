@@ -47,6 +47,17 @@ pub fn scan_files(directory: &PathBuf, skip_hidden: bool) -> Result<Vec<PathBuf>
 }
 
 fn main() -> Result<()> {
+    // Refuse to run as root for security
+    #[cfg(unix)]
+    {
+        if unsafe { libc::geteuid() } == 0 {
+            eprintln!("ERROR: nameback refuses to run as root for security reasons.");
+            eprintln!("Running as root could accidentally modify system directories.");
+            eprintln!("Please run as a regular user.");
+            std::process::exit(1);
+        }
+    }
+
     let args = cli::parse_args();
 
     // Initialize logger with appropriate level based on verbose flag
