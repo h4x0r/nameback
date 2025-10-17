@@ -148,6 +148,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
+      - name: Install vcpkg and dependencies (Windows only)
+        if: matrix.os == 'windows-latest'
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          cd C:\vcpkg
+          .\bootstrap-vcpkg.bat
+          .\vcpkg integrate install
+          .\vcpkg install leptonica:x64-windows tesseract:x64-windows
+        shell: cmd
+
+      - name: Set VCPKG_ROOT (Windows only)
+        if: matrix.os == 'windows-latest'
+        run: echo "VCPKG_ROOT=C:\vcpkg" >> $GITHUB_ENV
+        shell: bash
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
