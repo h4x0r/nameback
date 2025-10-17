@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use image::DynamicImage;
-use log::{debug, warn};
+use log::debug;
 use std::path::Path;
 use std::process::Command;
 
@@ -117,6 +117,7 @@ fn pdf_page_to_image(path: &Path) -> Result<DynamicImage> {
 }
 
 /// Runs tesseract OCR on an image
+/// Tries multiple languages in priority order: Traditional Chinese, Simplified Chinese, English
 fn run_tesseract_ocr(image: &DynamicImage) -> Result<String> {
     // Save image to temp file for tesseract
     let temp_dir = std::env::temp_dir();
@@ -125,17 +126,49 @@ fn run_tesseract_ocr(image: &DynamicImage) -> Result<String> {
     image.save(&temp_img)
         .context("Failed to save temp image")?;
 
-    let text = tesseract::Tesseract::new(None, Some("eng"))
-        .context("Failed to initialize Tesseract")?
-        .set_image(temp_img.to_str().unwrap())
-        .context("Failed to set image")?
-        .get_text()
-        .context("Failed to extract text")?;
+    let temp_img_str = temp_img.to_str().context("Path not valid UTF-8")?;
+
+    // Try languages in order: Traditional Chinese, Simplified Chinese, English
+    let languages = ["chi_tra", "chi_sim", "eng"];
+    let mut best_result = String::new();
+    let mut best_confidence = 0;
+
+    for lang in &languages {
+        debug!("Trying OCR with language: {}", lang);
+
+        let result = tesseract::Tesseract::new(None, Some(lang))
+            .context("Failed to initialize Tesseract")
+            .and_then(|t| t.set_image(temp_img_str).context("Failed to set image"))
+            .and_then(|mut t| t.get_text().context("Failed to extract text"));
+
+        match result {
+            Ok(text) => {
+                let cleaned = clean_text(&text);
+                let char_count = cleaned.chars().count();
+
+                debug!("OCR with {}: {} characters extracted", lang, char_count);
+
+                // Use the result with the most characters as proxy for best match
+                if char_count > best_confidence {
+                    best_confidence = char_count;
+                    best_result = text;
+                    debug!("New best result with {}: {} chars", lang, char_count);
+                }
+            }
+            Err(e) => {
+                debug!("OCR with {} failed: {}", lang, e);
+            }
+        }
+    }
 
     // Clean up temp file
     let _ = std::fs::remove_file(&temp_img);
 
-    Ok(text)
+    if best_confidence > 0 {
+        Ok(best_result)
+    } else {
+        anyhow::bail!("All OCR language attempts failed")
+    }
 }
 
 /// Cleans extracted text for use in filenames

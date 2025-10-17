@@ -34,13 +34,21 @@ nameback /path/to/folder
 - **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install) (for installation)
 - **exiftool** - `brew install exiftool` (macOS) or `apt install libimage-exiftool-perl` (Linux)
 
-**Optional (for OCR support):**
+**Optional (for enhanced features):**
 - **tesseract-ocr** - `brew install tesseract` (macOS) or `apt install tesseract-ocr` (Linux)
+  - For multi-language support: `brew install tesseract-lang` (macOS) or `apt install tesseract-ocr-all` (Linux)
 - **poppler-utils** - `brew install poppler` (macOS) or `apt install poppler-utils` (Linux)
+- **ffmpeg** - `brew install ffmpeg` (macOS) or `apt install ffmpeg` (Linux)
+- **sips** (macOS only, pre-installed) or **ImageMagick** - `brew install imagemagick` (macOS) or `apt install imagemagick` (Linux)
 
-If tesseract and poppler are installed, nameback will automatically use OCR to extract text from:
-- Screenshots and images without EXIF metadata
-- Scanned PDFs that don't have embedded text
+If these tools are installed, nameback will automatically use:
+- **OCR** to extract text from:
+  - Screenshots and images without EXIF metadata (supports Traditional Chinese, Simplified Chinese, and English)
+  - Scanned PDFs that don't have embedded text
+  - HEIC/HEIF images (Apple's High Efficiency Image Format)
+  - Video frames (extracts a frame and runs OCR on it)
+- **HEIC conversion** for Apple's HEIC/HEIF image format
+- **Video frame extraction** for videos without metadata
 
 ## Options
 
@@ -104,14 +112,16 @@ cargo build --release
 ## What gets renamed?
 
 Files **with useful metadata** get renamed:
-- **Photos** - JPEG, PNG with EXIF data (date taken, description)
-- **Screenshots/Images without EXIF** - Automatically uses OCR if tesseract is installed (optional)
+- **Photos** - JPEG, PNG, HEIC/HEIF with EXIF data (date taken, description)
+- **Screenshots/Images without EXIF** - Automatically uses OCR if tesseract is installed (optional, supports multi-language)
+- **HEIC/HEIF Images** - Apple's High Efficiency Image Format, with EXIF or OCR fallback
 - **Office documents** - DOCX, XLSX, PPTX with title or author
 - **OpenDocument** - ODT, ODS, ODP with title or author
-- **Videos** - MP4, AVI with creation date or title
+- **Videos** - MP4, MOV, AVI, MKV with creation date or title
+- **Videos without metadata** - Extracts a frame and uses OCR if ffmpeg and tesseract are installed (optional)
 - **HTML files** - Files with title tags
 - **PDFs** - Uses Title metadata when available, falls back to extracting text content from the document
-- **Scanned PDFs** - Automatically uses OCR if tesseract is installed (optional)
+- **Scanned PDFs** - Automatically uses OCR if tesseract and poppler are installed (optional)
 
 Files **without useful metadata** are skipped:
 - **PDFs with only scanner names** - Metadata like "Canon iPR C165" is filtered out

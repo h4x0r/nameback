@@ -10,6 +10,7 @@ mod generator;
 mod image_ocr;
 mod pdf_content;
 mod renamer;
+mod video_ocr;
 
 /// Scans a directory recursively and returns paths to all files
 pub fn scan_files(directory: &PathBuf, skip_hidden: bool) -> Result<Vec<PathBuf>> {

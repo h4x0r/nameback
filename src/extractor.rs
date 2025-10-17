@@ -7,6 +7,7 @@ use std::process::Command;
 use crate::detector::FileCategory;
 use crate::image_ocr;
 use crate::pdf_content;
+use crate::video_ocr;
 
 /// Represents metadata extracted from a file
 #[derive(Debug, Clone)]
@@ -146,6 +147,15 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         }
     }
 
+    // For videos without useful metadata, try extracting and OCR'ing a frame
+    if is_video(path) && !is_useful_metadata(&metadata.title) && !is_useful_metadata(&metadata.creation_date) {
+        debug!("Video has no useful metadata, attempting frame extraction and OCR");
+        if let Ok(Some(text)) = video_ocr::extract_video_text(path) {
+            debug!("Extracted video text: {}", text);
+            metadata.title = Some(text);
+        }
+    }
+
     Ok(metadata)
 }
 
@@ -164,7 +174,20 @@ fn is_image(path: &Path) -> bool {
         .map(|ext| {
             matches!(
                 ext.to_lowercase().as_str(),
-                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp"
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp" | "heic" | "heif"
+            )
+        })
+        .unwrap_or(false)
+}
+
+/// Checks if a file is a video based on extension
+fn is_video(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            matches!(
+                ext.to_lowercase().as_str(),
+                "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv" | "wmv" | "m4v"
             )
         })
         .unwrap_or(false)

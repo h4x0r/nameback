@@ -3,18 +3,39 @@ use log::debug;
 use std::path::Path;
 use std::process::Command;
 
-/// Extracts text from an image using OCR (requires tesseract-ocr installed)
-pub fn extract_image_text(path: &Path) -> Result<Option<String>> {
-    debug!("Attempting OCR on image: {}", path.display());
+/// Extracts text from a video by extracting a frame and running OCR
+/// (requires ffmpeg and tesseract-ocr installed)
+pub fn extract_video_text(path: &Path) -> Result<Option<String>> {
+    debug!("Attempting video frame OCR on: {}", path.display());
 
-    // Check if tesseract is available
-    if !is_tesseract_available() {
-        debug!("Tesseract not available, skipping OCR");
+    // Check if ffmpeg is available
+    if !is_ffmpeg_available() {
+        debug!("ffmpeg not available, skipping video OCR");
         return Ok(None);
     }
 
-    // Run tesseract OCR on the image
-    match run_tesseract_ocr(path) {
+    // Check if tesseract is available
+    if !is_tesseract_available() {
+        debug!("Tesseract not available, skipping video OCR");
+        return Ok(None);
+    }
+
+    // Extract a frame from the video
+    let frame_path = match extract_video_frame(path) {
+        Ok(frame) => frame,
+        Err(e) => {
+            debug!("Failed to extract video frame: {}", e);
+            return Ok(None);
+        }
+    };
+
+    // Run OCR on the frame
+    let result = run_tesseract_ocr(&frame_path);
+
+    // Clean up temp frame file
+    let _ = std::fs::remove_file(&frame_path);
+
+    match result {
         Ok(text) => {
             let cleaned = clean_text(&text);
             if cleaned.len() > 10 {
@@ -23,18 +44,27 @@ pub fn extract_image_text(path: &Path) -> Result<Option<String>> {
                 } else {
                     &cleaned
                 };
-                debug!("OCR extracted from image: {}", truncated);
+                debug!("Video OCR extracted: {}", truncated);
                 Ok(Some(truncated.to_string()))
             } else {
-                debug!("OCR text too short");
+                debug!("Video OCR text too short");
                 Ok(None)
             }
         }
         Err(e) => {
-            debug!("OCR failed: {}", e);
+            debug!("Video OCR failed: {}", e);
             Ok(None)
         }
     }
+}
+
+/// Checks if ffmpeg is installed and available
+fn is_ffmpeg_available() -> bool {
+    Command::new("ffmpeg")
+        .arg("-version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Checks if tesseract-ocr is installed and available
@@ -46,34 +76,47 @@ fn is_tesseract_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Extracts a single frame from a video file using ffmpeg
+/// Extracts frame at 1 second into the video
+fn extract_video_frame(video_path: &Path) -> Result<std::path::PathBuf> {
+    let temp_dir = std::env::temp_dir();
+    let temp_frame = temp_dir.join(format!("nameback_video_{}.png", std::process::id()));
+
+    debug!("Extracting frame from video: {} -> {}", video_path.display(), temp_frame.display());
+
+    // Extract frame at 1 second mark
+    let output = Command::new("ffmpeg")
+        .arg("-i")
+        .arg(video_path)
+        .arg("-ss")
+        .arg("00:00:01")  // 1 second into the video
+        .arg("-vframes")
+        .arg("1")         // Extract 1 frame
+        .arg("-f")
+        .arg("image2")
+        .arg(&temp_frame)
+        .arg("-y")        // Overwrite if exists
+        .output()
+        .context("Failed to run ffmpeg command")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("ffmpeg failed: {}", stderr);
+    }
+
+    // Verify the frame was created
+    if !temp_frame.exists() {
+        anyhow::bail!("Frame extraction succeeded but file not found");
+    }
+
+    debug!("Successfully extracted video frame");
+    Ok(temp_frame)
+}
+
 /// Runs tesseract OCR on an image file
 /// Tries multiple languages in priority order: Traditional Chinese, Simplified Chinese, English
 fn run_tesseract_ocr(image_path: &Path) -> Result<String> {
-    // Convert to absolute path
-    let absolute_path = if image_path.is_absolute() {
-        image_path.to_path_buf()
-    } else {
-        std::env::current_dir()
-            .context("Failed to get current directory")?
-            .join(image_path)
-    };
-
-    // Check if this is a HEIC file that needs conversion
-    let needs_conversion = image_path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| matches!(ext.to_lowercase().as_str(), "heic" | "heif"))
-        .unwrap_or(false);
-
-    // Convert HEIC to PNG if needed
-    let (ocr_path, temp_file) = if needs_conversion {
-        let temp_png = convert_heic_to_png(&absolute_path)?;
-        (temp_png.clone(), Some(temp_png))
-    } else {
-        (absolute_path.clone(), None)
-    };
-
-    let path_str = ocr_path.to_str().context("Path not valid UTF-8")?;
+    let path_str = image_path.to_str().context("Path not valid UTF-8")?;
 
     // Try languages in order: Traditional Chinese, Simplified Chinese, English
     let languages = ["chi_tra", "chi_sim", "eng"];
@@ -81,7 +124,7 @@ fn run_tesseract_ocr(image_path: &Path) -> Result<String> {
     let mut best_confidence = 0;
 
     for lang in &languages {
-        debug!("Trying OCR with language: {}", lang);
+        debug!("Trying video OCR with language: {}", lang);
 
         let result = tesseract::Tesseract::new(None, Some(lang))
             .context("Failed to initialize Tesseract")
@@ -93,7 +136,7 @@ fn run_tesseract_ocr(image_path: &Path) -> Result<String> {
                 let cleaned = clean_text(&text);
                 let char_count = cleaned.chars().count();
 
-                debug!("OCR with {}: {} characters extracted", lang, char_count);
+                debug!("Video OCR with {}: {} characters extracted", lang, char_count);
 
                 // Use the result with the most characters as proxy for best match
                 if char_count > best_confidence {
@@ -103,62 +146,16 @@ fn run_tesseract_ocr(image_path: &Path) -> Result<String> {
                 }
             }
             Err(e) => {
-                debug!("OCR with {} failed: {}", lang, e);
+                debug!("Video OCR with {} failed: {}", lang, e);
             }
         }
-    }
-
-    // Clean up temp file if we created one
-    if let Some(temp) = temp_file {
-        let _ = std::fs::remove_file(&temp);
     }
 
     if best_confidence > 0 {
         Ok(best_result)
     } else {
-        anyhow::bail!("All OCR language attempts failed")
+        anyhow::bail!("All video OCR language attempts failed")
     }
-}
-
-/// Converts HEIC image to PNG using sips (macOS) or magick (ImageMagick)
-fn convert_heic_to_png(heic_path: &Path) -> Result<std::path::PathBuf> {
-    let temp_dir = std::env::temp_dir();
-    let temp_png = temp_dir.join(format!("nameback_heic_{}.png", std::process::id()));
-
-    debug!("Converting HEIC to PNG: {} -> {}", heic_path.display(), temp_png.display());
-
-    // Try sips first (available on macOS)
-    let sips_result = Command::new("sips")
-        .arg("-s")
-        .arg("format")
-        .arg("png")
-        .arg(heic_path)
-        .arg("--out")
-        .arg(&temp_png)
-        .output();
-
-    if let Ok(output) = sips_result {
-        if output.status.success() {
-            debug!("Successfully converted HEIC using sips");
-            return Ok(temp_png);
-        }
-    }
-
-    // Fallback to ImageMagick's magick command
-    debug!("sips not available or failed, trying ImageMagick");
-    let output = Command::new("magick")
-        .arg("convert")
-        .arg(heic_path)
-        .arg(&temp_png)
-        .output()
-        .context("Failed to run magick command - neither sips nor ImageMagick available")?;
-
-    if !output.status.success() {
-        anyhow::bail!("HEIC conversion failed with both sips and magick");
-    }
-
-    debug!("Successfully converted HEIC using ImageMagick");
-    Ok(temp_png)
 }
 
 /// Cleans extracted text for use in filenames
@@ -196,8 +193,8 @@ mod tests {
 
     #[test]
     fn test_clean_text() {
-        let input = "Error   Message\n\nDatabase  Connection\n  Failed";
-        let expected = "Error Message Database Connection Failed";
+        let input = "Video   Title\n\nEpisode  One\n  Scene  1";
+        let expected = "Video Title Episode One Scene 1";
         assert_eq!(clean_text(input), expected);
     }
 
