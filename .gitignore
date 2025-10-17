@@ -7,3 +7,4 @@ sessions/
 # Added by cargo
 
 /target
+test_resume.png
