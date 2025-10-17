@@ -3,6 +3,9 @@
 .claude/
 sessions/
 
+# Homebrew tap files (belong in homebrew-nameback repo)
+nameback.rb
+HOMEBREW_SETUP.md
 
 # Added by cargo
 
