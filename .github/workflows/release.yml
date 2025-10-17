@@ -142,11 +142,11 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Install musl tools (Linux only)
+      - name: Install musl tools and dependencies (Linux only)
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools
+          sudo apt-get install -y musl-tools libleptonica-dev libtesseract-dev pkg-config
 
       - name: Install dependencies (macOS only)
         if: runner.os == 'macOS'
