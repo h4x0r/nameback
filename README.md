@@ -45,41 +45,62 @@ nameback /path/to/folder
 
 ## Installation
 
-### Pre-built Binaries (Easiest - No Rust Required)
+### macOS (Homebrew - Recommended)
 
-Download pre-compiled binaries from the [latest release](https://github.com/h4x0r/nameback/releases/latest):
+**One command installs everything:**
+```bash
+brew tap h4x0r/nameback
+brew install nameback
+```
 
-**Windows:**
+Automatically installs nameback with all dependencies:
+- **exiftool** - Required for metadata extraction
+- **tesseract** + **tesseract-lang** - Multi-language OCR support
+- **ffmpeg** - Video frame extraction
+- **imagemagick** - HEIC/HEIF support
+
+### Windows (Pre-built Binary)
+
+Download from the [latest release](https://github.com/h4x0r/nameback/releases/latest):
 ```powershell
-# Download nameback-x86_64-pc-windows-msvc.exe from releases
+# Download nameback-x86_64-pc-windows-msvc.exe
 # Rename to nameback.exe and add to PATH
 ```
 
-**macOS (Intel):**
+Then install dependencies:
+```powershell
+cargo install nameback  # Or use the downloaded binary
+nameback --install-deps  # Automated dependency installer
+```
+
+### Linux (Via Cargo)
+
+```bash
+cargo install nameback
+nameback --install-deps  # Automated dependency installer
+```
+
+### macOS (Direct Binary Download)
+
+If you prefer not to use Homebrew:
+
+**Intel:**
 ```bash
 wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-x86_64-apple-darwin
 chmod +x nameback-x86_64-apple-darwin
 sudo mv nameback-x86_64-apple-darwin /usr/local/bin/nameback
 ```
 
-**macOS (Apple Silicon):**
+**Apple Silicon:**
 ```bash
 wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-aarch64-apple-darwin
 chmod +x nameback-aarch64-apple-darwin
 sudo mv nameback-aarch64-apple-darwin /usr/local/bin/nameback
 ```
 
-**Linux (static binary - works on all distros):**
+Then install dependencies manually:
 ```bash
-wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-x86_64-unknown-linux-musl
-chmod +x nameback-x86_64-unknown-linux-musl
-sudo mv nameback-x86_64-unknown-linux-musl /usr/local/bin/nameback
-```
-
-### Via Cargo (Requires Rust)
-
-```bash
-cargo install nameback
+brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
 ```
 
 ### Windows
