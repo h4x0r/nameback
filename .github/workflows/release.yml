@@ -150,13 +150,22 @@ jobs:
 
       - name: Install vcpkg and dependencies (Windows only)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          if (-not (Test-Path C:\vcpkg)) {
+            Write-Host "Cloning vcpkg..."
+            git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+          } else {
+            Write-Host "vcpkg already exists, skipping clone"
+          }
           cd C:\vcpkg
-          .\bootstrap-vcpkg.bat
+          if (-not (Test-Path .\vcpkg.exe)) {
+            Write-Host "Bootstrapping vcpkg..."
+            .\bootstrap-vcpkg.bat
+          }
+          Write-Host "Installing leptonica and tesseract..."
           .\vcpkg integrate install
           .\vcpkg install leptonica:x64-windows tesseract:x64-windows
-        shell: cmd
 
       - name: Set VCPKG_ROOT (Windows only)
         if: matrix.os == 'windows-latest'
