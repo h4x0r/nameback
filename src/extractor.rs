@@ -5,6 +5,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::detector::FileCategory;
+use crate::image_ocr;
 use crate::pdf_content;
 
 /// Represents metadata extracted from a file
@@ -136,6 +137,15 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         }
     }
 
+    // For images without useful metadata, try OCR
+    if is_image(path) && !has_any_useful_metadata(&metadata) {
+        debug!("Image has no useful metadata, attempting OCR");
+        if let Ok(Some(text)) = image_ocr::extract_image_text(path) {
+            debug!("Extracted image text: {}", text);
+            metadata.title = Some(text);
+        }
+    }
+
     Ok(metadata)
 }
 
@@ -144,6 +154,19 @@ fn is_pdf(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false)
+}
+
+/// Checks if a file is an image based on extension
+fn is_image(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            matches!(
+                ext.to_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp"
+            )
+        })
         .unwrap_or(false)
 }
 
@@ -165,4 +188,11 @@ fn is_useful_metadata(value: &Option<String>) -> bool {
     } else {
         false
     }
+}
+
+/// Checks if image has any useful metadata (for OCR fallback decision)
+fn has_any_useful_metadata(metadata: &FileMetadata) -> bool {
+    is_useful_metadata(&metadata.title)
+        || is_useful_metadata(&metadata.description)
+        || is_useful_metadata(&metadata.date_time_original)
 }

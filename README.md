@@ -34,11 +34,13 @@ nameback /path/to/folder
 - **Rust** - [Install from rust-lang.org](https://www.rust-lang.org/tools/install) (for installation)
 - **exiftool** - `brew install exiftool` (macOS) or `apt install libimage-exiftool-perl` (Linux)
 
-**Optional (for scanned PDF support):**
+**Optional (for OCR support):**
 - **tesseract-ocr** - `brew install tesseract` (macOS) or `apt install tesseract-ocr` (Linux)
 - **poppler-utils** - `brew install poppler` (macOS) or `apt install poppler-utils` (Linux)
 
-If tesseract and poppler are installed, nameback will automatically use OCR to extract text from scanned PDFs that don't have embedded text.
+If tesseract and poppler are installed, nameback will automatically use OCR to extract text from:
+- Screenshots and images without EXIF metadata
+- Scanned PDFs that don't have embedded text
 
 ## Options
 
@@ -103,6 +105,7 @@ cargo build --release
 
 Files **with useful metadata** get renamed:
 - **Photos** - JPEG, PNG with EXIF data (date taken, description)
+- **Screenshots/Images without EXIF** - Automatically uses OCR if tesseract is installed (optional)
 - **Office documents** - DOCX, XLSX, PPTX with title or author
 - **OpenDocument** - ODT, ODS, ODP with title or author
 - **Videos** - MP4, AVI with creation date or title

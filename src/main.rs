@@ -7,6 +7,7 @@ mod cli;
 mod detector;
 mod extractor;
 mod generator;
+mod image_ocr;
 mod pdf_content;
 mod renamer;
 
