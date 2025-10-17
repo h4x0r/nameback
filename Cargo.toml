@@ -1,14 +1,14 @@
 [package]
 name = "nameback"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Albert Hui"]
-description = "Rename files based on their metadata - automatically extracts titles, dates, and descriptions"
+description = "Rename files based on their metadata with multi-language OCR, HEIC support, and video frame extraction"
 license = "MIT"
 repository = "https://github.com/h4x0r/nameback"
 homepage = "https://github.com/h4x0r/nameback"
 readme = "README.md"
-keywords = ["metadata", "rename", "exif", "files", "utility"]
+keywords = ["metadata", "rename", "ocr", "exif", "heic"]
 categories = ["command-line-utilities", "filesystem"]
 
 [dependencies]

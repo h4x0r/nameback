@@ -2,18 +2,27 @@
 
 Rename files based on their metadata. Automatically extracts titles, dates, and descriptions from your files to give them meaningful names.
 
+## ✨ Key Features
+
+- 📸 **Smart Photo Renaming** - Uses EXIF data (date, description) from JPEG, PNG, HEIC/HEIF
+- 📄 **PDF Intelligence** - Extracts titles from metadata or document content, with OCR for scanned PDFs
+- 🎥 **Video Processing** - Renames by metadata or extracts frames for OCR when metadata is missing
+- 🌏 **Multi-Language OCR** - Supports Traditional Chinese, Simplified Chinese, English (and 160+ more languages)
+- 🍎 **HEIC Support** - Native support for Apple's High Efficiency Image Format
+- 🔒 **Safe & Secure** - Preview mode, no overwrites, blocks root execution, same-directory only
+
 ## What it does
 
-Scans a folder and renames files using metadata embedded in the files themselves:
+Transforms meaningless filenames into descriptive ones using embedded metadata:
 
-- **Photos** → Renamed by date taken
-- **PDFs** → Renamed by document title
-- **Videos** → Renamed by creation date or title
-- **HTML files** → Renamed by page title
-
-- `IMG_2847.jpg` → `2024-03-15_sunset.jpg`
-- `document.pdf` → `Annual_Report_2024.pdf`
-- `f2577888.html` → `Important_safety_information.html`
+```
+IMG_2847.jpg           → 2024-03-15_sunset.jpg
+document.pdf           → Annual_Report_2024.pdf
+f2577888.html          → Important_safety_information.html
+screenshot_20241015.png → 輸入_姓名.png (Chinese OCR)
+VID_20241015.mp4       → Product_Demo_Video.mp4 (frame OCR)
+IMG_3847.heic          → Family_Reunion_2024.heic
+```
 
 ## Quick Start
 
@@ -79,15 +88,43 @@ If these tools are installed, nameback will automatically use:
 
 ## Examples
 
+### Basic Usage
 ```bash
-# Preview changes in your Photos folder
+# Preview changes in your Photos folder (always start with dry-run!)
 nameback ~/Pictures --dry-run
 
-# Rename recovered files from PhotoRec
-nameback /tmp/photorec
+# Actually rename the files
+nameback ~/Pictures
 
-# Process with detailed logging
+# Process with detailed logging to see what's happening
 nameback ~/Documents --verbose
+```
+
+### Common Use Cases
+```bash
+# Rename recovered files from PhotoRec (data recovery)
+nameback /tmp/photorec --dry-run
+
+# Process screenshots folder with OCR
+nameback ~/Desktop/Screenshots --verbose
+
+# Organize downloaded files
+nameback ~/Downloads --dry-run
+
+# Clean up iPhone photo exports (HEIC support)
+nameback ~/Desktop/iPhone_Export
+```
+
+### Real-World Example Output
+```
+[INFO] Processing 150 files...
+[INFO] [DRY RUN] ./IMG_2847.jpg -> 2024-03-15_sunset.jpg
+[INFO] [DRY RUN] ./screenshot.png -> Error_Database_Connection_Failed.png (OCR)
+[INFO] [DRY RUN] ./resume.png -> 輸入_姓名.png (OCR: Traditional Chinese)
+[INFO] [DRY RUN] ./scanned_doc.pdf -> Annual_Report_2024.pdf (OCR)
+[INFO] [DRY RUN] ./video.mp4 -> Product_Demo_Opening_Scene.mp4 (frame OCR)
+[WARN] No suitable metadata found for: random_file.dll. Skipping.
+[INFO] Processing complete!
 ```
 
 ## Building from Source
@@ -103,11 +140,37 @@ cargo build --release
 
 ## How it works
 
-1. Scans directory recursively
-2. Detects file type (image, document, video, audio)
-3. Extracts metadata using exiftool
-4. Generates clean filename from title/date
-5. Renames file (or shows preview in dry-run mode)
+1. **Scans** - Recursively walks through directories
+2. **Detects** - Identifies file types (image, document, video, audio)
+3. **Extracts** - Pulls metadata using exiftool
+4. **Enhances** - Falls back to OCR for files without metadata (when tesseract is available)
+5. **Generates** - Creates clean, descriptive filenames
+6. **Renames** - Updates files (or shows preview in dry-run mode)
+
+## Advanced Features
+
+### Multi-Language OCR
+When tesseract-lang is installed, nameback automatically tries multiple languages and selects the best result:
+- **Traditional Chinese** (`chi_tra`) - Tried first for broader compatibility
+- **Simplified Chinese** (`chi_sim`) - Second priority
+- **English** (`eng`) - Always available as fallback
+- **160+ additional languages** available via tesseract-lang
+
+The system automatically selects the language that produces the most characters, ensuring optimal text extraction.
+
+### HEIC/HEIF Support
+Apple's High Efficiency Image Format is fully supported:
+- Uses **sips** (macOS built-in) for fast conversion
+- Falls back to **ImageMagick** if sips is unavailable
+- Extracts EXIF metadata before OCR
+- Maintains original .heic extension after renaming
+
+### Video Frame OCR
+For videos without useful metadata:
+- Extracts frame at **1 second** using ffmpeg
+- Runs multi-language OCR on the frame
+- Useful for screen recordings, tutorials, presentations
+- Supports: MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V
 
 ## What gets renamed?
 
