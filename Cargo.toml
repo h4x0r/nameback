@@ -1,6 +1,6 @@
 [package]
 name = "nameback"
-version = "0.2.0"
+version = "0.2.3"
 edition = "2021"
 authors = ["Albert Hui"]
 description = "Rename files based on their metadata with multi-language OCR, HEIC support, and video frame extraction"
