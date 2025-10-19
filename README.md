@@ -24,71 +24,61 @@ VID_20241015.mp4       → Product_Demo_Video.mp4 (frame OCR)
 IMG_3847.heic          → Family_Reunion_2024.heic
 ```
 
+## Installation
+
+### macOS (Recommended)
+
+**Homebrew** - One command installs everything:
+```bash
+brew tap h4x0r/nameback
+brew install nameback
+```
+✅ Automatically installs all dependencies (exiftool, tesseract, ffmpeg, imagemagick)
+
+### Windows
+
+**1. Download binary** from [latest release](https://github.com/h4x0r/nameback/releases/latest):
+   - Download `nameback-x86_64-pc-windows-msvc.exe`
+   - Rename to `nameback.exe` and add to PATH
+
+**2. Install dependencies:**
+```powershell
+nameback --install-deps
+```
+Uses winget or Chocolatey to install exiftool, tesseract, ffmpeg, imagemagick
+
+### Linux
+
+```bash
+cargo install nameback
+nameback --install-deps
+```
+Auto-detects your package manager (apt, dnf, yum, pacman, zypper)
+
 ## Quick Start
 
 ```bash
-# Install from crates.io
-cargo install nameback
-
-# Check dependency status
+# Check dependencies are installed
 nameback --check-deps
 
-# Automatically install missing dependencies (interactive)
-nameback --install-deps
-
-# Preview what would change (safe, no files modified)
+# Preview changes (safe, no files modified)
 nameback /path/to/folder --dry-run
 
 # Actually rename the files
 nameback /path/to/folder
 ```
 
-## Installation
+<details>
+<summary><b>Alternative Installation Methods</b></summary>
 
-### macOS (Homebrew - Recommended)
-
-**One command installs everything:**
-```bash
-brew tap h4x0r/nameback
-brew install nameback
-```
-
-Automatically installs nameback with all dependencies:
-- **exiftool** - Required for metadata extraction
-- **tesseract** + **tesseract-lang** - Multi-language OCR support
-- **ffmpeg** - Video frame extraction
-- **imagemagick** - HEIC/HEIF support
-
-### Windows (Pre-built Binary)
-
-Download from the [latest release](https://github.com/h4x0r/nameback/releases/latest):
-```powershell
-# Download nameback-x86_64-pc-windows-msvc.exe
-# Rename to nameback.exe and add to PATH
-```
-
-Then install dependencies:
-```powershell
-cargo install nameback  # Or use the downloaded binary
-nameback --install-deps  # Automated dependency installer
-```
-
-### Linux (Via Cargo)
-
-```bash
-cargo install nameback
-nameback --install-deps  # Automated dependency installer
-```
-
-### macOS (Direct Binary Download)
-
-If you prefer not to use Homebrew:
+### macOS - Direct Binary Download
 
 **Intel:**
 ```bash
 wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-x86_64-apple-darwin
 chmod +x nameback-x86_64-apple-darwin
 sudo mv nameback-x86_64-apple-darwin /usr/local/bin/nameback
+brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
 ```
 
 **Apple Silicon:**
@@ -96,78 +86,21 @@ sudo mv nameback-x86_64-apple-darwin /usr/local/bin/nameback
 wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-aarch64-apple-darwin
 chmod +x nameback-aarch64-apple-darwin
 sudo mv nameback-aarch64-apple-darwin /usr/local/bin/nameback
-```
-
-Then install dependencies manually:
-```bash
 brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
 ```
 
-### Windows
+### Windows - Manual Dependency Installation
 
-**Option 1: Automated Installation (Recommended)**
 ```powershell
-# Install nameback
-cargo install nameback
+# With winget
+winget install OliverBetz.ExifTool UB-Mannheim.TesseractOCR Gyan.FFmpeg ImageMagick.ImageMagick
 
-# Run the automated dependency installer
-nameback --install-deps
-```
-
-The installer uses winget or Chocolatey to install:
-- ExifTool (required)
-- Tesseract OCR (optional, for image/video OCR)
-- FFmpeg (optional, for video frame extraction)
-- ImageMagick (optional, for HEIC support)
-
-**Option 2: Manual Installation**
-```powershell
-# Install with winget
-winget install OliverBetz.ExifTool
-winget install UB-Mannheim.TesseractOCR
-winget install Gyan.FFmpeg
-winget install ImageMagick.ImageMagick
-
-# Or with Chocolatey
+# With Chocolatey
 choco install exiftool tesseract ffmpeg imagemagick
 ```
 
-### macOS
+### Linux - Manual Dependency Installation
 
-**Option 1: Automated Installation (Recommended)**
-```bash
-# Install nameback
-cargo install nameback
-
-# Run the automated dependency installer
-nameback --install-deps
-```
-
-The installer uses Homebrew to install all dependencies.
-
-**Option 2: Manual Installation**
-```bash
-# Install Homebrew if you haven't already
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install dependencies
-brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
-```
-
-### Linux
-
-**Option 1: Automated Installation (Recommended)**
-```bash
-# Install nameback
-cargo install nameback
-
-# Run the automated dependency installer (detects your package manager)
-nameback --install-deps
-```
-
-Supports: apt, dnf, yum, pacman, zypper
-
-**Option 2: Manual Installation**
 ```bash
 # Debian/Ubuntu
 sudo apt-get install libimage-exiftool-perl tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-chi-sim ffmpeg imagemagick
@@ -178,6 +111,17 @@ sudo dnf install perl-Image-ExifTool tesseract tesseract-langpack-chi_tra tesser
 # Arch Linux
 sudo pacman -S perl-image-exiftool tesseract tesseract-data-chi_tra tesseract-data-chi_sim ffmpeg imagemagick
 ```
+
+### Build from Source
+
+```bash
+git clone https://github.com/h4x0r/nameback.git
+cd nameback
+cargo build --release
+./target/release/nameback /path/to/folder
+```
+
+</details>
 
 ## Dependency Overview
 
