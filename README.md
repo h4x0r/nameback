@@ -29,21 +29,19 @@ Automatically installs all dependencies (exiftool, tesseract, ffmpeg, imagemagic
 
 ### Windows
 
-**Option 1: MSI Installer (Recommended)**
-
 Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https://github.com/h4x0r/nameback/releases/latest)
 
-Includes both CLI and GUI tools:
-- **CLI**: Automatically added to PATH - use `nameback` in any terminal
-- **GUI**: Start Menu shortcut - launch visual interface
+**What you get:**
+- **CLI**: Type `nameback` in any terminal (automatically added to PATH)
+- **GUI**: Launch from Start Menu → nameback
 
-**Option 2: Portable Executables**
+**Alternative: Portable Executables**
 
-Download from [releases](https://github.com/h4x0r/nameback/releases/latest):
+For portable use without installation, download individual executables from [releases](https://github.com/h4x0r/nameback/releases/latest):
 - CLI: `nameback-x86_64-pc-windows-msvc.exe`
 - GUI: `nameback-gui-x86_64-pc-windows-msvc.exe`
 
-**Install dependencies:**
+Then install dependencies:
 ```powershell
 nameback --install-deps
 ```
