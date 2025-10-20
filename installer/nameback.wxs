@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="nameback"
+           Version="0.2.3"
+           Manufacturer="4n6h4x0r"
+           UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
+           Language="1033">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="nameback - Intelligent file renaming tool"
+             Comments="Rename files based on metadata with CLI and GUI"
+             Manufacturer="4n6h4x0r" />
+
+    <!-- Major upgrade configuration -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of nameback is already installed."
+                  AllowSameVersionUpgrades="yes" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Directory structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="nameback" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="nameback"/>
+      </Directory>
+    </Directory>
+
+    <!-- CLI Executable Component -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="CLIExecutable" Guid="4A908B23-88C4-4DA2-82ED-D0EF1FF1700C">
+        <File Id="namebackCLI"
+              Source="target\x86_64-pc-windows-msvc\release\nameback.exe"
+              KeyPath="yes"
+              Checksum="yes" />
+        <Environment Id="PATH"
+                     Name="PATH"
+                     Value="[INSTALLFOLDER]"
+                     Permanent="no"
+                     Part="last"
+                     Action="set"
+                     System="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- GUI Executable Component -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="GUIExecutable" Guid="BA4160CC-4DB8-42C5-8E08-BF5ACE37AB55">
+        <File Id="namebackGUI"
+              Source="target\x86_64-pc-windows-msvc\release\nameback-gui.exe"
+              KeyPath="yes"
+              Checksum="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Start Menu shortcut for GUI -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="GUIShortcut" Guid="1408AB73-CDB0-442E-910E-DE2C09B77B8E">
+        <Shortcut Id="GUIStartMenuShortcut"
+                  Name="nameback"
+                  Description="Visual file renaming tool - Rename files based on metadata"
+                  Target="[INSTALLFOLDER]nameback-gui.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="NamebackIcon">
+          <ShortcutProperty Key="System.AppUserModel.ID" Value="nameback.gui" />
+        </Shortcut>
+        <RemoveFolder Id="CleanupApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall"/>
+        <RegistryValue Root="HKCU"
+                       Key="Software\nameback"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes"/>
+      </Component>
+    </DirectoryRef>
+
+    <!-- Icon for shortcut (uses GUI executable icon) -->
+    <Icon Id="NamebackIcon" SourceFile="target\x86_64-pc-windows-msvc\release\nameback-gui.exe" />
+
+    <!-- Feature includes all components -->
+    <Feature Id="Complete"
+             Title="nameback"
+             Description="Complete installation including CLI and GUI tools"
+             Level="1"
+             ConfigurableDirectory="INSTALLFOLDER"
+             Display="expand">
+
+      <Feature Id="CLIFeature"
+               Title="Command-line tool"
+               Description="CLI tool accessible from any terminal (added to PATH)"
+               Level="1">
+        <ComponentRef Id="CLIExecutable" />
+      </Feature>
+
+      <Feature Id="GUIFeature"
+               Title="GUI application"
+               Description="Visual dual-pane file renaming interface with Start Menu shortcut"
+               Level="1">
+        <ComponentRef Id="GUIExecutable" />
+        <ComponentRef Id="GUIShortcut" />
+      </Feature>
+    </Feature>
+
+    <!-- UI configuration -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <!-- Add/Remove Programs metadata -->
+    <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/h4x0r/nameback" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/h4x0r/nameback" />
+    <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
+
+  </Product>
+</Wix>

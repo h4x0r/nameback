@@ -1,0 +1,30 @@
+[package]
+name = "nameback"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Rename files based on their metadata with multi-language OCR, HEIC support, and video frame extraction"
+readme = "../README.md"
+keywords = ["metadata", "rename", "ocr", "exif", "heic"]
+categories = ["command-line-utilities", "filesystem"]
+
+[[bin]]
+name = "nameback"
+path = "src/main.rs"
+
+[dependencies]
+nameback-core = { path = "../nameback-core" }
+clap.workspace = true
+env_logger.workspace = true
+anyhow.workspace = true
+log.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+# Security enhancements
+[profile.release]
+overflow-checks = true

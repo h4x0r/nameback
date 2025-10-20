@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(name = "nameback")]
 #[command(author = "4n6h4x0r")]
-#[command(version = "0.2.0")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Renames files based on metadata from exiftool", long_about = None)]
 pub struct Args {
     /// Directory to scan for files

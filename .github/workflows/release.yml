@@ -69,7 +69,15 @@ jobs:
             ## Installation
 
             ### Windows
-            Download `nameback-x86_64-pc-windows-msvc.exe` and rename to `nameback.exe`
+
+            **Option 1: MSI Installer (Recommended)**
+            Download `nameback-x86_64-pc-windows-msvc.msi` - includes both CLI and GUI tools
+            - CLI: Automatically added to PATH
+            - GUI: Start Menu shortcut
+
+            **Option 2: Portable Executables**
+            - CLI: Download `nameback-x86_64-pc-windows-msvc.exe`
+            - GUI: Download `nameback-gui-x86_64-pc-windows-msvc.exe`
 
             ### macOS (Intel)
             ```bash
@@ -174,8 +182,12 @@ jobs:
           echo "VCPKGRS_TRIPLET=x64-windows-static-md" >> $GITHUB_ENV
         shell: bash
 
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Build CLI release binary
+        run: cargo build --release --target ${{ matrix.target }} -p nameback
+
+      - name: Build GUI release binary (Windows only)
+        if: matrix.os == 'windows-latest'
+        run: cargo build --release --target ${{ matrix.target }} -p nameback-gui
 
       - name: Strip binary (Unix only)
         if: matrix.os != 'windows-latest'
@@ -240,7 +252,7 @@ jobs:
           asset_name: nameback-${{ matrix.target }}
           asset_content_type: application/octet-stream
 
-      - name: Upload bare binary (Windows)
+      - name: Upload CLI binary (Windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
         env:
@@ -249,6 +261,41 @@ jobs:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
           asset_path: ./target/${{ matrix.target }}/release/nameback.exe
           asset_name: nameback-${{ matrix.target }}.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload GUI binary (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/nameback-gui.exe
+          asset_name: nameback-gui-${{ matrix.target }}.exe
+          asset_content_type: application/octet-stream
+
+      - name: Install WiX Toolset (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+          wix extension add -g WixToolset.UI.wixext
+
+      - name: Build MSI installer (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          wix build -arch x64 -o nameback-${{ matrix.target }}.msi installer/nameback.wxs
+
+      - name: Upload MSI installer (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./nameback-${{ matrix.target }}.msi
+          asset_name: nameback-${{ matrix.target }}.msi
           asset_content_type: application/octet-stream
 
   generate-checksums:

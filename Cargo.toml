@@ -1,34 +1,53 @@
-[package]
-name = "nameback"
+[workspace]
+members = [
+    "nameback-core",
+    "nameback-cli",
+    "nameback-gui",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.2.3"
 edition = "2021"
 authors = ["Albert Hui"]
-description = "Rename files based on their metadata with multi-language OCR, HEIC support, and video frame extraction"
 license = "MIT"
 repository = "https://github.com/h4x0r/nameback"
 homepage = "https://github.com/h4x0r/nameback"
-readme = "README.md"
-keywords = ["metadata", "rename", "ocr", "exif", "heic"]
-categories = ["command-line-utilities", "filesystem"]
 
-[dependencies]
-clap = { version = "4.5", features = ["derive"] }
-walkdir = "2.4"
+[workspace.dependencies]
+# Core dependencies
+anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-anyhow = "1.0"
 regex = "1.10"
 log = "0.4"
-env_logger = "0.11"
-pdf-extract = "0.7"
-tesseract = "0.14"
-image = "0.25"
+walkdir = "2.4"
+chrono = "0.4"
 infer = "0.16"
 
-[target.'cfg(unix)'.dependencies]
+# File format handling
+pdf-extract = "0.7"
+image = "0.25"
+
+# OCR
+tesseract = "0.14"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+env_logger = "0.11"
+
+# GUI
+eframe = "0.29"
+egui = "0.29"
+rfd = "0.15"
+tokio = { version = "1", features = ["rt", "sync", "macros"] }
+
+# Platform-specific
 libc = "0.2"
 
-# Security enhancements
+# Testing
+tempfile = "3.8"
+
+# Security enhancements for all release builds
 [profile.release]
-# Enable integer overflow checks in release builds for security
 overflow-checks = true

@@ -1,0 +1,34 @@
+[package]
+name = "nameback-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Core library for nameback - intelligent file renaming based on metadata"
+keywords = ["metadata", "rename", "ocr", "exif", "heic"]
+categories = ["filesystem"]
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+log.workspace = true
+walkdir.workspace = true
+chrono.workspace = true
+infer.workspace = true
+pdf-extract.workspace = true
+image.workspace = true
+tesseract.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lib]
+name = "nameback_core"
+path = "src/lib.rs"

@@ -1,0 +1,35 @@
+[package]
+name = "nameback-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "GUI application for nameback - visual file renaming with dual-pane interface"
+keywords = ["gui", "rename", "metadata"]
+categories = ["gui"]
+
+[[bin]]
+name = "nameback-gui"
+path = "src/main.rs"
+
+[dependencies]
+nameback-core = { path = "../nameback-core" }
+eframe.workspace = true
+egui.workspace = true
+rfd.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+
+[profile.release]
+overflow-checks = true
+opt-level = "z"     # Optimize for size
+lto = true          # Link-time optimization
+codegen-units = 1   # Better optimization
+strip = true        # Strip symbols
+
+# Windows-specific: Hide console window
+[target.'cfg(windows)'.build-dependencies]

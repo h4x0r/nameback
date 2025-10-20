@@ -4,13 +4,22 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 mod cli;
+mod code_docstring;
 mod deps;
 mod detector;
+mod dir_context;
 mod extractor;
+mod format_handlers;
 mod generator;
 mod image_ocr;
+mod key_phrases;
+mod location_timestamp;
 mod pdf_content;
 mod renamer;
+mod scorer;
+mod series_detector;
+mod stem_analyzer;
+mod text_content;
 mod video_ocr;
 
 /// Scans a directory recursively and returns paths to all files
