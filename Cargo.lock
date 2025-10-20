@@ -2494,7 +2494,7 @@ dependencies = [
 
 [[package]]
 name = "nameback"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2506,7 +2506,7 @@ dependencies = [
 
 [[package]]
 name = "nameback-core"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2525,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "nameback-gui"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "anyhow",
  "eframe",
