@@ -1,18 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Product Id="*"
-           Name="nameback"
+  <Package Name="nameback"
            Version="0.3.2"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
-           Language="1033">
-
-    <Package InstallerVersion="200"
-             Compressed="yes"
-             InstallScope="perMachine"
-             Description="nameback - Intelligent file renaming tool"
-             Comments="Rename files based on metadata with CLI and GUI"
-             Manufacturer="4n6h4x0r" />
+           Language="1033"
+           InstallerVersion="200"
+           Compressed="yes"
+           InstallScope="perMachine">
 
     <!-- Major upgrade configuration -->
     <MajorUpgrade DowngradeErrorMessage="A newer version of nameback is already installed."
@@ -114,5 +109,5 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/h4x0r/nameback" />
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
-  </Product>
+  </Package>
 </Wix>
