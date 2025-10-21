@@ -193,7 +193,7 @@ jobs:
 
       - name: Cache vcpkg (Windows only)
         if: matrix.os == 'windows-latest'
-        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        uses: actions/cache@v4
         with:
           path: C:\vcpkg\installed
           key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/Cargo.lock') }}
