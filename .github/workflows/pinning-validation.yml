@@ -8,7 +8,7 @@ on:
     branches: ["**"]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -136,6 +136,43 @@ jobs:
         run: |
           pinact --version || true
 
-      - name: Validate pins with pinact
+      - name: Auto-fix unpinned actions with pinact
+        id: pinact_fix
         run: |
-          pinact run --check
+          # Run pinact to auto-pin any unpinned actions
+          pinact run
+
+          # Check if any files were modified
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "✅ All actions are already pinned"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "📌 Auto-pinned actions:"
+            git diff --stat
+          fi
+
+      - name: Commit auto-pinned changes
+        if: steps.pinact_fix.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .github/workflows/
+          git commit -m "chore: auto-pin GitHub Actions to SHA
+
+Auto-pinned by pinact v3.4.2 via Pinning Validation workflow
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+
+      - name: Push auto-pinned changes
+        if: steps.pinact_fix.outputs.changed == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+
+      - name: Alert about unpinned actions that were fixed
+        if: steps.pinact_fix.outputs.changed == 'true'
+        run: |
+          echo "::warning::Unpinned actions were detected and automatically fixed. Changes have been committed."
+          exit 0
