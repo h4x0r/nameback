@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<USG
+gitleakslite (script) - comprehensive secret scanner with gitleaks-compatible patterns
+
+Usage:
+  gitleakslite protect --staged [--redact] [--no-banner] [--config PATH]
+  gitleakslite detect [--redact] [--no-banner] [--config PATH]
+
+USG
+}
+
+# Read allowlist patterns (simple EREs)
+read_allowlist() {
+  local file=".security-controls/secret-allowlist.txt"
+  if [[ -f $file ]]; then
+    cat "$file"
+  fi
+}
+
+sanitize() {
+  sed -E 's/([:=])[[:space:]]*"?[^"[:space:]]{4,}/\1 ***REDACTED***/g'
+}
+
+# Load and process gitleaks patterns
+load_gitleaks_patterns() {
+  # Find bundled config relative to script location (this IS the cache file)
+  local script_dir="$(cd "$(dirname "$0")" && pwd)"
+  local config_file="$script_dir/../gitleaks.toml"
+  local temp_file="$script_dir/../gitleaks.toml.tmp"
+  local download_success=0
+  local should_download=0
+
+  # Check if we should download (file doesn't exist or is older than 7 days)
+  if [[ ! -f $config_file ]]; then
+    should_download=1
+  elif [[ $(find "$config_file" -mtime +7 2>/dev/null | wc -l) -gt 0 ]]; then
+    should_download=1
+  fi
+
+  # Download fresh copy if needed
+  if [[ $should_download -eq 1 ]]; then
+    if command -v curl >/dev/null 2>&1; then
+      if curl -fsSL --connect-timeout 5 --max-time 10 "https://raw.githubusercontent.com/gitleaks/gitleaks/master/config/gitleaks.toml" -o "$temp_file" 2>/dev/null; then
+        mv "$temp_file" "$config_file"
+        download_success=1
+      fi
+    elif command -v wget >/dev/null 2>&1; then
+      if wget -q --timeout=5 --tries=1 "https://raw.githubusercontent.com/gitleaks/gitleaks/master/config/gitleaks.toml" -O "$temp_file" 2>/dev/null; then
+        mv "$temp_file" "$config_file"
+        download_success=1
+      fi
+    fi
+
+    # Clean up temp file if download failed
+    [[ -f $temp_file ]] && rm -f "$temp_file"
+
+    # Emit warning if download failed (only once per session)
+    local warning_file="$(dirname "$config_file")/.gitleaks-warning-shown"
+    if [[ $download_success -eq 0 ]] && [[ ! -f $warning_file ]]; then
+      if [[ -f $config_file ]]; then
+        echo "⚠️  Warning: Failed to download latest gitleaks patterns, using cached copy" >&2
+      else
+        echo "⚠️  Warning: Failed to download gitleaks patterns, using built-in patterns" >&2
+      fi
+      mkdir -p "$(dirname "$warning_file")"
+      touch "$warning_file"
+    fi
+  fi
+
+  # If config file exists (fresh or cached), use curated high-performance patterns
+  if [[ -f $config_file ]]; then
+    # Curated patterns based on gitleaks for optimal performance and coverage
+    echo '(A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16}|(ghp|gho|ghu|ghr|ghs)_[0-9a-zA-Z]{36}|github_pat_[a-zA-Z0-9]{82}|AIza[a-zA-Z0-9_-]{35}|xox[bpsoarunv]-[0-9]{8,13}-[0-9a-zA-Z]{8,64}|(sk|pk|rk)_(test|live|prod)_[a-zA-Z0-9]{10,99}|-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY|SK[0-9a-fA-F]{32}|SG\.[0-9A-Za-z_-]{22}\.[0-9A-Za-z_-]{43}|glpat-[a-zA-Z0-9_-]{20}|npm_[a-zA-Z0-9]{36}|shpat_[a-fA-F0-9]{32}|sk-ant-api03-[a-zA-Z0-9_-]{93}AA|sk-ant-admin01-[a-zA-Z0-9_-]{93}AA|ey[a-zA-Z0-9]{17,}\.[a-zA-Z0-9/_-]{17,}\.[a-zA-Z0-9/_-]{10,}|dapi[a-f0-9]{32}|[a-zA-Z0-9_~\.]{3}[0-9]Q~[a-zA-Z0-9_~\.-]{31,34}|ops_eyJ[a-zA-Z0-9+/]{250,}|[A-Za-z0-9+/=]{50,}'
+    return
+  fi
+
+  # Final fallback to built-in patterns if no config available
+  echo '(A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}|(ghp|gho|ghu|ghr|ghs)_[0-9a-zA-Z]{36}|AIza[0-9A-Za-z_-]{35}|xox[bpsoarunv]-[0-9]{8,13}-[0-9a-zA-Z]{8,64}|(sk|pk|rk)_(test|live|prod)_[0-9a-zA-Z]{10,99}|-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY-----|SK[0-9a-fA-F]{32}|SG\.[0-9A-Za-z_-]{22}\.[0-9A-Za-z_-]{43}|glpat-[a-zA-Z0-9_-]{20}|npm_[a-zA-Z0-9]{36}|shpat_[a-fA-F0-9]{32}|[A-Za-z0-9+/=]{50,}'
+}
+
+scan_lines() {
+  local file="$1"
+  local redact="$2"
+  local allowlist
+  allowlist=$(read_allowlist || true)
+  # Load patterns from gitleaks configuration
+  local patterns
+  patterns=$(load_gitleaks_patterns)
+  local kw='(secret|password|api[_-]?key|token)'
+  local hit=0
+  while IFS= read -r line; do
+    # skip allowlisted lines
+    if [[ -n $allowlist ]] && grep -E -q "$allowlist" <<<"$line"; then continue; fi
+    if grep -E -q "$patterns" <<<"$line" || grep -E -qi "$kw[^\n]{0,20}[:=][[:space:]]*[^[:space:]]{8,}" <<<"$line"; then
+      if [[ $redact == "1" ]]; then
+        echo "$line" | sanitize
+      else
+        echo "$line"
+      fi
+      hit=1
+    fi
+  done
+  return $hit
+}
+
+cmd_protect() {
+  local staged=0 redact=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --staged)
+        staged=1
+        shift
+        ;;
+      --redact)
+        redact=1
+        shift
+        ;;
+      --no-banner) shift ;;
+      --config) shift 2 ;; # ignore
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+  if [[ $staged -ne 1 ]]; then
+    echo "protect: --staged required" >&2
+    exit 2
+  fi
+  local dir_filter='^(target/|node_modules/|dist/|build/|vendor/|coverage/|\\.git/|\\.github/workflows/)'
+  local hit=0
+  while IFS= read -r f; do
+    [[ -z $f || ! -f $f ]] && continue
+    if ! git diff --cached -U0 -- "$f" | sed -n 's/^+//p' | scan_lines "$f" "$redact"; then
+      hit=1
+      echo "[$f]" >&2
+    fi
+  done < <(git diff --cached --name-only --diff-filter=ACM | grep -v -E "$dir_filter" || true)
+  if [[ $hit -eq 1 ]]; then
+    exit 1
+  fi
+}
+
+cmd_detect() {
+  local redact=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --redact)
+        redact=1
+        shift
+        ;;
+      --no-banner) shift ;;
+      --config) shift 2 ;; # ignore
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+  local dir_filter='^(target/|node_modules/|dist/|build/|vendor/|coverage/|\\.git/|\\.github/workflows/)'
+  local hit=0
+  while IFS= read -r f; do
+    [[ -z $f || ! -f $f ]] && continue
+    if ! cat "$f" | scan_lines "$f" "$redact"; then
+      hit=1
+      echo "[$f]" >&2
+    fi
+  done < <(git ls-files | grep -v -E "$dir_filter" || true)
+  if [[ $hit -eq 1 ]]; then
+    exit 1
+  fi
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+  case "$cmd" in
+    protect) cmd_protect "$@" ;;
+    detect) cmd_detect "$@" ;;
+    "" | -h | --help) usage ;;
+    *)
+      echo "Unknown command: $cmd" >&2
+      usage
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"

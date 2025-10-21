@@ -1,0 +1,13 @@
+# Gitleaks configuration for 1-Click Security Controls
+# Basic allowlist to reduce noise for common build artifacts
+title = "1-Click Security Gitleaks Config"
+
+[allowlist]
+paths = [
+  "target/",
+  "node_modules/",
+  "dist/",
+  "build/",
+  "coverage/",
+  "*.lock",
+]

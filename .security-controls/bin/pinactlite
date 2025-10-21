@@ -1,0 +1,545 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<USG
+pinactlite (script) - pinning validator and autopinner
+
+Usage:
+pinactlite pincheck [--dir DIR]
+pinactlite autopin  [--dir DIR] [--actions] [--images] [--dry-run] [--quiet]
+pinactlite run      [--dir DIR] [--actions] [--images] [--dry-run] [--quiet]
+
+Commands:
+  pincheck   Check that GitHub Actions and container images are pinned to immutable refs
+  autopin    Rewrite unpinned refs to immutable SHAs/digests (exits 2 if changes made)
+  run        Check and pin references (combines pincheck + autopin, pinact-compatible)
+
+Options:
+  --dir DIR  Workflow directory (default .github/workflows)
+  --actions  Include GitHub Actions uses: lines
+  --images   Include container/services images and docker:// actions
+  --dry-run  Do not write changes; print what would change
+  --quiet    Suppress normal output (errors still printed)
+USG
+}
+
+is_hex40() {
+  local s="$1"
+  [[ ${#s} -eq 40 && $s =~ ^[0-9a-fA-F]{40}$ ]]
+}
+
+trim_quotes() {
+  local v="$1"
+  v="${v%\r}"
+  v="${v#\' }"
+  v="${v#\" }"
+  v="${v%\' }"
+  v="${v%\" }"
+  v="${v#\'}"
+  v="${v#\"}"
+  v="${v%\' }"
+  v="${v%\" }"
+  echo "$v"
+}
+
+say() { [[ ${QUIET:-0} == 1 ]] || echo "$@"; }
+
+check_uses_line() {
+  local file="$1" loc="$2" val="$3"
+  val="$(trim_quotes "$val")"
+  # skip local actions
+  if [[ $val == ./* || $val == .github/* ]]; then
+    return 0
+  fi
+  if [[ $val == docker://* ]]; then
+    if [[ $val != *"@sha256:"* ]]; then
+      echo "$file: $loc: docker action not pinned: $val"
+      return 1
+    fi
+    return 0
+  fi
+  # expect owner/repo[@ref]
+  if [[ $val != *"@"* ]]; then
+    echo "$file: $loc: unpinned action (missing @<sha>): $val"
+    return 1
+  fi
+  local ref="${val##*@}"
+  if ! is_hex40 "$ref"; then
+    echo "$file: $loc: action ref not a 40-hex commit: $val"
+    return 1
+  fi
+  return 0
+}
+
+# Resolve owner/repo@ref to a commit SHA (uses git ls-remote)
+resolve_action_sha() {
+  local owner_repo="$1" ref="$2"
+  local url="https://github.com/${owner_repo}.git"
+  local sha
+  # Try exact match (tag or branch)
+  sha=$(git ls-remote "$url" "$ref" </dev/null 2>/dev/null | awk '{print $1}' | head -1 || true)
+  if [[ -z $sha ]]; then
+    # Try tags/
+    sha=$(git ls-remote "$url" "refs/tags/$ref" </dev/null 2>/dev/null | awk '{print $1}' | head -1 || true)
+  fi
+  if [[ -z $sha ]]; then
+    # Try heads/
+    sha=$(git ls-remote "$url" "refs/heads/$ref" </dev/null 2>/dev/null | awk '{print $1}' | head -1 || true)
+  fi
+  [[ -n $sha ]] && echo "$sha"
+}
+
+# Resolve a Docker/OCI image tag to a digest (Docker Hub public and GHCR public best-effort)
+resolve_image_digest() {
+  local image="$1"
+  # Already pinned
+  [[ $image == *"@sha256:"* ]] && {
+    echo "$image"
+    return 0
+  }
+
+  # Parse image components
+  local registry="" namespace="" name="" tag="latest"
+  local remaining="$image"
+
+  # Extract registry if present
+  if [[ $remaining == *"/"*"/"* ]]; then
+    registry="${remaining%%/*}"
+    remaining="${remaining#*/}"
+  fi
+
+  # Extract namespace/name and tag
+  if [[ $remaining == *":"* ]]; then
+    tag="${remaining##*:}"
+    remaining="${remaining%:*}"
+  fi
+
+  if [[ $remaining == *"/"* ]]; then
+    namespace="${remaining%/*}"
+    name="${remaining##*/}"
+  else
+    name="$remaining"
+  fi
+
+  # Try different registries
+  local digest=""
+
+  # Docker Hub
+  if [[ -z $registry || $registry == "docker.io" ]]; then
+    local repo_path="${namespace:+$namespace/}$name"
+    [[ $namespace == "library" ]] && repo_path="$name"
+
+    digest=$(curl -sSL -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+      "https://registry-1.docker.io/v2/$repo_path/manifests/$tag" 2>/dev/null |
+      jq -r '.config.digest // empty' 2>/dev/null || true)
+  fi
+
+  # GHCR
+  if [[ -z $digest && ($registry == "ghcr.io" || -z $registry) ]]; then
+    local repo_path="${namespace:+$namespace/}$name"
+    digest=$(curl -sSL -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+      "https://ghcr.io/v2/$repo_path/manifests/$tag" 2>/dev/null |
+      jq -r '.config.digest // empty' 2>/dev/null || true)
+  fi
+
+  if [[ -n $digest ]]; then
+    echo "${registry:+$registry/}${namespace:+$namespace/}$name@$digest"
+  else
+    return 1
+  fi
+}
+
+# Very simple YAML walker for container/services images (validation)
+check_images_in_yaml() {
+  local file="$1"
+  local violations=0
+  rm -f "$file.uses.tmp"
+  awk -v FNAME="$file" -v UFILE="$file.uses.tmp" '
+    function ltrim(s) { sub(/^[ \t]+/, "", s); return s }
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    BEGIN{ in_container=0; cont_indent=0; in_services=0; serv_indent=0; in_block=0; block_indent=0 }
+    /^[[:space:]]*#/ { next }
+    {
+      line=$0
+      ind=indent(line)
+      l=ltrim(line)
+
+      # Track YAML block scalars (e.g., "run: |" or "run: >").
+      # When inside a block scalar, ignore its content lines for checks.
+      if (in_block) {
+        # Exit block if we reach a line with same or lesser indentation than the block header,
+        # but skip blank lines as they do not end the block
+        if (l ~ /^$/) { next }
+        if (ind <= block_indent) { in_block=0 } else { next }
+      }
+      if (l ~ /:[[:space:]]*[|>][+-]?([[:space:]]*#.*)?$/) {
+        in_block=1; block_indent=ind; next
+      }
+
+      if (l ~ /^container:/) {
+        if (l ~ /^container:[[:space:]]*[^\{\[]/) {
+          img=l; sub(/^container:[[:space:]]*/, "", img)
+          if (img !~ /@sha256:/) { printf "%s: jobs.container: image not pinned: %s\n", FNAME, img; violations++ }
+        } else {
+          in_container=1; cont_indent=ind
+        }
+      } else if (in_container && ind <= cont_indent) { in_container=0 }
+      if (l ~ /^services:/) { in_services=1; serv_indent=ind; next }
+      if (in_services && ind <= serv_indent) { in_services=0 }
+      if ((in_container || in_services) && l ~ /^image:[[:space:]]*/) {
+        img=l; sub(/^image:[[:space:]]*/, "", img)
+        gsub(/^"|"$/, "", img); gsub(/^\047|\047$/, "", img)
+        if (img !~ /@sha256:/) { printf "%s: image not pinned: %s\n", FNAME, img; violations++ }
+      }
+      if (!in_container && !in_services && l ~ /^image:[[:space:]]*/) {
+        img=l; sub(/^image:[[:space:]]*/, "", img)
+        gsub(/^"|"$/, "", img); gsub(/^\047|\047$/, "", img)
+        if (img ~ /[A-Za-z0-9_\-]+\/[A-Za-z0-9_\-]+/ && img !~ /@sha256:/) {
+          printf "%s: image not pinned: %s\n", FNAME, img; violations++
+        }
+      }
+      # Fix: Use working ltrim and match "- uses:" pattern
+      if (l ~ /^- uses: */) {
+        val=l; sub(/^- uses: */, "", val)
+        # Remove inline comments
+        sub(/ *#.*$/, "", val)
+        gsub(/^"|"$/, "", val); gsub(/^\047|\047$/, "", val)
+        printf "USES %s\n", val >> UFILE
+      }
+    }
+    END{ if (violations>0) exit 2 }
+  ' "$file" || return 2
+  local rc=0
+  if [[ -s "$file.uses.tmp" ]]; then
+    while IFS= read -r line; do
+      [[ $line != USES* ]] && continue
+      local val="${line#USES }"
+      if ! check_uses_line "$file" "uses" "$val"; then rc=1; fi
+    done <"$file.uses.tmp"
+    rm -f "$file.uses.tmp"
+  fi
+  return $rc
+}
+
+rewrite_actions_in_file() {
+  local file="$1" changed=0 tmp
+  tmp=$(mktemp)
+  while IFS= read -r line; do
+    if [[ $line =~ ^[[:space:]]*-[[:space:]]*uses:[[:space:]]* ]]; then
+      local raw="${line#*uses:}"
+      raw=$(echo "$raw" | sed -E "s/^[[:space:]]+//; s/[\"']+//g")
+      if [[ $raw == docker://* ]]; then
+        : # handled by images rewrite
+      else
+        # owner/repo@ref
+        local or="${raw%@*}" ref="${raw##*@}"
+        if [[ -n $ref ]] && ! is_hex40 "$ref"; then
+          local sha
+          sha=$(resolve_action_sha "$or" "$ref" || true)
+          if [[ -n $sha ]]; then
+            local newline
+            # Escape any characters in ref that might confuse sed
+            local escaped_ref="${ref//\//\\/}"
+            newline=$(echo "$line" | sed -E "s|([[:space:]]*-[[:space:]]*uses:[[:space:]]*[\\\"\\']?)${or}@[^\\\"'[:space:]]+|\\1${or}@${sha} # ${escaped_ref}|")
+            if [[ $newline != "$line" ]]; then
+              line="$newline"
+              changed=1
+              say "Pinned action ${or}@${ref} -> ${sha} in ${file}" >&2
+            fi
+          fi
+        fi
+      fi
+    fi
+    echo "$line"
+  done <"$file" >"$tmp"
+  if [[ $changed -eq 1 && ${DRY_RUN:-0} -ne 1 ]]; then
+    cp "$file" "$file.bak.pin"
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+  fi
+  return $changed
+}
+
+rewrite_images_in_file() {
+  local file="$1" changed=0 tmp
+  tmp=$(mktemp)
+  while IFS= read -r line; do
+    local ltrimmed=$(echo "$line" | sed -E "s/^[[:space:]]+//")
+    if [[ $ltrimmed =~ ^(image:|container:) ]]; then
+      local val=$(echo "$line" | sed -E "s/^[^:]+:[[:space:]]*//; s/[\"']+//g")
+      if [[ $val != *"@sha256:"* ]]; then
+        local pinned
+        pinned=$(resolve_image_digest "$val" || true)
+        if [[ -n $pinned ]]; then
+          local newline
+          newline=$(echo "$line" | sed -E "s#(image:|container:)[[:space:]]*[\"\']?[^\"'[:space:]]+#\\1 ${pinned}#")
+          if [[ $newline != "$line" ]]; then
+            line="$newline"
+            changed=1
+            say "Pinned image ${val} -> ${pinned} in ${file}" >&2
+          fi
+        fi
+      fi
+    fi
+    if [[ $ltrimmed =~ ^uses:\s*docker:// ]]; then
+      local val=$(echo "$line" | sed -E "s/^[[:space:]]*uses:[[:space:]]*//; s/[\"']+//g")
+      if [[ $val != *"@sha256:"* ]]; then
+        local pinned
+        pinned=$(resolve_image_digest "$val" || true)
+        if [[ -n $pinned ]]; then
+          local newline
+          newline=$(echo "$line" | sed -E "s#uses:[[:space:]]*[\"\']?docker://[^\"'[:space:]]+#uses: ${pinned}#")
+          if [[ $newline != "$line" ]]; then
+            line="$newline"
+            changed=1
+            say "Pinned docker action ${val} -> ${pinned} in ${file}" >&2
+          fi
+        fi
+      fi
+    fi
+    echo "$line"
+  done <"$file" >"$tmp"
+  if [[ $changed -eq 1 && ${DRY_RUN:-0} -ne 1 ]]; then
+    cp "$file" "$file.bak.pin"
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+  fi
+  return $changed
+}
+
+cmd_pincheck() {
+  local dir=".github/workflows"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dir)
+        dir="$2"
+        shift 2
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      --quiet)
+        QUIET=1
+        shift
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+  local count=0
+  if [[ -d $dir ]]; then
+    while IFS= read -r -d '' f; do
+      if ! check_images_in_yaml "$f"; then
+        count=$((count + 1))
+      fi
+    done < <(find "$dir" -type f \( -name "*.yml" -o -name "*.yaml" \) -print0)
+  fi
+  if [[ $count -gt 0 ]]; then
+    echo "Unpinned references detected: $count" >&2
+    return 1
+  fi
+  say "All workflows are pinned to immutable SHAs/digests."
+  return 0
+}
+
+cmd_autopin() {
+  local dir=".github/workflows" do_actions=1 do_images=1 DRY_RUN=0 QUIET=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dir)
+        dir="$2"
+        shift 2
+        ;;
+      --actions)
+        do_actions=1
+        shift
+        ;;
+      --no-actions)
+        do_actions=0
+        shift
+        ;;
+      --images)
+        do_images=1
+        shift
+        ;;
+      --no-images)
+        do_images=0
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN=1
+        shift
+        ;;
+      --quiet)
+        QUIET=1
+        shift
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+  local changed_any=0
+  if [[ -d $dir ]]; then
+    while IFS= read -r -d '' f; do
+      local changed=0 rc=0
+      if [[ $do_actions -eq 1 ]]; then
+        set +e
+        rewrite_actions_in_file "$f"
+        rc=$?
+        set -e
+        if [[ $rc -gt 0 ]]; then
+          changed=1
+          changed_any=1
+        fi
+      fi
+      if [[ $do_images -eq 1 ]]; then
+        set +e
+        rewrite_images_in_file "$f"
+        rc=$?
+        set -e
+        if [[ $rc -gt 0 ]]; then
+          changed=1
+          changed_any=1
+        fi
+      fi
+    done < <(find "$dir" -type f \( -name "*.yml" -o -name "*.yaml" \) -print0)
+  fi
+  if [[ $changed_any -eq 1 ]]; then
+    say "Pinned references updated. Review changes, commit, and push again."
+    return 2
+  fi
+  say "No changes needed."
+  return 0
+}
+
+cmd_run() {
+  local dir=".github/workflows" do_actions=1 do_images=1 DRY_RUN=0 QUIET=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dir)
+        dir="$2"
+        shift 2
+        ;;
+      --actions)
+        do_actions=1
+        shift
+        ;;
+      --no-actions)
+        do_actions=0
+        shift
+        ;;
+      --images)
+        do_images=1
+        shift
+        ;;
+      --no-images)
+        do_images=0
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN=1
+        shift
+        ;;
+      --quiet)
+        QUIET=1
+        shift
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+
+  # First run pincheck to validate current state
+  say "Checking for unpinned references..."
+  local pincheck_failed=0
+  if [[ -d $dir ]]; then
+    while IFS= read -r -d '' f; do
+      if ! check_images_in_yaml "$f"; then
+        pincheck_failed=1
+      fi
+    done < <(find "$dir" -type f \( -name "*.yml" -o -name "*.yaml" \) -print0)
+  fi
+
+  # If pincheck found issues, run autopin to fix them
+  if [[ $pincheck_failed -eq 1 ]]; then
+    say "Found unpinned references. Running autopin to fix them..."
+
+    # Run autopin with the same arguments
+    local changed_any=0
+    if [[ -d $dir ]]; then
+      while IFS= read -r -d '' f; do
+        local changed=0 rc=0
+        if [[ $do_actions -eq 1 ]]; then
+          set +e
+          rewrite_actions_in_file "$f"
+          rc=$?
+          set -e
+          if [[ $rc -gt 0 ]]; then
+            changed=1
+            changed_any=1
+          fi
+        fi
+        if [[ $do_images -eq 1 ]]; then
+          set +e
+          rewrite_images_in_file "$f"
+          rc=$?
+          set -e
+          if [[ $rc -gt 0 ]]; then
+            changed=1
+            changed_any=1
+          fi
+        fi
+      done < <(find "$dir" -type f \( -name "*.yml" -o -name "*.yaml" \) -print0)
+    fi
+
+    if [[ $changed_any -eq 1 ]]; then
+      say "Successfully pinned all references. Please review changes and commit."
+      return 0
+    else
+      say "Could not pin some references. Please check manually."
+      return 1
+    fi
+  else
+    say "All references are already pinned."
+    return 0
+  fi
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+  case "$cmd" in
+    pincheck) cmd_pincheck "$@" ;;
+    autopin) cmd_autopin "$@" ;;
+    run) cmd_run "$@" ;;
+    "" | -h | --help) usage ;;
+    *)
+      echo "Unknown command: $cmd" >&2
+      usage
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"

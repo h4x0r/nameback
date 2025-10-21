@@ -1,0 +1,97 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":gitSignOff"
+  ],
+  "labels": ["dependencies"],
+  "assignees": ["h4x0r"],
+  "reviewers": ["h4x0r"],
+  "timezone": "America/Los_Angeles",
+  "schedule": ["after 9am and before 5pm on weekday"],
+  "prConcurrentLimit": 5,
+  "prCreation": "immediate",
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "description": "Automerge patch and minor updates for Rust dependencies",
+      "matchDatasources": ["crate"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group all Rust workspace dependencies together",
+      "matchDatasources": ["crate"],
+      "groupName": "Rust workspace dependencies",
+      "matchFileNames": [
+        "Cargo.toml",
+        "nameback-core/Cargo.toml",
+        "nameback-cli/Cargo.toml",
+        "nameback-gui/Cargo.toml"
+      ]
+    },
+    {
+      "description": "Group all GitHub Actions updates together",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Pin GitHub Actions to commit SHA with version comment",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "pinDigestsDisabled": false
+    },
+    {
+      "description": "Hold back major Rust dependency updates for review",
+      "matchDatasources": ["crate"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "Automerge Python security tools",
+      "matchManagers": ["pip_requirements"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    }
+  ],
+  "cargo": {
+    "enabled": true,
+    "rangeStrategy": "bump"
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "automergeType": "pr",
+    "schedule": ["before 6am on monday"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "automerge": true,
+    "schedule": ["at any time"]
+  },
+  "rust": {
+    "enabled": true
+  },
+  "stabilityDays": 3,
+  "prBodyDefinitions": {
+    "Change": "{{#if displayFrom}}`{{{displayFrom}}}` -> {{else}}**New dependency** {{/if}}`{{{displayTo}}}`"
+  },
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "commitBody": "🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+}

@@ -99,12 +99,19 @@ govulncheck ./...               # Go
 When installed with `--github-security` flag:
 
 ### Automatically Configured
-- **Dependabot Vulnerability Alerts** - Automated dependency scanning
-- **Dependabot Security Fixes** - Automated security update PRs
+- **Renovate Bot** - Automated dependency updates with automerge, grouping, and scheduling
 - **Branch Protection Rules** - Requires reviews and status checks
 - **CodeQL Security Scanning** - Automated code analysis
 - **Secret Scanning** - Server-side secret detection
 - **Secret Push Protection** - Blocks secrets at GitHub level
+
+**Note**: This project uses Renovate instead of Dependabot for superior dependency management:
+- ✅ Automerge for patch/minor updates after CI passes
+- ✅ Intelligent grouping (GitHub Actions, Rust workspace deps, Python tools)
+- ✅ Scheduled PRs (weekdays 9am-5pm Pacific)
+- ✅ Automatic PR rebasing on conflicts
+- ✅ Vulnerability alerts with immediate automerge
+- ✅ Lockfile maintenance on Monday mornings
 
 ## 🎯 Language-Specific Security
 
