@@ -3,8 +3,8 @@
 Rename files based on their metadata. Automatically extracts titles, dates, and descriptions from your files to give them meaningful names.
 
 **Available Tools:**
-- 🖥️ **CLI** - Command-line tool for automation and scripting
-- 🎨 **GUI** - Visual dual-pane interface (Midnight Commander style) for Windows
+- 🖥️ **CLI** - Command-line tool for automation and scripting (Windows, macOS, Linux)
+- 🎨 **GUI** - Visual dual-pane interface (Midnight Commander style) for all platforms
 
 ## What it does
 
@@ -66,13 +66,15 @@ nameback ~/Pictures --dry-run
 nameback ~/Pictures
 ```
 
-### GUI (Windows)
+### GUI (All Platforms)
 
-1. Launch **nameback** from Start Menu
-2. Click **"📁 Select Directory"** to choose a folder
-3. Review proposed renames in the right pane (original names on left)
-4. Check/uncheck files to rename
-5. Click **"✅ Rename X Files"** to apply changes
+**Windows:** Launch **nameback** from Start Menu
+**macOS/Linux:** Run `./nameback-gui` (download from releases)
+
+1. Click **"📁 Select Directory"** to choose a folder
+2. Review proposed renames in the right pane (original names on left)
+3. Check/uncheck files to rename
+4. Click **"✅ Rename X Files"** to apply changes
 
 **Features:**
 - 📂 Visual dual-pane interface (Midnight Commander style)
