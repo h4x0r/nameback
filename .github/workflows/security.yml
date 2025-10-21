@@ -1,0 +1,502 @@
+name: Security CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Detect Rust packages
+      id: rust
+      run: |
+        set -euo pipefail
+        if [ -f Cargo.toml ]; then
+          if grep -q '^[[:space:]]*\[package\]' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '^[[:space:]]*\[workspace\]' Cargo.toml && grep -q '^[[:space:]]*members[[:space:]]*=' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "has=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install Rust toolchain
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+      with:
+        toolchain: stable
+
+    - name: Skip Security Audit (no Rust packages)
+      if: ${{ steps.rust.outputs.has != 'true' }}
+      run: echo "No Rust packages detected; skipping Security Audit job steps."
+
+    - name: Cache dependencies
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-audit-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-audit-
+
+    - name: Install cargo-audit and cargo-auditable
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        cargo install --locked cargo-audit
+        cargo install --locked cargo-auditable
+
+    - name: Build with auditable metadata
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo auditable build --release
+
+    - name: Run cargo audit
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo audit
+
+    - name: Run cargo audit for dependencies
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo audit --db advisory-db --json | tee audit-report.json
+
+    - name: Run cargo audit on binary
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo audit bin target/release/*
+
+    - name: Upload audit report
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: security-audit-report
+        path: audit-report.json
+
+  secret-scanning:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        fetch-depth: 0
+
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@cb7149b9e61c3d6896c4bc2616d4c9e86ee2d0c2 # v2.3.6
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  vulnerability-scanning:
+    name: Vulnerability Scanning
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Run Trivy vulnerability scanner in repo mode
+      uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security
+      uses: github/codeql-action/upload-sarif@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3.26.7
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Detect Rust packages
+      id: rust
+      run: |
+        set -euo pipefail
+        if [ -f Cargo.toml ]; then
+          if grep -q '^[[:space:]]*\[package\]' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '^[[:space:]]*\[workspace\]' Cargo.toml && grep -q '^[[:space:]]*members[[:space:]]*=' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "has=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Initialize CodeQL
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: github/codeql-action/init@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3.26.7
+      with:
+        languages: rust
+        queries: +security-and-quality
+
+    - name: Install Rust toolchain
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+      with:
+        toolchain: stable
+
+    - name: Build project
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo build --release
+
+    - name: Perform CodeQL Analysis
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: github/codeql-action/analyze@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3.26.7
+
+  supply-chain:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Detect Rust packages
+      id: rust
+      run: |
+        set -euo pipefail
+        if [ -f Cargo.toml ]; then
+          if grep -q '^[[:space:]]*\[package\]' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '^[[:space:]]*\[workspace\]' Cargo.toml && grep -q '^[[:space:]]*members[[:space:]]*=' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "has=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install Rust toolchain
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+      with:
+        toolchain: stable
+
+    - name: Generate SBOM
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        cargo install --locked cargo-auditable
+        cargo auditable build --release
+        cargo install --locked cargo-cyclonedx
+        cargo cyclonedx --output-format json --output-file sbom.json
+
+    - name: Skip Supply Chain (no Rust packages)
+      if: ${{ steps.rust.outputs.has != 'true' }}
+      run: echo "No Rust packages detected; skipping Supply Chain job steps."
+
+    - name: Upload SBOM
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: software-bill-of-materials
+        path: sbom.json
+
+
+  license-compliance:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Detect Rust packages
+      id: rust
+      run: |
+        set -euo pipefail
+        if [ -f Cargo.toml ]; then
+          if grep -q '^[[:space:]]*\[package\]' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '^[[:space:]]*\[workspace\]' Cargo.toml && grep -q '^[[:space:]]*members[[:space:]]*=' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "has=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install Rust toolchain
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+      with:
+        toolchain: stable
+
+    - name: Install cargo-license
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo install --locked cargo-license
+
+    - name: Generate license report
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        cargo license --json > licenses.json
+        cargo license --tsv > licenses.tsv
+
+    - name: Check for copyleft licenses
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        COPYLEFT=$(cargo license --json | jq -r '.[] | select(.license | test("GPL-2.0|GPL-3.0|AGPL|LGPL"; "i")) | "\(.name): \(.license)"' || true)
+        if [ -n "$COPYLEFT" ]; then
+          echo "::warning::Copyleft licenses found:"
+          echo "$COPYLEFT"
+        else
+          echo "No problematic copyleft licenses found"
+        fi
+
+    - name: Skip License Compliance (no Rust packages)
+      if: ${{ steps.rust.outputs.has != 'true' }}
+      run: echo "No Rust packages detected; skipping License Compliance job steps."
+
+    - name: Upload license report
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: license-compliance-report
+        path: |
+          licenses.json
+          licenses.tsv
+
+  binary-analysis:
+    name: Binary Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Detect Rust packages
+      id: rust
+      run: |
+        set -euo pipefail
+        if [ -f Cargo.toml ]; then
+          if grep -q '^[[:space:]]*\[package\]' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '^[[:space:]]*\[workspace\]' Cargo.toml && grep -q '^[[:space:]]*members[[:space:]]*=' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "has=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install Rust toolchain
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+      with:
+        toolchain: stable
+
+    - name: Build release binary
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: cargo build --release
+
+    - name: Install binary analysis tools
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        cargo install --locked cargo-binutils
+        rustup component add llvm-tools-preview
+
+    - name: Analyze binary for embedded secrets
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        echo "🔍 Scanning binary for embedded secrets..."
+        for binary in target/release/*; do
+          if [[ -x "$binary" && ! -d "$binary" ]]; then
+            echo "Analyzing: $binary"
+            # Check for common secret patterns in binary
+            if strings "$binary" | grep -i -E "(password|secret|token|api[_-]?key|private[_-]?key|-----BEGIN)" > binary-secrets.txt; then
+              echo "::warning::Potential secrets found in binary"
+              cat binary-secrets.txt
+            else
+              echo "✅ No obvious secrets found in binary"
+            fi
+          fi
+        done
+
+    - name: Check for debug symbols
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        echo "🔍 Checking for debug symbols..."
+        for binary in target/release/*; do
+          if [[ -x "$binary" && ! -d "$binary" ]]; then
+            if file "$binary" | grep -q "not stripped"; then
+              echo "::warning::Binary contains debug symbols: $binary"
+            else
+              echo "✅ Binary is properly stripped: $binary"
+            fi
+          fi
+        done
+
+    - name: Upload binary analysis results
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: binary-analysis-results
+        path: binary-secrets.txt
+      if: hashFiles('binary-secrets.txt') != ''
+
+  dependency-confusion-check:
+    name: Dependency Confusion Detection
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Check for suspicious dependency names
+      run: |
+        echo "🔍 Checking for potential dependency confusion attacks..."
+        
+        # Extract dependency names from Cargo.toml
+        if [[ -f "Cargo.toml" ]]; then
+          echo "Dependencies found in Cargo.toml:"
+          grep -E "^\s*[a-zA-Z0-9_-]+\s*=" Cargo.toml | head -10
+          
+          # Check for common typosquatting patterns
+          SUSPICIOUS=""
+          while IFS= read -r dep; do
+            dep_name=$(echo "$dep" | sed 's/^\s*//' | cut -d'=' -f1 | tr -d ' ')
+            # Check for suspicious patterns (numbers at end, common typos)
+            if echo "$dep_name" | grep -E ".*[0-9]+$|.*-rs$|.*_rs$" >/dev/null; then
+              SUSPICIOUS="$SUSPICIOUS $dep_name"
+            fi
+          done < <(grep -E "^\s*[a-zA-Z0-9_-]+\s*=" Cargo.toml)
+          
+          if [[ -n "$SUSPICIOUS" ]]; then
+            echo "::warning::Potentially suspicious dependency names detected:"
+            for dep in $SUSPICIOUS; do
+              echo "  - $dep"
+            done
+            echo "Review these dependencies for typosquatting attempts"
+          else
+            echo "✅ No obviously suspicious dependency names detected"
+          fi
+        fi
+
+    - name: Verify official crates.io sources
+      run: |
+        echo "🔍 Verifying dependency sources..."
+        
+        # Check if any dependencies are from non-standard sources
+        if grep -E "git\s*=|path\s*=" Cargo.toml >/dev/null 2>&1; then
+          echo "::notice::Found dependencies from non-crates.io sources:"
+          grep -E "git\s*=|path\s*=" Cargo.toml || true
+          echo "Ensure these are from trusted sources"
+        else
+          echo "✅ All dependencies appear to be from crates.io"
+        fi
+
+  enhanced-security-checks:
+    name: Enhanced Security Validation
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+    - name: Detect Rust packages
+      id: rust
+      run: |
+        set -euo pipefail
+        if [ -f Cargo.toml ]; then
+          if grep -q '^[[:space:]]*\[package\]' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          elif grep -q '^[[:space:]]*\[workspace\]' Cargo.toml && grep -q '^[[:space:]]*members[[:space:]]*=' Cargo.toml; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+          fi
+        else
+          echo "has=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install Rust toolchain
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      uses: dtolnay/rust-toolchain@21dc36fb71dd22e3317045c0c31a3f4249868b17 # stable
+      with:
+        toolchain: stable
+
+    - name: Validate Cargo.lock
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        echo "🔍 Validating Cargo.lock..."
+        if [[ ! -f "Cargo.lock" ]]; then
+          echo "::error::Cargo.lock not found - this is required for reproducible builds"
+          exit 1
+        fi
+        
+        # Check if Cargo.lock is up-to-date
+        if ! cargo check --locked >/dev/null 2>&1; then
+          echo "::error::Cargo.lock is out of date"
+          echo "Run 'cargo update' to update Cargo.lock"
+          exit 1
+        fi
+        echo "✅ Cargo.lock is valid and up-to-date"
+
+    - name: Check for feature flag security
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        echo "🔍 Checking feature flag configuration..."
+        
+        # Check for debug features that might be enabled inappropriately
+        if grep -E "debug.*=.*true|dev.*=.*true" Cargo.toml >/dev/null 2>&1; then
+          echo "::warning::Debug/dev features found in Cargo.toml"
+          grep -E "debug.*=.*true|dev.*=.*true" Cargo.toml || true
+          echo "Ensure debug features are not enabled in production builds"
+        fi
+        
+        # Check for default features that might expose debug functionality
+        if cargo tree --format "{f}" | grep -i debug >/dev/null 2>&1; then
+          echo "::notice::Debug-related features detected in dependency tree"
+          echo "Review feature flags for production appropriateness"
+          else
+            echo "✅ No obvious debug features in dependency tree"
+          fi
+
+    - name: Skip Enhanced Security (no Rust packages)
+      if: ${{ steps.rust.outputs.has != 'true' }}
+      run: echo "No Rust packages detected; skipping Enhanced Security job steps."
+
+  gitsign-verification:
+    name: Commit Signature Verification
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        fetch-depth: 0
+
+    - name: Install Go
+      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      with:
+        go-version: '1.21'
+
+    - name: Install gitsign for Sigstore verification
+      run: |
+        # Install gitsign for Sigstore signature verification
+        go install github.com/sigstore/gitsign@latest
+
+    - name: Verify latest commit signature
+      run: |
+        echo "Checking commit signature for: $(git log -1 --format='%H %s')"
+        if git log --show-signature -1 2>&1 | grep -q "gitsign: Good signature"; then
+          echo "✅ Latest commit has valid Sigstore signature"
+        elif git log --show-signature -1 2>&1 | grep -q "gitsign: "; then
+          echo "::error::Latest commit has invalid Sigstore signature"
+          git log --show-signature -1
+          exit 1
+        else
+          echo "::warning::Commit is not signed with Sigstore - enable gitsign"
+        fi
+
