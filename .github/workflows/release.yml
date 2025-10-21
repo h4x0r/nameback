@@ -7,12 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g., v0.2.1)'
+        description: 'Tag to release (e.g., v0.3.0)'
         required: true
         type: string
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,6 +28,8 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
 
       - name: Get version from tag
         id: get_version
@@ -38,80 +42,111 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
 
-      - name: Extract changelog for version
-        id: changelog
+      - name: Generate release notes from commits
+        id: release_notes
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          if [ -f CHANGELOG.md ]; then
-            # Extract the section for this version
-            CHANGELOG=$(sed -n "/## \[${VERSION#v}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
-            if [ -z "$CHANGELOG" ]; then
-              CHANGELOG="Release ${VERSION}"
-            fi
+
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 ${VERSION}^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            # First release - get all commits
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
           else
-            CHANGELOG="Release ${VERSION}"
+            # Get commits since previous tag
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges ${PREV_TAG}..${VERSION})
           fi
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Generate release notes
+          {
+            echo "release_notes<<EOF"
+            echo "## What's New"
+            echo ""
+            echo "$COMMITS"
+            echo ""
+            echo "## Full Changelog"
+            if [ -n "$PREV_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${VERSION}"
+            fi
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1.1.4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
           body: |
-            ${{ steps.changelog.outputs.changelog }}
+            ${{ steps.release_notes.outputs.release_notes }}
+
+            ---
 
             ## Installation
 
-            ### Windows
+            ### Windows (Recommended: MSI Installer)
 
-            **Option 1: MSI Installer (Recommended)**
-            Download `nameback-x86_64-pc-windows-msvc.msi` - includes both CLI and GUI tools
-            - CLI: Automatically added to PATH
-            - GUI: Start Menu shortcut
+            Download and install `nameback-x86_64-pc-windows-msvc.msi`
 
-            **Option 2: Portable Executables**
-            - CLI: Download `nameback-x86_64-pc-windows-msvc.exe`
-            - GUI: Download `nameback-gui-x86_64-pc-windows-msvc.exe`
+            **What you get:**
+            - 🖥️ **CLI**: Type `nameback` in any terminal (automatically added to PATH)
+            - 🎨 **GUI**: Launch from Start Menu → nameback
 
-            ### macOS (Intel)
-            ```bash
-            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-x86_64-apple-darwin
-            chmod +x nameback-x86_64-apple-darwin
-            sudo mv nameback-x86_64-apple-darwin /usr/local/bin/nameback
+            **Alternative: Portable Executables**
+            - CLI: `nameback-x86_64-pc-windows-msvc.exe`
+            - GUI: `nameback-gui-x86_64-pc-windows-msvc.exe`
+
+            Then install dependencies:
+            ```powershell
+            nameback --install-deps
             ```
 
-            ### macOS (Apple Silicon)
-            ```bash
-            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-aarch64-apple-darwin
-            chmod +x nameback-aarch64-apple-darwin
-            sudo mv nameback-aarch64-apple-darwin /usr/local/bin/nameback
-            ```
+            ### macOS (Recommended: Homebrew)
 
-            ### macOS (Homebrew - Recommended)
             ```bash
             brew tap h4x0r/nameback
             brew install nameback
             ```
             Automatically installs all dependencies: exiftool, tesseract, ffmpeg, imagemagick
 
-            ### Linux / Via Cargo
-            ```bash
-            cargo install nameback
-            ```
-            Then install dependencies with `nameback --install-deps`
+            **Alternative: Direct Download (with GUI)**
 
-            ### Via Cargo (all platforms)
+            Intel:
+            ```bash
+            # CLI
+            curl -L -o nameback https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-x86_64-apple-darwin
+            chmod +x nameback
+            sudo mv nameback /usr/local/bin/
+
+            # GUI (optional)
+            curl -L -o nameback-gui https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-gui-x86_64-apple-darwin
+            chmod +x nameback-gui
+            sudo mv nameback-gui /usr/local/bin/
+            ```
+
+            Apple Silicon:
+            ```bash
+            # CLI
+            curl -L -o nameback https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-aarch64-apple-darwin
+            chmod +x nameback
+            sudo mv nameback /usr/local/bin/
+
+            # GUI (optional)
+            curl -L -o nameback-gui https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-gui-aarch64-apple-darwin
+            chmod +x nameback-gui
+            sudo mv nameback-gui /usr/local/bin/
+            ```
+
+            ### Linux
+
             ```bash
             cargo install nameback
+            nameback --install-deps
             ```
 
             ## Verification
+
             All binaries include SHA256 checksums in `checksums.txt`
 
             ---
@@ -156,6 +191,15 @@ jobs:
         run: |
           brew install exiftool tesseract tesseract-lang ffmpeg imagemagick pkg-config
 
+      - name: Cache vcpkg (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@e12d46a63a90f2fae62d114769bbf2a179198b5c # v3.3.3
+        with:
+          path: C:\vcpkg\installed
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
       - name: Install vcpkg and dependencies (Windows only)
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -188,24 +232,25 @@ jobs:
       - name: Build GUI release binary
         run: cargo build --release --target ${{ matrix.target }} -p nameback-gui
 
-      - name: Strip binary (Unix only)
+      - name: Strip binaries (Unix only)
         if: matrix.os != 'windows-latest'
         run: |
           strip target/${{ matrix.target }}/release/nameback
+          strip target/${{ matrix.target }}/release/nameback-gui
 
-      - name: Create archive (Unix)
+      - name: Create archive with CLI and GUI (Unix)
         if: matrix.archive == 'tar.gz'
         run: |
           cd target/${{ matrix.target }}/release
-          tar czf ../../../nameback-${{ matrix.target }}.tar.gz nameback
+          tar czf ../../../nameback-${{ matrix.target }}.tar.gz nameback nameback-gui
           cd ../../..
 
-      - name: Create archive (Windows)
+      - name: Create archive with CLI and GUI (Windows)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
           cd target/${{ matrix.target }}/release
-          Compress-Archive -Path nameback.exe -DestinationPath ../../../nameback-${{ matrix.target }}.zip
+          Compress-Archive -Path nameback.exe,nameback-gui.exe -DestinationPath ../../../nameback-${{ matrix.target }}.zip
           cd ../../..
 
       - name: Generate SHA256 checksum (Unix)
@@ -221,68 +266,40 @@ jobs:
           "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII nameback-${{ matrix.target }}.zip.sha256
 
       - name: Upload archive to release
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./nameback-${{ matrix.target }}.${{ matrix.archive }}
-          asset_name: nameback-${{ matrix.target }}.${{ matrix.archive }}
-          asset_content_type: application/octet-stream
-
-      - name: Upload checksum to release
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
-          asset_name: nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
-          asset_content_type: text/plain
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            nameback-${{ matrix.target }}.${{ matrix.archive }}
+            nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
 
       - name: Upload CLI binary (Unix)
         if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/nameback
-          asset_name: nameback-${{ matrix.target }}
-          asset_content_type: application/octet-stream
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: target/${{ matrix.target }}/release/nameback
 
       - name: Upload GUI binary (Unix)
         if: matrix.os != 'windows-latest'
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/nameback-gui
-          asset_name: nameback-gui-${{ matrix.target }}
-          asset_content_type: application/octet-stream
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: target/${{ matrix.target }}/release/nameback-gui
 
       - name: Upload CLI binary (Windows)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/nameback.exe
-          asset_name: nameback-${{ matrix.target }}.exe
-          asset_content_type: application/octet-stream
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: target/${{ matrix.target }}/release/nameback.exe
 
       - name: Upload GUI binary (Windows)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./target/${{ matrix.target }}/release/nameback-gui.exe
-          asset_name: nameback-gui-${{ matrix.target }}.exe
-          asset_content_type: application/octet-stream
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: target/${{ matrix.target }}/release/nameback-gui.exe
 
       - name: Install WiX Toolset (Windows only)
         if: matrix.os == 'windows-latest'
@@ -297,16 +314,21 @@ jobs:
         run: |
           wix build -arch x64 -o nameback-${{ matrix.target }}.msi installer/nameback.wxs
 
-      - name: Upload MSI installer (Windows only)
+      - name: Generate MSI checksum (Windows only)
         if: matrix.os == 'windows-latest'
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.msi).Hash.ToLower()
+          "$hash  nameback-${{ matrix.target }}.msi" | Out-File -Encoding ASCII nameback-${{ matrix.target }}.msi.sha256
+
+      - name: Upload MSI installer and checksum (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./nameback-${{ matrix.target }}.msi
-          asset_name: nameback-${{ matrix.target }}.msi
-          asset_content_type: application/octet-stream
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            nameback-${{ matrix.target }}.msi
+            nameback-${{ matrix.target }}.msi.sha256
 
   generate-checksums:
     name: Generate Combined Checksums
@@ -327,19 +349,17 @@ jobs:
           cat checksums.txt
 
       - name: Upload combined checksums
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./checksums.txt
-          asset_name: checksums.txt
-          asset_content_type: text/plain
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: checksums.txt
 
   publish-crates-io:
     name: Publish to crates.io
     needs: [create-release, build-release]
     runs-on: ubuntu-latest
+    # Skip publishing for pre-release tags (e.g., -test, -rc, -alpha, -beta)
+    if: ${{ !contains(needs.create-release.outputs.version, '-') }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
