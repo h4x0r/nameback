@@ -16,37 +16,37 @@ homepage = "https://github.com/h4x0r/nameback"
 
 [workspace.dependencies]
 # Core dependencies
-anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-regex = "1.10"
-log = "0.4"
-walkdir = "2.4"
-chrono = "0.4"
-infer = "0.16"
+anyhow = "1.0.100"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+regex = "1.12.2"
+log = "0.4.28"
+walkdir = "2.5.0"
+chrono = "0.4.42"
+infer = "0.19.0"
 
 # File format handling
-pdf-extract = "0.7"
-image = "0.25"
+pdf-extract = "0.10.0"
+image = "0.25.8"
 
 # OCR
-tesseract = "0.14"
+tesseract = "0.15.2"
 
 # CLI
-clap = { version = "4.5", features = ["derive"] }
-env_logger = "0.11"
+clap = { version = "4.5.49", features = ["derive"] }
+env_logger = "0.11.8"
 
 # GUI
-eframe = "0.29"
-egui = "0.29"
-rfd = "0.15"
-tokio = { version = "1", features = ["rt", "sync", "macros"] }
+eframe = "0.33.0"
+egui = "0.33.0"
+rfd = "0.15.4"
+tokio = { version = "1.48.0", features = ["rt", "sync", "macros"] }
 
 # Platform-specific
-libc = "0.2"
+libc = "0.2.177"
 
 # Testing
-tempfile = "3.8"
+tempfile = "3.23.0"
 
 # Security enhancements for all release builds
 [profile.release]
