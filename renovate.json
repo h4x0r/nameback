@@ -10,7 +10,7 @@
   "assignees": ["h4x0r"],
   "reviewers": ["h4x0r"],
   "timezone": "America/Los_Angeles",
-  "schedule": ["after 9am and before 5pm on weekday"],
+  "schedule": ["after 9am and before 5pm every weekday"],
   "prConcurrentLimit": 5,
   "prCreation": "immediate",
   "prHourlyLimit": 0,
@@ -47,8 +47,7 @@
     {
       "description": "Pin GitHub Actions to commit SHA with version comment",
       "matchManagers": ["github-actions"],
-      "pinDigests": true,
-      "pinDigestsDisabled": false
+      "pinDigests": true
     },
     {
       "description": "Hold back major Rust dependency updates for review",
