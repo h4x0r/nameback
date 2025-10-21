@@ -273,34 +273,6 @@ jobs:
             nameback-${{ matrix.target }}.${{ matrix.archive }}
             nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
 
-      - name: Upload CLI binary (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: target/${{ matrix.target }}/release/nameback
-
-      - name: Upload GUI binary (Unix)
-        if: matrix.os != 'windows-latest'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: target/${{ matrix.target }}/release/nameback-gui
-
-      - name: Upload CLI binary (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: target/${{ matrix.target }}/release/nameback.exe
-
-      - name: Upload GUI binary (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
-        with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: target/${{ matrix.target }}/release/nameback-gui.exe
-
       - name: Install WiX Toolset (Windows only)
         if: matrix.os == 'windows-latest'
         shell: pwsh
