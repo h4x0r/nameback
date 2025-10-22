@@ -260,6 +260,8 @@ jobs:
 
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
+        env:
+          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
         run: |
           # Build both binaries
           cargo build --release --workspace
