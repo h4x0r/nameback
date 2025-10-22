@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Nameback
+GenericName=File Renaming Tool
+Comment=Intelligent file renaming based on metadata
+Comment[zh_CN]=基于元数据的智能文件重命名
+Exec=nameback-gui
+Icon=nameback
+Terminal=false
+Categories=Utility;FileTools;System;
+Keywords=rename;metadata;exif;ocr;forensics;dfir;
+StartupNotify=true
+StartupWMClass=nameback-gui
+MimeType=inode/directory;

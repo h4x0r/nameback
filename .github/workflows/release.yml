@@ -148,6 +148,11 @@ jobs:
             os: macos-latest
             archive: dmg
 
+          # Linux (Debian package)
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: deb
+
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
@@ -225,6 +230,97 @@ jobs:
         if: matrix.archive == 'dmg'
         run: |
           shasum -a 256 nameback-${{ matrix.target }}.dmg > checksums-temp.txt
+
+      - name: Install Debian build dependencies (Linux only)
+        if: matrix.archive == 'deb'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debhelper \
+            devscripts \
+            lintian \
+            libimage-exiftool-perl \
+            tesseract-ocr \
+            ffmpeg \
+            imagemagick
+
+      - name: Build Debian package (Linux only)
+        if: matrix.archive == 'deb'
+        run: |
+          # Build both binaries
+          cargo build --release --workspace
+
+          # Create package structure
+          mkdir -p debian-pkg/DEBIAN
+          mkdir -p debian-pkg/usr/bin
+          mkdir -p debian-pkg/usr/share/applications
+          mkdir -p debian-pkg/usr/share/doc/nameback
+
+          # Copy binaries
+          cp target/release/nameback debian-pkg/usr/bin/
+          cp target/release/nameback-gui debian-pkg/usr/bin/
+          chmod 755 debian-pkg/usr/bin/*
+
+          # Copy desktop entry
+          cp debian/nameback.desktop debian-pkg/usr/share/applications/
+
+          # Copy documentation
+          cp README.md debian-pkg/usr/share/doc/nameback/
+          cp LICENSE debian-pkg/usr/share/doc/nameback/copyright
+
+          # Create control file
+          VERSION=${{ needs.create-release.outputs.version }}
+          VERSION_NUM=${VERSION#v}  # Remove 'v' prefix
+          cat > debian-pkg/DEBIAN/control << EOF
+          Package: nameback
+          Version: ${VERSION_NUM}-1
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: libimage-exiftool-perl, tesseract-ocr, tesseract-ocr-chi-tra, tesseract-ocr-chi-sim, ffmpeg, imagemagick
+          Maintainer: Albert Hui <albert@example.com>
+          Description: Intelligent file renaming based on metadata
+           nameback renames files based on their embedded metadata, extracting titles,
+           dates, and descriptions to give files meaningful names. It supports a wide
+           range of file types including images, videos, PDFs, documents, and more.
+           .
+           Key Features:
+            * Smart metadata extraction from EXIF, PDF, and document fields
+            * OCR support for images and video frames (160+ languages)
+            * Multi-frame video analysis for better accuracy
+            * HEIC/HEIF image support
+            * Both CLI and GUI interfaces included
+           .
+           This package is particularly useful for digital forensics, DFIR workflows,
+           organizing recovered files from data recovery tools, and managing large
+           photo/video collections.
+          Homepage: https://github.com/h4x0r/nameback
+          EOF
+
+          # Build .deb package
+          dpkg-deb --build --root-owner-group debian-pkg nameback_${VERSION_NUM}-1_amd64.deb
+
+      - name: Run lintian checks (Linux only)
+        if: matrix.archive == 'deb'
+        run: |
+          VERSION=${{ needs.create-release.outputs.version }}
+          VERSION_NUM=${VERSION#v}
+          lintian --no-tag-display-limit nameback_${VERSION_NUM}-1_amd64.deb || true
+
+      - name: Generate DEB checksum (Linux only)
+        if: matrix.archive == 'deb'
+        run: |
+          VERSION=${{ needs.create-release.outputs.version }}
+          VERSION_NUM=${VERSION#v}
+          sha256sum nameback_${VERSION_NUM}-1_amd64.deb > checksums-temp.txt
+
+      - name: Upload Debian package to release (Linux only)
+        if: matrix.archive == 'deb'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            nameback_*_amd64.deb
 
       - name: Create archive with CLI and GUI (Windows)
         if: matrix.archive == 'zip'

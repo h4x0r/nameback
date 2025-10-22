@@ -1,0 +1,44 @@
+Source: nameback
+Section: utils
+Priority: optional
+Maintainer: Albert Hui <albert@example.com>
+Build-Depends: debhelper-compat (= 13),
+               cargo,
+               rustc (>= 1.70)
+Standards-Version: 4.6.2
+Homepage: https://github.com/h4x0r/nameback
+Vcs-Git: https://github.com/h4x0r/nameback.git
+Vcs-Browser: https://github.com/h4x0r/nameback
+Rules-Requires-Root: no
+
+Package: nameback
+Architecture: amd64
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+         libimage-exiftool-perl,
+         tesseract-ocr,
+         tesseract-ocr-chi-tra,
+         tesseract-ocr-chi-sim,
+         ffmpeg,
+         imagemagick
+Description: Intelligent file renaming based on metadata
+ nameback renames files based on their embedded metadata, extracting titles,
+ dates, and descriptions to give files meaningful names. It supports a wide
+ range of file types including images, videos, PDFs, documents, and more.
+ .
+ Key Features:
+  * Smart metadata extraction from EXIF, PDF, and document fields
+  * OCR support for images and video frames (160+ languages)
+  * Multi-frame video analysis for better accuracy
+  * HEIC/HEIF image support
+  * Series detection and numbering
+  * Context-aware naming using directory structure
+  * Safe operation with dry-run mode
+  * Both CLI and GUI interfaces included
+ .
+ This package is particularly useful for:
+  * Digital forensics and incident response (DFIR)
+  * Organizing recovered files from data recovery tools
+  * Managing large photo/video collections
+  * Processing screenshots and screen recordings
+  * Renaming downloaded documents with proper titles

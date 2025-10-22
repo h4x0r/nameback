@@ -55,15 +55,51 @@ The MSI installer automatically installs all required dependencies during setup.
 
 ### Linux
 
-#### Via Cargo
+#### CLI Tool via Cargo (Recommended)
 ```bash
 cargo install nameback
-nameback --install-deps
+nameback --install-deps  # Interactive dependency installation
 ```
 
-#### Manual Dependency Installation
+This installs the command-line tool only. Dependencies are installed automatically when you run `nameback --install-deps` or on first use (smart detection prompts you).
 
-**Debian/Ubuntu:**
+#### GUI Application via Cargo
+```bash
+cargo install nameback --bin nameback-gui
+nameback-gui
+```
+
+This installs the GUI application. You can launch it from the terminal or create a desktop shortcut.
+
+#### Debian/Ubuntu/Kali (.deb Package) - Includes CLI + GUI
+```bash
+# Download the latest .deb package
+wget https://github.com/h4x0r/nameback/releases/latest/download/nameback_0.4.1_amd64.deb
+
+# Install with dependencies
+sudo dpkg -i nameback_0.4.1_amd64.deb
+sudo apt-get install -f
+
+# Now you have both:
+nameback          # CLI tool
+nameback-gui      # GUI application
+```
+
+The `.deb` package automatically installs all dependencies and creates desktop menu entries for the GUI.
+
+**Dependencies included:**
+- `libimage-exiftool-perl` - Metadata extraction (required)
+- `tesseract-ocr` - OCR for images and videos
+- `tesseract-ocr-chi-tra` - Traditional Chinese language support
+- `tesseract-ocr-chi-sim` - Simplified Chinese language support
+- `ffmpeg` - Video frame extraction
+- `imagemagick` - HEIC/HEIF image support
+
+#### Manual Dependency Installation (Advanced)
+
+If you prefer to manage dependencies manually:
+
+**Debian/Ubuntu/Kali:**
 ```bash
 sudo apt-get install libimage-exiftool-perl tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-chi-sim ffmpeg imagemagick
 ```

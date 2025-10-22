@@ -39,10 +39,28 @@ Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https
 No manual setup required - everything works out of the box!
 
 ### Linux
+
+#### CLI Tool (Command-line)
 ```bash
 cargo install nameback
-nameback --install-deps
+nameback --install-deps  # Interactive dependency installation
 ```
+
+#### GUI Application (Visual Interface)
+```bash
+cargo install nameback --bin nameback-gui
+nameback-gui
+```
+
+#### Debian/Ubuntu/Kali (.deb Package)
+```bash
+# Download from releases
+wget https://github.com/h4x0r/nameback/releases/latest/download/nameback_0.4.1_amd64.deb
+sudo dpkg -i nameback_0.4.1_amd64.deb
+sudo apt-get install -f  # Install dependencies
+```
+
+The `.deb` package includes both CLI and GUI tools.
 
 [See all installation options](docs/GUIDE.md#installation-options)
 
@@ -61,8 +79,9 @@ nameback ~/Pictures
 ### GUI (All Platforms)
 
 **Windows:** Start Menu → nameback
-**macOS/Linux (Homebrew):** Run `nameback-gui` in terminal
-**macOS/Linux (portable):** Run `./nameback-gui` from download location
+**macOS (Homebrew):** Run `nameback-gui` in terminal
+**Linux (cargo install):** Run `nameback-gui` in terminal
+**Linux (.deb package):** Launch from Applications menu or run `nameback-gui`
 
 1. Click **"📁 Select Directory"** to choose a folder
 2. Review proposed renames in the right pane (original names on left)

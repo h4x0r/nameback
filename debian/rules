@@ -1,0 +1,41 @@
+#!/usr/bin/make -f
+
+# Debian rules for nameback package
+# See debhelper(7) (uncomment to enable)
+# output every command that modifies files on the build system.
+#export DH_VERBOSE = 1
+
+# Use cargo for building
+export CARGO_HOME = $(CURDIR)/debian/cargo_home
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+	cargo clean
+
+override_dh_auto_build:
+	# Build both CLI and GUI binaries
+	cargo build --release --workspace
+
+override_dh_auto_install:
+	# Install CLI binary
+	install -D -m 755 target/release/nameback $(CURDIR)/debian/nameback/usr/bin/nameback
+
+	# Install GUI binary
+	install -D -m 755 target/release/nameback-gui $(CURDIR)/debian/nameback/usr/bin/nameback-gui
+
+	# Install desktop entry for GUI
+	install -D -m 644 debian/nameback.desktop $(CURDIR)/debian/nameback/usr/share/applications/nameback.desktop
+
+	# Install icon (if exists)
+	if [ -f assets/icon.png ]; then \
+		install -D -m 644 assets/icon.png $(CURDIR)/debian/nameback/usr/share/pixmaps/nameback.png; \
+	fi
+
+override_dh_auto_test:
+	# Run tests during build
+	cargo test --workspace
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
