@@ -1,28 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Version information
+PINACTLITE_VERSION="1.0.0"
+PINACTLITE_BUILD_DATE="2025-10-22"
+
 usage() {
   cat <<USG
-pinactlite (script) - pinning validator and autopinner
+pinactlite (script) - pinning validator and autopinner v${PINACTLITE_VERSION}
 
 Usage:
 pinactlite pincheck [--dir DIR]
 pinactlite autopin  [--dir DIR] [--actions] [--images] [--dry-run] [--quiet]
 pinactlite run      [--dir DIR] [--actions] [--images] [--dry-run] [--quiet]
+pinactlite generate-renovate-config [FILE]
+pinactlite --version
+pinactlite --help
 
 Commands:
-  pincheck   Check that GitHub Actions and container images are pinned to immutable refs
-  autopin    Rewrite unpinned refs to immutable SHAs/digests (exits 2 if changes made)
-  run        Check and pin references (combines pincheck + autopin, pinact-compatible)
+  pincheck                  Check that GitHub Actions and container images are pinned to immutable refs
+  autopin                   Rewrite unpinned refs to immutable SHAs/digests (exits 2 if changes made)
+  run                       Check and pin references (combines pincheck + autopin, pinact-compatible)
+  generate-renovate-config  Generate Renovate config for keeping pinned actions updated
 
 Options:
-  --dir DIR  Workflow directory (default .github/workflows)
-  --actions  Include GitHub Actions uses: lines
-  --images   Include container/services images and docker:// actions
-  --dry-run  Do not write changes; print what would change
-  --quiet    Suppress normal output (errors still printed)
+  --dir DIR   Workflow directory (default .github/workflows)
+  --actions   Include GitHub Actions uses: lines
+  --images    Include container/services images and docker:// actions
+  --dry-run   Do not write changes; print what would change
+  --quiet     Suppress normal output (errors still printed)
+  --version   Show version information
+  --help      Show this help message
 USG
 }
+
+show_version() {
+  cat <<VER
+pinactlite version ${PINACTLITE_VERSION}
+Build date: ${PINACTLITE_BUILD_DATE}
+Platform: $(uname -s) $(uname -m)
+VER
+}
+
+# Global caches for performance
+declare -A SHA_CACHE
+declare -A IMAGE_DIGEST_CACHE
+declare -A METRICS
+METRICS["actions_checked"]=0
+METRICS["actions_pinned"]=0
+METRICS["images_checked"]=0
+METRICS["images_pinned"]=0
+METRICS["cache_hits"]=0
+METRICS["cache_misses"]=0
 
 is_hex40() {
   local s="$1"
@@ -48,35 +77,87 @@ say() { [[ ${QUIET:-0} == 1 ]] || echo "$@"; }
 check_uses_line() {
   local file="$1" loc="$2" val="$3"
   val="$(trim_quotes "$val")"
+  METRICS["actions_checked"]=$((${METRICS["actions_checked"]} + 1))
+
   # skip local actions
   if [[ $val == ./* || $val == .github/* ]]; then
     return 0
   fi
+
+  # Check allowlist
+  if is_in_allowlist "$val"; then
+    say "Skipping $val (in allowlist)" >&2
+    return 0
+  fi
   if [[ $val == docker://* ]]; then
     if [[ $val != *"@sha256:"* ]]; then
-      echo "$file: $loc: docker action not pinned: $val"
+      cat >&2 <<EOF
+$file: $loc: Unpinned docker action detected
+  Action: $val
+  Issue: Missing @sha256: digest pin
+
+  → Fix: Run auto-pin to resolve
+    $ pinactlite autopin --dir .github/workflows
+
+  → Or let pre-push hook auto-fix on next commit
+EOF
       return 1
     fi
     return 0
   fi
   # expect owner/repo[@ref]
   if [[ $val != *"@"* ]]; then
-    echo "$file: $loc: unpinned action (missing @<sha>): $val"
+    cat >&2 <<EOF
+$file: $loc: Unpinned action detected
+  Action: $val
+  Issue: Missing version reference (no @<ref>)
+
+  → Fix: Run auto-pin to resolve
+    $ pinactlite autopin --dir .github/workflows
+
+  → Or let pre-push hook auto-fix on next commit
+EOF
     return 1
   fi
   local ref="${val##*@}"
   if ! is_hex40 "$ref"; then
-    echo "$file: $loc: action ref not a 40-hex commit: $val"
+    local action_name="${val%@*}"
+    cat >&2 <<EOF
+$file: $loc: Unpinned action detected
+  Action: $val
+  Issue: Not pinned to 40-character SHA hash (currently: @${ref})
+
+  → Fix: Run auto-pin to resolve
+    $ pinactlite autopin --dir .github/workflows
+
+  → Or let pre-push hook auto-fix on next commit
+
+  ℹ️  SHA pinning protects against:
+     • Malicious updates to action code
+     • Supply chain attacks via compromised tags
+     • Unexpected breaking changes
+EOF
     return 1
   fi
   return 0
 }
 
-# Resolve owner/repo@ref to a commit SHA (uses git ls-remote)
+# Resolve owner/repo@ref to a commit SHA (uses git ls-remote with caching)
 resolve_action_sha() {
   local owner_repo="$1" ref="$2"
+  local cache_key="${owner_repo}@${ref}"
+
+  # Check cache first
+  if [[ -n "${SHA_CACHE[$cache_key]:-}" ]]; then
+    METRICS["cache_hits"]=$((${METRICS["cache_hits"]} + 1))
+    echo "${SHA_CACHE[$cache_key]}"
+    return 0
+  fi
+
+  METRICS["cache_misses"]=$((${METRICS["cache_misses"]} + 1))
   local url="https://github.com/${owner_repo}.git"
   local sha
+
   # Try exact match (tag or branch)
   sha=$(git ls-remote "$url" "$ref" </dev/null 2>/dev/null | awk '{print $1}' | head -1 || true)
   if [[ -z $sha ]]; then
@@ -87,17 +168,41 @@ resolve_action_sha() {
     # Try heads/
     sha=$(git ls-remote "$url" "refs/heads/$ref" </dev/null 2>/dev/null | awk '{print $1}' | head -1 || true)
   fi
-  [[ -n $sha ]] && echo "$sha"
+
+  # Validate SHA exists in remote if we got one
+  if [[ -n $sha ]] && is_hex40 "$sha"; then
+    # Verify SHA exists in repository
+    if git ls-remote "$url" | grep -q "^${sha}"; then
+      SHA_CACHE[$cache_key]="$sha"
+      echo "$sha"
+    else
+      say "Warning: SHA $sha not found in remote repository $owner_repo" >&2
+      return 1
+    fi
+  elif [[ -n $sha ]]; then
+    SHA_CACHE[$cache_key]="$sha"
+    echo "$sha"
+  fi
 }
 
-# Resolve a Docker/OCI image tag to a digest (Docker Hub public and GHCR public best-effort)
+# Resolve a Docker/OCI image tag to a digest (Docker Hub public and GHCR public best-effort with caching)
 resolve_image_digest() {
   local image="$1"
+
   # Already pinned
   [[ $image == *"@sha256:"* ]] && {
     echo "$image"
     return 0
   }
+
+  # Check cache first
+  if [[ -n "${IMAGE_DIGEST_CACHE[$image]:-}" ]]; then
+    METRICS["cache_hits"]=$((${METRICS["cache_hits"]} + 1))
+    echo "${IMAGE_DIGEST_CACHE[$image]}"
+    return 0
+  fi
+
+  METRICS["cache_misses"]=$((${METRICS["cache_misses"]} + 1))
 
   # Parse image components
   local registry="" namespace="" name="" tag="latest"
@@ -144,7 +249,9 @@ resolve_image_digest() {
   fi
 
   if [[ -n $digest ]]; then
-    echo "${registry:+$registry/}${namespace:+$namespace/}$name@$digest"
+    local result="${registry:+$registry/}${namespace:+$namespace/}$name@$digest"
+    IMAGE_DIGEST_CACHE[$image]="$result"
+    echo "$result"
   else
     return 1
   fi
@@ -199,9 +306,9 @@ check_images_in_yaml() {
           printf "%s: image not pinned: %s\n", FNAME, img; violations++
         }
       }
-      # Fix: Use working ltrim and match "- uses:" pattern
-      if (l ~ /^- uses: */) {
-        val=l; sub(/^- uses: */, "", val)
+      # Match "uses:" pattern (without dash, as dash is on the step "- name:" line)
+      if (l ~ /^uses: */) {
+        val=l; sub(/^uses: */, "", val)
         # Remove inline comments
         sub(/ *#.*$/, "", val)
         gsub(/^"|"$/, "", val); gsub(/^\047|\047$/, "", val)
@@ -226,9 +333,17 @@ rewrite_actions_in_file() {
   local file="$1" changed=0 tmp
   tmp=$(mktemp)
   while IFS= read -r line; do
-    if [[ $line =~ ^[[:space:]]*-[[:space:]]*uses:[[:space:]]* ]]; then
+    # Match lines with 'uses:' (may have leading dash and spaces like "  - uses:")
+    if [[ $line =~ uses:[[:space:]]* ]]; then
       local raw="${line#*uses:}"
       raw=$(echo "$raw" | sed -E "s/^[[:space:]]+//; s/[\"']+//g")
+
+      # Extract existing comment if present (everything after # except in strings)
+      local existing_comment=""
+      if [[ $line =~ \#[[:space:]]*(.*)[[:space:]]*$ ]]; then
+        existing_comment="${BASH_REMATCH[1]}"
+      fi
+
       if [[ $raw == docker://* ]]; then
         : # handled by images rewrite
       else
@@ -241,10 +356,19 @@ rewrite_actions_in_file() {
             local newline
             # Escape any characters in ref that might confuse sed
             local escaped_ref="${ref//\//\\/}"
-            newline=$(echo "$line" | sed -E "s|([[:space:]]*-[[:space:]]*uses:[[:space:]]*[\\\"\\']?)${or}@[^\\\"'[:space:]]+|\\1${or}@${sha} # ${escaped_ref}|")
+
+            # Smart comment preservation: add version tag and preserve existing comments
+            local comment_part="${escaped_ref}"
+            if [[ -n $existing_comment ]]; then
+              # Preserve existing comment alongside version tag
+              comment_part="${escaped_ref} | ${existing_comment}"
+            fi
+
+            newline=$(echo "$line" | sed -E "s|([[:space:]]*uses:[[:space:]]*[\\\"\\']?)${or}@[^\\\"'#[:space:]]+.*|\\1${or}@${sha} # ${comment_part}|")
             if [[ $newline != "$line" ]]; then
               line="$newline"
               changed=1
+              METRICS["actions_pinned"]=$((${METRICS["actions_pinned"]} + 1))
               say "Pinned action ${or}@${ref} -> ${sha} in ${file}" >&2
             fi
           fi
@@ -262,6 +386,121 @@ rewrite_actions_in_file() {
   return $changed
 }
 
+# Clean up old backup files (older than 7 days)
+cleanup_backup_files() {
+  local dir="${1:-.github/workflows}"
+  if [[ -d "$dir" ]]; then
+    find "$dir" -name "*.bak.pin" -mtime +7 -delete 2>/dev/null || true
+    say "Cleaned up old backup files in $dir" >&2
+  fi
+}
+
+# Check if action/image is in bypass allowlist
+is_in_allowlist() {
+  local ref="$1"
+  local allowlist=".security-controls/pinning-allowlist.txt"
+
+  [[ ! -f $allowlist ]] && return 1
+
+  # Check for exact match or pattern match
+  while IFS= read -r line; do
+    # Skip comments and empty lines
+    [[ $line =~ ^[[:space:]]*# ]] && continue
+    [[ -z $line ]] && continue
+
+    # Trim whitespace
+    line=$(echo "$line" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+
+    # Check for match
+    if [[ $ref == $line ]]; then
+      return 0
+    fi
+  done < "$allowlist"
+
+  return 1
+}
+
+# Check composite actions (.github/actions/*/action.yml)
+check_composite_actions() {
+  local actions_dir=".github/actions"
+  local violations=0
+
+  if [[ ! -d $actions_dir ]]; then
+    return 0
+  fi
+
+  while IFS= read -r -d '' action_file; do
+    if ! check_images_in_yaml "$action_file"; then
+      violations=$((violations + 1))
+    fi
+  done < <(find "$actions_dir" -type f \( -name "action.yml" -o -name "action.yaml" \) -print0)
+
+  return $violations
+}
+
+# Generate Renovate configuration for pinned actions
+generate_renovate_config() {
+  local config_file="${1:-renovate.json}"
+
+  cat > "$config_file" <<'RENOVATE'
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Auto-generated by pinactlite - Keep pinned GitHub Actions updated",
+  "extends": ["config:base"],
+  "github-actions": {
+    "enabled": true,
+    "pinDigests": true,
+    "addLabels": ["dependencies", "github-actions", "auto-pinned"],
+    "automerge": false,
+    "schedule": ["before 6am on monday"],
+    "commitMessagePrefix": "chore(actions): "
+  },
+  "docker": {
+    "pinDigests": true,
+    "addLabels": ["dependencies", "docker"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}
+RENOVATE
+
+  say "Generated Renovate config at $config_file" >&2
+  say "Run 'renovate' to automatically update pinned actions" >&2
+}
+
+# Display metrics summary
+show_metrics() {
+  if [[ ${QUIET:-0} == 1 ]]; then
+    return 0
+  fi
+
+  cat >&2 <<METRICS
+
+📊 Pinactlite Metrics Summary
+═══════════════════════════════
+Actions checked:     ${METRICS["actions_checked"]}
+Actions pinned:      ${METRICS["actions_pinned"]}
+Images checked:      ${METRICS["images_checked"]}
+Images pinned:       ${METRICS["images_pinned"]}
+Cache hits:          ${METRICS["cache_hits"]}
+Cache misses:        ${METRICS["cache_misses"]}
+
+METRICS
+
+  # Calculate and show cache hit rate if there were cache operations
+  local total_cache_ops=$((${METRICS["cache_hits"]} + ${METRICS["cache_misses"]}))
+  if [[ $total_cache_ops -gt 0 ]]; then
+    local hit_rate=$((${METRICS["cache_hits"]} * 100 / total_cache_ops))
+    echo "Cache hit rate:      ${hit_rate}%" >&2
+  fi
+}
+
 rewrite_images_in_file() {
   local file="$1" changed=0 tmp
   tmp=$(mktemp)
@@ -269,6 +508,7 @@ rewrite_images_in_file() {
     local ltrimmed=$(echo "$line" | sed -E "s/^[[:space:]]+//")
     if [[ $ltrimmed =~ ^(image:|container:) ]]; then
       local val=$(echo "$line" | sed -E "s/^[^:]+:[[:space:]]*//; s/[\"']+//g")
+      METRICS["images_checked"]=$((${METRICS["images_checked"]} + 1))
       if [[ $val != *"@sha256:"* ]]; then
         local pinned
         pinned=$(resolve_image_digest "$val" || true)
@@ -278,6 +518,7 @@ rewrite_images_in_file() {
           if [[ $newline != "$line" ]]; then
             line="$newline"
             changed=1
+            METRICS["images_pinned"]=$((${METRICS["images_pinned"]} + 1))
             say "Pinned image ${val} -> ${pinned} in ${file}" >&2
           fi
         fi
@@ -285,6 +526,7 @@ rewrite_images_in_file() {
     fi
     if [[ $ltrimmed =~ ^uses:\s*docker:// ]]; then
       local val=$(echo "$line" | sed -E "s/^[[:space:]]*uses:[[:space:]]*//; s/[\"']+//g")
+      METRICS["images_checked"]=$((${METRICS["images_checked"]} + 1))
       if [[ $val != *"@sha256:"* ]]; then
         local pinned
         pinned=$(resolve_image_digest "$val" || true)
@@ -294,6 +536,7 @@ rewrite_images_in_file() {
           if [[ $newline != "$line" ]]; then
             line="$newline"
             changed=1
+            METRICS["images_pinned"]=$((${METRICS["images_pinned"]} + 1))
             say "Pinned docker action ${val} -> ${pinned} in ${file}" >&2
           fi
         fi
@@ -334,6 +577,8 @@ cmd_pincheck() {
     esac
   done
   local count=0
+
+  # Check workflows
   if [[ -d $dir ]]; then
     while IFS= read -r -d '' f; do
       if ! check_images_in_yaml "$f"; then
@@ -341,11 +586,17 @@ cmd_pincheck() {
       fi
     done < <(find "$dir" -type f \( -name "*.yml" -o -name "*.yaml" \) -print0)
   fi
+
+  # Check composite actions
+  if ! check_composite_actions; then
+    count=$((count + 1))
+  fi
+
   if [[ $count -gt 0 ]]; then
     echo "Unpinned references detected: $count" >&2
     return 1
   fi
-  say "All workflows are pinned to immutable SHAs/digests."
+  say "All workflows and composite actions are pinned to immutable SHAs/digests."
   return 0
 }
 
@@ -392,6 +643,10 @@ cmd_autopin() {
         ;;
     esac
   done
+
+  # Clean up old backup files
+  cleanup_backup_files "$dir"
+
   local changed_any=0
   if [[ -d $dir ]]; then
     while IFS= read -r -d '' f; do
@@ -418,6 +673,10 @@ cmd_autopin() {
       fi
     done < <(find "$dir" -type f \( -name "*.yml" -o -name "*.yaml" \) -print0)
   fi
+
+  # Show metrics
+  show_metrics
+
   if [[ $changed_any -eq 1 ]]; then
     say "Pinned references updated. Review changes, commit, and push again."
     return 2
@@ -533,6 +792,8 @@ main() {
     pincheck) cmd_pincheck "$@" ;;
     autopin) cmd_autopin "$@" ;;
     run) cmd_run "$@" ;;
+    generate-renovate-config) generate_renovate_config "$@" ;;
+    --version | -v) show_version ;;
     "" | -h | --help) usage ;;
     *)
       echo "Unknown command: $cmd" >&2
