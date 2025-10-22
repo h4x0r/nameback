@@ -127,10 +127,12 @@ jobs:
             echo "Provenance file not found for ${VERSION}; skipping SLSA verification"
           fi
           
-          # Extract and install pinact
-          tar -xzf "/tmp/${TARBALL}"
-          install -m 0755 pinact "$HOME/.local/bin/pinact"
+          # Extract and install pinact (extract to temp dir to avoid polluting repo)
+          mkdir -p /tmp/pinact-extract
+          tar -xzf "/tmp/${TARBALL}" -C /tmp/pinact-extract
+          install -m 0755 /tmp/pinact-extract/pinact "$HOME/.local/bin/pinact"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          rm -rf /tmp/pinact-extract
 
       - name: Verify pinact version (non-blocking)
         run: |

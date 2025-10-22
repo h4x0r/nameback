@@ -7,6 +7,10 @@ sessions/
 nameback.rb
 HOMEBREW_SETUP.md
 
+# Pinact workflow artifacts
+pinact
+third_party_licenses/
+
 # Added by cargo
 
 /target
