@@ -7,7 +7,7 @@
            Language="1033"
            InstallerVersion="200"
            Compressed="yes"
-           InstallScope="perMachine">
+           Scope="perMachine">
 
     <!-- Major upgrade configuration -->
     <MajorUpgrade DowngradeErrorMessage="A newer version of nameback is already installed."
