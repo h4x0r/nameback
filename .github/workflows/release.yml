@@ -251,6 +251,13 @@ jobs:
             libclang-dev \
             clang
 
+          # Verify leptonica installation
+          echo "Verifying leptonica installation..."
+          pkg-config --exists lept && echo "✓ lept.pc found" || echo "✗ lept.pc not found"
+          pkg-config --modversion lept || echo "Could not get lept version"
+          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          find /usr -name "lept.pc" 2>/dev/null || echo "lept.pc not found in /usr"
+
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
         run: |
