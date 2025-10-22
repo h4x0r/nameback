@@ -114,11 +114,43 @@ sudo pacman -S perl-image-exiftool tesseract tesseract-data-chi_tra tesseract-da
 
 ### Build from Source
 
+This project uses a Cargo workspace with 3 crates:
+- **`nameback-core`** - Shared library with core rename logic
+- **`nameback-cli`** - Command-line tool
+- **`nameback-gui`** - GUI application (egui-based)
+
+#### Build All
+
 ```bash
+# Clone the repository
 git clone https://github.com/h4x0r/nameback.git
 cd nameback
+
+# Build everything
 cargo build --release
-./target/release/nameback /path/to/folder
+
+# Binaries:
+# target/release/nameback (CLI)
+# target/release/nameback-gui (GUI)
+```
+
+#### Build Individual Tools
+
+```bash
+# CLI only
+cargo build --release -p nameback
+
+# GUI only
+cargo build --release -p nameback-gui
+
+# Core library only
+cargo build --release -p nameback-core
+```
+
+#### Running Tests
+
+```bash
+cargo test --workspace
 ```
 
 ---
@@ -218,151 +250,50 @@ VID_20241015.mp4 (no metadata) → Extract frame at 1s → OCR detects "Product 
 
 ## Metadata Extraction Details
 
-Nameback follows a smart priority system for extracting filenames. Each file type has a specific order of metadata fields to try, with intelligent fallbacks when metadata is missing or unhelpful.
+Nameback uses intelligent heuristics to extract meaningful names from various file types.
 
-### Images (JPEG, PNG, GIF, BMP, TIFF, WebP, HEIC/HEIF)
+### How It Works
 
-**Priority Order:**
-1. **Title** - EXIF Title tag
-2. **Description** - EXIF Description tag
-3. **DateTimeOriginal** - Date photo was taken (EXIF)
-4. **Fallback:** OCR text extraction
-   - Tries Traditional Chinese (`chi_tra`)
-   - Then Simplified Chinese (`chi_sim`)
-   - Finally English (`eng`)
-   - Selects language with most extracted characters
-   - Uses first 80 characters of best result
+Each file type has a **priority-based extraction system**:
 
-**Examples:**
-```
-Photo has Title "Sunset Beach" → Sunset_Beach.jpg
-Photo has Description "Family reunion" → Family_reunion.jpg
-Screenshot has no metadata → OCR extracts "Error: Database Failed" → Error_Database_Failed.png
-```
+1. **Images** (JPEG, PNG, HEIC, etc.): Title → Description → DateTimeOriginal → OCR
+2. **PDFs**: Title → Subject → Text extraction → OCR (scanned)
+3. **Videos**: Title → CreationDate → Multi-frame OCR
+4. **Office Docs**: Title → Subject → Author (filtered)
+5. **Audio**: Title → Artist → Album
 
-### PDFs
+### Quality Filtering
 
-**Priority Order:**
-1. **Title** - PDF metadata Title field
-2. **Subject** - PDF metadata Subject field
-3. **Fallback:** Text content extraction
-   - Extracts embedded text from PDF body
-   - Uses first 80 characters
-   - Requires minimum 10 characters
-4. **Final Fallback:** OCR on first page
-   - Converts page to PNG using `pdftoppm`
-   - Runs multi-language OCR (chi_tra → chi_sim → eng)
-   - Uses first 80 characters
+Names are validated with **quality scoring** to ensure meaningful results:
+- Rejects scanner/printer names ("Canon iPR C165")
+- Filters generic placeholders ("Untitled", "Document1")
+- Validates minimum length and character diversity
+- Falls back to original filename if quality too low
 
-**Examples:**
-```
-PDF has Title "Annual Report 2024" → Annual_Report_2024.pdf
-PDF has body text "Executive Summary..." → Executive_Summary.pdf
-Scanned PDF → OCR extracts "Invoice #12345" → Invoice_12345.pdf
-```
+### Multi-Language OCR
 
-### Videos (MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V)
+When metadata is missing, OCR tries multiple languages:
+- Traditional Chinese (`chi_tra`)
+- Simplified Chinese (`chi_sim`)
+- English (`eng`)
+- Selects the language with most extracted characters
 
-**Priority Order:**
-1. **Title** - Video metadata Title tag
-2. **CreationDate** - Video creation timestamp
-3. **Fallback:** Frame extraction + OCR
-   - Extracts frame at 1 second using `ffmpeg`
-   - Runs multi-language OCR (chi_tra → chi_sim → eng)
-   - Uses first 80 characters
+### Supported File Types
 
-**Examples:**
-```
-Video has Title "Product Demo" → Product_Demo.mp4
-Video has CreationDate "2024-10-15" → 2024-10-15.mp4
-Screen recording → OCR extracts "Welcome to Tutorial" → Welcome_to_Tutorial.mp4
-```
+**Renamed automatically** (when they have useful metadata):
+- Photos: JPEG, PNG, HEIC/HEIF, GIF, TIFF
+- Documents: PDF, DOCX, XLSX, PPTX, ODT, ODS, ODP
+- Videos: MP4, MOV, AVI, MKV, WebM
+- Audio: MP3, FLAC, WAV, OGG, M4A
+- Web: HTML, MHTML (email)
+- Archives: ZIP, TAR (based on contents)
 
-### Office Documents (DOCX, XLSX, PPTX, ODT, ODS, ODP)
+**Skipped** (no useful metadata):
+- Plain text: TXT, CSV, MD
+- System files: DLL, EXE, temp files
+- Recovered files without metadata
 
-**Priority Order:**
-1. **Title** - Document Title property
-2. **Subject** - Document Subject property
-3. **Author** - Document Author (filtered for scanner/printer names)
-4. **No fallback** - Documents without useful metadata are skipped
-
-**Filters Applied:**
-- Scanner/printer names removed: "Canon", "iPR", "Printer", "Scanner"
-- "Untitled" documents skipped
-- Minimum 3 characters required
-
-**Examples:**
-```
-DOCX has Title "Q4 Sales Report" → Q4_Sales_Report.docx
-XLSX has Subject "Budget Planning" → Budget_Planning.xlsx
-PPTX has Author "Canon iPR C165" → Filtered out, skipped
-```
-
-### Audio Files (MP3, WAV, FLAC, OGG, M4A)
-
-**Priority Order:**
-1. **Title** - Audio Title tag (ID3)
-2. **Artist** - Artist name
-3. **Album** - Album name
-4. **No fallback** - Audio files without useful metadata are skipped
-
-**Examples:**
-```
-MP3 has Title "Bohemian Rhapsody" → Bohemian_Rhapsody.mp3
-MP3 has Artist "Queen" → Queen.mp3
-WAV has no metadata → Skipped
-```
-
-### OCR Processing Details
-
-When running OCR on images, PDFs, or video frames:
-
-**Language Detection:**
-- Tries multiple languages sequentially: Traditional Chinese → Simplified Chinese → English
-- Keeps the language that extracted the most characters
-
-**Text Cleaning:**
-- Removes excess whitespace and newlines
-- Collapses multiple spaces into single space
-- Truncates to **first 80 characters**
-- Requires **minimum 10 characters** to be useful
-
-**Image Conversion:**
-- HEIC → PNG using `sips` (macOS) or ImageMagick (Windows/Linux)
-- PDF → PNG using `pdftoppm` from poppler-utils
-- Video → Frame at 1 second using `ffmpeg`
-
-### Metadata Filtering
-
-Certain metadata values are considered unhelpful and filtered out:
-
-- Scanner/printer names: "Canon", "iPR", "Printer", "Scanner"
-- Generic text: "Untitled"
-- Too short: less than 3 characters
-- Empty strings or whitespace-only
-
-When metadata is filtered out, nameback moves to the next priority field or fallback method.
-
-### What Gets Renamed?
-
-Files **with useful metadata** get renamed:
-
-- **Photos** - JPEG, PNG, HEIC/HEIF with EXIF data (date taken, description)
-- **Screenshots/Images without EXIF** - Automatically uses OCR if tesseract is installed
-- **Office documents** - DOCX, XLSX, PPTX with title or author
-- **OpenDocument** - ODT, ODS, ODP with title or author
-- **Videos** - MP4, MOV, AVI, MKV with creation date or title
-- **Videos without metadata** - Extracts a frame and uses OCR if ffmpeg and tesseract are installed
-- **HTML files** - Files with title tags
-- **PDFs** - Uses Title metadata or extracts text content
-- **Scanned PDFs** - Automatically uses OCR if tesseract and poppler are installed
-
-Files **without useful metadata** are skipped:
-
-- **PDFs with only scanner names** - Metadata like "Canon iPR C165" is filtered out
-- **Plain text** - TXT, CSV, MD files have no embedded metadata
-- **System files** - DLLs, temp files, executables
-- **Recovered files** - Files that lost metadata during recovery
+For complete technical details and examples, see [Intelligent Naming Heuristics](naming-heuristics.md).
 
 ---
 

@@ -129,43 +129,6 @@ nameback --check-deps                       # Check dependencies
 nameback --install-deps                     # Install dependencies
 ```
 
-## Building from Source
-
-This project uses a Cargo workspace with 3 crates:
-- **`nameback-core`** - Shared library with core rename logic
-- **`nameback-cli`** - Command-line tool
-- **`nameback-gui`** - GUI application (egui-based)
-
-### Build All
-
-```bash
-# Build everything
-cargo build --release
-
-# Binaries:
-# target/release/nameback (CLI)
-# target/release/nameback-gui (GUI)
-```
-
-### Build Individual Tools
-
-```bash
-# CLI only
-cargo build --release -p nameback
-
-# GUI only
-cargo build --release -p nameback-gui
-
-# Core library only
-cargo build --release -p nameback-core
-```
-
-### Running Tests
-
-```bash
-cargo test --workspace
-```
-
 ## Learn More
 
 - [Complete Guide](docs/GUIDE.md) - Installation options, advanced features, troubleshooting

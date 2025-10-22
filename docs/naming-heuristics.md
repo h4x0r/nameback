@@ -616,287 +616,51 @@ Enhanced: "2023_Q4_Results_Presentation" (best scoring frame)
 
 ---
 
-## Planned Enhancements
-
-### Phase 1: Quick Wins
-
-#### A. Quality Scoring System
-See [Quality Scoring System](#quality-scoring-system) section above.
-
-**Implementation**: Add `src/scorer.rs` module
-
-#### B. Enhanced Error/Noise Filtering
-See [Metadata Filtering](#metadata-filtering) section above.
-
-**Implementation**: Expand `is_useful_metadata()` in `src/extractor.rs`
-
-#### C. Intelligent Filename Stem Analysis
-
-Extract meaningful parts from original cryptic filenames:
-
-```rust
-fn extract_meaningful_parts_from_original(path: &Path) -> Option<String> {
-    // "IMG_20231015_143022_HDR.jpg" → "143022_HDR"
-    // "Screenshot_2023-10-15_at_14.30.22.png" → None (all date/time)
-    // "Project_Proposal_FINAL_v3_FINAL.docx" → "Project_Proposal"
-}
-```
-
-**Remove common prefixes:**
-- IMG_, DSC_, SCAN_, Screenshot_, Capture_, VID_
-- Copy_of_, Draft_, New_, Untitled_
-
-**Filter out parts:**
-- Pure numeric sequences (likely timestamps)
-- Date patterns (YYYYMMDD, YYYY-MM-DD)
-- Version numbers (v1, v2, final, final2)
-
-**Implementation**: Add to `src/extractor.rs`
-
-### Phase 2: Content Intelligence
-
-#### D. Directory Context
-
-```rust
-fn extract_context_from_path(path: &Path) -> Option<String> {
-    // /Users/john/Projects/Website/images/hero.jpg
-    // → "Website_images" (skip "Projects" as generic)
-
-    // /home/user/Invoices/2023/Q4/invoice.pdf
-    // → "Invoices_2023_Q4"
-}
-```
-
-**Skip generic directories:**
-- documents, downloads, desktop, files
-- tmp, temp, data, misc, other, new
-
-**Implementation**: Add to `src/extractor.rs`
-
-#### E. Format-Specific Intelligence
-
-Add specialized extractors for:
-
-- **Email (.eml, .msg)**: Subject - From - Date
-- **Web archives (.html, .mhtml)**: `<title>` tag
-- **Archives (.zip, .tar)**: Main content or manifest
-
-**Implementation**: Add `src/format_extractors/` module
-
-#### F. Key Phrase Extraction
-
-Lightweight NLP without heavy ML dependencies:
-
-```rust
-fn extract_key_phrases(text: &str, max_phrases: usize) -> Vec<String> {
-    // 1. Tokenize, remove stop words
-    // 2. Generate n-grams (1-3 words)
-    // 3. Score by frequency + position (earlier = better)
-    // 4. Return top N phrases
-}
-```
-
-**Stop words to filter:**
-```
-the, a, an, and, or, but, in, on, at, to, for, of,
-with, by, from, as, is, was, are, were, been, be
-```
-
-**Implementation**: Add to `src/nlp.rs` module
-
-### Phase 3: Performance & Polish
-
-#### G. Metadata Caching
-
-Cache expensive operations (OCR, exiftool):
-
-```
-~/.cache/nameback/metadata_cache.json
-{
-  "/path/to/file.jpg": {
-    "mtime": "2023-10-15T14:30:22Z",
-    "metadata": { "title": "Extracted Title", ... },
-    "extracted_at": "2023-10-15T15:00:00Z"
-  }
-}
-```
-
-**Invalidation**: Check file mtime, discard if modified
-
-**Implementation**: Add `src/cache.rs` module, use `dirs` crate
-
-#### H. Multi-Frame Video Analysis
-
-Already described in [Video Files](#video-files) section.
-
-**Implementation**: Enhance `src/video_ocr.rs`
-
-### Phase 4: Advanced Features
-
-#### I. Series Detection
-
-Detect related files and maintain consistency:
-
-```
-Input:
-- screenshot_1.png
-- screenshot_2.png
-- screenshot_3.png
-
-Detection: Series "screenshot_" with 3 members
-Action: Keep sequential numbering
-```
-
-**Implementation**: Add `src/series_detector.rs` module
-
-#### J. Location Enrichment
-
-Use GPS metadata for location-based names:
-
-```
-EXIF GPS: 40.7128° N, 74.0060° W
-Result: "Photo_NewYork_2023_10_15"
-```
-
-**Implementation**: Enhance `src/extractor.rs`, optionally add reverse geocoding
-
----
-
 ## Examples
 
-### Example 1: Image with Poor OCR
+Nameback uses intelligent heuristics to generate meaningful filenames from various sources:
 
-**File**: `IMG_20231015.jpg`
+### Quality Scoring in Action
 
-**Current Flow**:
-1. Detect: Image
-2. Extract metadata: None (no EXIF title/description)
-3. Fallback: OCR → "|||III|I|I|||" (scanning artifact)
-4. Use: "|||III|I|I|||.jpg" ❌
+**Image with Poor OCR** (`IMG_20231015.jpg`):
+- OCR extracts: "|||III|I|I|||" (scanning artifact)
+- Quality score: 0.8 (low diversity, mostly punctuation)
+- **Result**: Keeps original filename (score < 2.0 threshold)
 
-**Enhanced Flow**:
-1. Detect: Image
-2. Extract metadata: None
-3. Fallback: OCR → "|||III|I|I|||"
-4. Score: 0.8 (low diversity, mostly punctuation)
-5. Reject: Score < 2.0 threshold
-6. Stem analysis: "IMG_20231015" → "20231015" (date only, reject)
-7. Use: Original filename ✓
+**PDF Report** (`document.pdf`):
+- Text extraction: "Quarterly Sales Report Q3 2023 Prepared by Marketing Department..."
+- Key phrases: "Quarterly Sales Report", "Q3 2023"
+- Quality score: 8.5 (optimal length, high quality)
+- **Result**: `Quarterly_Sales_Report_Q3_2023.pdf`
 
-### Example 2: PDF Report
+**Video with Title Card** (`VID_20231015_143022.mp4`):
+- Multi-frame OCR: "Loading..." (1s), "Company Presentation 2023" (5s), "Agenda" (10s)
+- Best score: "Company Presentation 2023" → 7.8
+- **Result**: `Company_Presentation_2023.mp4`
 
-**File**: `document.pdf`
+### Format-Specific Intelligence
 
-**Current Flow**:
-1. Detect: Document
-2. Extract metadata: Title = None
-3. Fallback: Extract text → "Quarterly Sales Report Q3 2023 Prepared by Marketing Department This report summarizes..."
-4. Truncate: "Quarterly_Sales_Report_Q3_2023_Prepared_by_Marketing_Department_Th"
+**Markdown with Frontmatter**:
+```yaml
+---
+title: Meeting Notes - Q3 Planning
+---
+```
+**Result**: `Meeting_Notes_Q3_Planning.md` (from frontmatter, score 8.2)
 
-**Enhanced Flow**:
-1. Detect: Document
-2. Extract metadata: Title = None
-3. Fallback: Extract text (full content)
-4. Key phrase extraction:
-   - N-grams: "Quarterly Sales Report", "Q3 2023", "Marketing Department", ...
-   - Score by position + frequency
-   - Top phrases: "Quarterly Sales Report", "Q3 2023", "Prepared by"
-5. Combine: "Quarterly_Sales_Report_Q3_2023"
-6. Score: 8.5 (optimal length, high quality)
-7. Use: "Quarterly_Sales_Report_Q3_2023.pdf" ✓
+**CSV with Headers**:
+```csv
+id,first_name,last_name,email
+1,John,Doe,john@example.com
+```
+**Result**: `John_Doe.csv` (skips ID column, uses semantic fields)
 
-### Example 3: Video with Title Card
-
-**File**: `VID_20231015_143022.mp4`
-
-**Current Flow**:
-1. Detect: Video
-2. Extract metadata: Title = None
-3. Fallback: Extract frame at 00:00:05
-4. OCR: "Loading..." (loading screen)
-5. Use: "Loading.mp4" ❌
-
-**Enhanced Flow**:
-1. Detect: Video
-2. Extract metadata: Title = None
-3. Multi-frame extraction:
-   - 00:00:01 → OCR: "Loading..."
-   - 00:00:05 → OCR: "Company Presentation 2023"
-   - 00:00:10 → OCR: "Agenda"
-4. Score results:
-   - "Loading..." → 2.1 (low quality, generic)
-   - "Company Presentation 2023" → 7.8 (high quality)
-   - "Agenda" → 3.5 (short but okay)
-5. Use best: "Company_Presentation_2023.mp4" ✓
-
-### Example 4: Markdown with Frontmatter
-
-**File**: `notes.md`
-
-**Current Flow**:
-1. Detect: Document
-2. Extract metadata: Title = None
-3. Content extraction: First heading = "Table of Contents"
-4. Use: "Table_of_Contents.md" ❌
-
-**Enhanced Flow**:
-1. Detect: Document
-2. Parse frontmatter:
-   ```yaml
-   ---
-   title: Meeting Notes - Q3 Planning
-   date: 2023-10-15
-   ---
-   ```
-3. Extract: title = "Meeting Notes - Q3 Planning"
-4. Score: 8.2 (from metadata, high quality)
-5. Use: "Meeting_Notes_Q3_Planning.md" ✓
-
-### Example 5: CSV Data File
-
-**File**: `export.csv`
-
-**Current Flow**:
-1. Detect: Document
-2. Extract metadata: None
-3. Content: Read first row → "1,John,Doe,john@example.com"
-4. Use: "1_John_Doe.csv" (includes ID)
-
-**Enhanced Flow**:
-1. Detect: Document
-2. Extract metadata: None
-3. Content extraction:
-   - Parse CSV with headers
-   - Headers: ["id", "first_name", "last_name", "email"]
-   - First row: ["1", "John", "Doe", "john@example.com"]
-4. Column analysis:
-   - "id" → Skip (identifier)
-   - "first_name" → Use (semantic)
-   - "last_name" → Use (semantic)
-   - "email" → Skip (secondary)
-5. Combine: "John_Doe"
-6. Directory context: /Users/john/Contacts/
-7. Final: "Contacts_John_Doe.csv" ✓
-
-### Example 6: Email File
-
-**File**: `message.eml` (not yet implemented)
-
-**Enhanced Flow**:
-1. Detect: Document (email format)
-2. Parse email headers:
-   ```
-   From: jane@example.com
-   Subject: Q3 Budget Proposal Review
-   Date: Mon, 15 Oct 2023 14:30:22 +0000
-   ```
-3. Extract:
-   - Subject: "Q3 Budget Proposal Review"
-   - From: "jane@example.com" → "jane"
-   - Date: "2023-10-15"
-4. Combine: "Q3_Budget_Proposal_Review_jane_2023_10_15"
-5. Score: 9.1 (comprehensive, descriptive)
-6. Use: "Q3_Budget_Proposal_Review_jane_2023_10_15.eml" ✓
+**Email Message**:
+```
+Subject: Q3 Budget Proposal Review
+From: jane@example.com
+```
+**Result**: `Q3_Budget_Proposal_Review_jane_2023_10_15.eml`
 
 ---
 
