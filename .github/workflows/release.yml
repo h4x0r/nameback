@@ -203,9 +203,11 @@ jobs:
         shell: bash
 
       - name: Build CLI release binary
+        if: matrix.archive != 'deb'
         run: cargo build --release --target ${{ matrix.target }} -p nameback
 
       - name: Build GUI release binary
+        if: matrix.archive != 'deb'
         run: cargo build --release --target ${{ matrix.target }} -p nameback-gui
 
       - name: Strip binaries (macOS only)
