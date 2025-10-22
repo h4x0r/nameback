@@ -233,6 +233,12 @@ jobs:
         run: |
           shasum -a 256 nameback-${{ matrix.target }}.dmg > checksums-temp.txt
 
+      - name: Attest DMG installer (macOS only)
+        if: matrix.archive == 'dmg'
+        uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+        with:
+          subject-path: nameback-${{ matrix.target }}.dmg
+
       - name: Install Debian build dependencies (Linux only)
         if: matrix.archive == 'deb'
         run: |
@@ -339,6 +345,13 @@ jobs:
           VERSION_NUM=${VERSION#v}
           sha256sum nameback_${VERSION_NUM}-1_amd64.deb > checksums-temp.txt
 
+      - name: Attest Debian package (Linux only)
+        if: matrix.archive == 'deb'
+        uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+        with:
+          subject-path: |
+            nameback_*_amd64.deb
+
       - name: Upload Debian package to release (Linux only)
         if: matrix.archive == 'deb'
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
@@ -361,6 +374,12 @@ jobs:
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.zip).Hash.ToLower()
           "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII checksums-temp.txt
+
+      - name: Attest ZIP archive (Windows only)
+        if: matrix.archive == 'zip'
+        uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+        with:
+          subject-path: nameback-${{ matrix.target }}.zip
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
@@ -388,6 +407,12 @@ jobs:
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.msi).Hash.ToLower()
           "$hash  nameback-${{ matrix.target }}.msi" | Out-File -Encoding ASCII -Append checksums-temp.txt
+
+      - name: Attest MSI installer (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+        with:
+          subject-path: nameback-${{ matrix.target }}.msi
 
       - name: Upload MSI installer (Windows only)
         if: matrix.os == 'windows-latest'
