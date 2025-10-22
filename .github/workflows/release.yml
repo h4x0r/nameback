@@ -258,38 +258,21 @@ jobs:
           echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
           find /usr -name "lept.pc" 2>/dev/null || echo "lept.pc not found in /usr"
 
+      - name: Set PKG_CONFIG_PATH for Linux build
+        if: matrix.archive == 'deb'
+        run: echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
         run: |
-          # Install strace for debugging
-          sudo apt-get install -y strace
+          # Verify PKG_CONFIG_PATH is set
+          echo "PKG_CONFIG_PATH is: $PKG_CONFIG_PATH"
 
-          # Verify lept.pc exists and location
-          echo "=== Searching for lept.pc ==="
-          find /usr -name "lept.pc" 2>/dev/null || echo "✗ lept.pc not found in /usr"
-          echo "PKG_CONFIG_PATH locations to check:"
-          ls -la /usr/lib/x86_64-linux-gnu/pkgconfig/lept.pc || echo "✗ Not in multiarch location"
-          ls -la /usr/lib/pkgconfig/lept.pc || echo "✗ Not in standard location"
-
-          # Verify pkg-config can find lept
-          echo "=== Testing pkg-config directly ==="
+          # Verify pkg-config can find lept with the new path
           pkg-config --exists lept && echo "✓ pkg-config can find lept" || echo "✗ pkg-config cannot find lept"
-          pkg-config --modversion lept 2>/dev/null && echo "✓ lept version found" || echo "✗ Could not get lept version"
+          pkg-config --modversion lept 2>/dev/null && echo "✓ lept version: $(pkg-config --modversion lept)" || echo "✗ Could not get lept version"
 
-          # Show what pkg-config sees
-          echo "=== pkg-config search paths ==="
-          pkg-config --variable pc_path pkg-config
-
-          # Debug with strace to see exactly what environment variables are passed
-          echo "=== Running build with strace to debug environment variables ==="
-          PKG_CONFIG_PATH_x86_64_unknown_linux_gnu=/usr/lib/x86_64-linux-gnu/pkgconfig \
-          PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig \
-          strace -e trace=execve -f cargo build --release --workspace 2>&1 | grep -E "(PKG_CONFIG|lept)" | head -50 || true
-
-          # Now run the actual build
-          echo "=== Running actual build ==="
-          PKG_CONFIG_PATH_x86_64_unknown_linux_gnu=/usr/lib/x86_64-linux-gnu/pkgconfig \
-          PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig \
+          # Build both binaries
           cargo build --release --workspace
 
           # Create package structure
