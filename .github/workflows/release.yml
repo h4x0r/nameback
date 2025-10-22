@@ -260,9 +260,15 @@ jobs:
 
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
-        env:
-          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
         run: |
+          # Export PKG_CONFIG_PATH for leptonica-sys
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+          echo "PKG_CONFIG_PATH is: $PKG_CONFIG_PATH"
+
+          # Verify pkg-config can find lept
+          pkg-config --exists lept && echo "✓ pkg-config can find lept" || echo "✗ pkg-config cannot find lept"
+          pkg-config --cflags lept || echo "Could not get lept cflags"
+
           # Build both binaries
           cargo build --release --workspace
 
