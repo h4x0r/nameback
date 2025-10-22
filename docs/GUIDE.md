@@ -301,6 +301,85 @@ For complete technical details and examples, see [Intelligent Naming Heuristics]
 
 ## Safety & Security
 
+### Verifying Downloaded Artifacts
+
+All nameback release artifacts are signed with **SLSA build provenance attestations** for supply chain security. This ensures that your downloaded files are authentic and haven't been tampered with.
+
+#### Why Verify?
+
+- **Authenticity** - Proves the artifact was built by the official h4x0r/nameback repository
+- **Integrity** - Confirms the file hasn't been modified since it was built
+- **Transparency** - Shows the exact commit SHA that built the artifact
+- **Trust** - Validates the build came from the official GitHub Actions workflow
+
+#### Prerequisites
+
+Install the GitHub CLI:
+- **macOS**: `brew install gh`
+- **Windows**: Download from https://cli.github.com/
+- **Linux**: See https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+
+#### Verifying Artifacts
+
+**Windows MSI Installer:**
+```bash
+gh attestation verify nameback-x86_64-pc-windows-msvc.msi --owner h4x0r
+```
+
+**macOS DMG Installers:**
+```bash
+# Intel Mac
+gh attestation verify nameback-x86_64-apple-darwin.dmg --owner h4x0r
+
+# Apple Silicon Mac
+gh attestation verify nameback-aarch64-apple-darwin.dmg --owner h4x0r
+```
+
+**Linux Debian Package:**
+```bash
+gh attestation verify nameback_0.5.0-1_amd64.deb --owner h4x0r
+```
+
+**Windows ZIP Archive:**
+```bash
+gh attestation verify nameback-x86_64-pc-windows-msvc.zip --owner h4x0r
+```
+
+#### What the Verification Shows
+
+When verification succeeds, you'll see:
+```
+✓ Verification succeeded!
+
+sha256:abc123... was attested by:
+REPO        PREDICATE_TYPE                  WORKFLOW
+h4x0r/nameback  https://slsa.dev/provenance/v1  .github/workflows/release.yml@refs/tags/v0.5.0
+```
+
+This confirms:
+- ✅ The artifact was built by the official h4x0r/nameback repository
+- ✅ It was built from the official release.yml workflow
+- ✅ It matches the exact commit SHA shown
+- ✅ It hasn't been tampered with since build
+
+#### Additional Verification with Checksums
+
+For maximum security, combine attestation verification with checksum verification:
+
+```bash
+# Download checksums.txt from the release
+wget https://github.com/h4x0r/nameback/releases/latest/download/checksums.txt
+
+# Verify checksum matches
+sha256sum -c checksums.txt
+```
+
+**Two-layer security:**
+- **Attestations** verify authenticity (came from official repo/workflow)
+- **Checksums** verify integrity (file not corrupted/modified)
+
+Using **both** provides the strongest security guarantee.
+
 ### Operational Safety
 
 - **Preview mode** - Always test with `--dry-run` first

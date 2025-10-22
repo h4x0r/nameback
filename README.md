@@ -64,6 +64,40 @@ The `.deb` package includes both CLI and GUI tools.
 
 [See all installation options](docs/GUIDE.md#installation-options)
 
+## Security & Verification
+
+All release artifacts are signed with SLSA build provenance attestations for supply chain security. You can verify that your downloaded files are authentic and haven't been tampered with.
+
+### Verify Downloaded Files
+
+**Prerequisites:** Install [GitHub CLI](https://cli.github.com/)
+
+**Verify any artifact:**
+```bash
+# Verify MSI installer (Windows)
+gh attestation verify nameback-x86_64-pc-windows-msvc.msi --owner h4x0r
+
+# Verify DMG installer (macOS)
+gh attestation verify nameback-x86_64-apple-darwin.dmg --owner h4x0r
+
+# Verify .deb package (Linux)
+gh attestation verify nameback_0.5.0-1_amd64.deb --owner h4x0r
+```
+
+**What this verifies:**
+- ✅ Built by the official h4x0r/nameback repository
+- ✅ Built from the official release workflow
+- ✅ Not tampered with since build
+- ✅ Shows the exact commit SHA that built it
+
+**Additional verification with checksums:**
+```bash
+# Download and verify checksum
+sha256sum -c checksums.txt
+```
+
+For maximum security, use **both** attestation verification (proves authenticity) and checksum verification (proves integrity).
+
 ## Quick Start
 
 ### CLI (Command-line)
