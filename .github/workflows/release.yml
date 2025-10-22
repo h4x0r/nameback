@@ -261,16 +261,12 @@ jobs:
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
         run: |
-          # Export PKG_CONFIG_PATH for leptonica-sys
-          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
-          echo "PKG_CONFIG_PATH is: $PKG_CONFIG_PATH"
-
           # Verify pkg-config can find lept
           pkg-config --exists lept && echo "✓ pkg-config can find lept" || echo "✗ pkg-config cannot find lept"
-          pkg-config --cflags lept || echo "Could not get lept cflags"
+          pkg-config --modversion lept && echo "✓ lept version found" || echo "✗ Could not get lept version"
 
-          # Build both binaries
-          cargo build --release --workspace
+          # Build with PKG_CONFIG_PATH set inline (passes to cargo subprocess)
+          PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig cargo build --release --workspace
 
           # Create package structure
           mkdir -p debian-pkg/DEBIAN
