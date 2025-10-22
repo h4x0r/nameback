@@ -242,7 +242,12 @@ jobs:
             libimage-exiftool-perl \
             tesseract-ocr \
             ffmpeg \
-            imagemagick
+            imagemagick \
+            pkg-config \
+            libleptonica-dev \
+            libtesseract-dev \
+            libclang-dev \
+            clang
 
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
