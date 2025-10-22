@@ -160,9 +160,9 @@ jobs:
           git add .github/workflows/
           git commit -m "chore: auto-pin GitHub Actions to SHA
 
-Auto-pinned by pinact v3.4.2 via Pinning Validation workflow
+          Auto-pinned by pinact v3.4.2 via Pinning Validation workflow
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 
       - name: Push auto-pinned changes
         if: steps.pinact_fix.outputs.changed == 'true'
