@@ -28,6 +28,7 @@ pub struct NamebackApp {
     is_processing: bool,
     error_message: Option<String>,
     status_message: Option<String>,
+    show_about_dialog: bool,
 
     // Dependency check dialog
     show_deps_dialog: bool,
@@ -53,6 +54,7 @@ impl NamebackApp {
             is_processing: false,
             error_message: None,
             status_message: None,
+            show_about_dialog: false,
             show_deps_dialog: false,
             pending_directory: None,
             missing_deps: None,
@@ -304,6 +306,13 @@ impl NamebackApp {
             {
                 self.execute_renames();
             }
+
+            ui.separator();
+
+            // About button
+            if ui.button("ℹ️ About").clicked() {
+                self.show_about_dialog = true;
+            }
         });
     }
 
@@ -416,7 +425,7 @@ impl eframe::App for NamebackApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("nameback - File Renaming Tool");
+            ui.heading(format!("nameback v{} - File Renaming Tool", env!("CARGO_PKG_VERSION")));
             ui.add_space(10.0);
 
             // Control buttons
@@ -529,6 +538,37 @@ impl eframe::App for NamebackApp {
                             });
                         }
                     }
+                });
+        }
+
+        // About dialog
+        if self.show_about_dialog {
+            egui::Window::new("About nameback")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(10.0);
+                        ui.heading(format!("nameback v{}", env!("CARGO_PKG_VERSION")));
+                        ui.add_space(20.0);
+
+                        ui.label("Copyright (c) 2025 Albert Hui");
+                        ui.hyperlink_to("albert@securityronin.com", "mailto:albert@securityronin.com");
+                        ui.add_space(10.0);
+
+                        ui.label("License: MIT");
+                        ui.hyperlink_to(
+                            "https://github.com/h4x0r/nameback",
+                            "https://github.com/h4x0r/nameback"
+                        );
+                        ui.add_space(20.0);
+
+                        if ui.button("Close").clicked() {
+                            self.show_about_dialog = false;
+                        }
+                        ui.add_space(10.0);
+                    });
                 });
         }
     }

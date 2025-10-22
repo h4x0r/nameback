@@ -4,8 +4,13 @@ use std::path::PathBuf;
 /// A utility to rename files based on their metadata
 #[derive(Parser, Debug)]
 #[command(name = "nameback")]
-#[command(author = "4n6h4x0r")]
+#[command(author = "Albert Hui <albert@securityronin.com>")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(long_version = concat!(
+    env!("CARGO_PKG_VERSION"), "\n",
+    "Copyright (c) 2025 Albert Hui <albert@securityronin.com>\n",
+    "License: MIT"
+))]
 #[command(about = "Renames files based on metadata from exiftool", long_about = None)]
 pub struct Args {
     /// Directory to scan for files
