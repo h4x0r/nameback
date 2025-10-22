@@ -35,11 +35,11 @@ Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https
 - **CLI**: Type `nameback` in any terminal (automatically added to PATH)
 - **GUI**: Launch from Start Menu → nameback
 
-**Alternative: Portable Executables**
+**Alternative: Portable Archive**
 
-For portable use without installation, download individual executables from [releases](https://github.com/h4x0r/nameback/releases/latest):
-- CLI: `nameback-x86_64-pc-windows-msvc.exe`
-- GUI: `nameback-gui-x86_64-pc-windows-msvc.exe`
+Download `nameback-x86_64-pc-windows-msvc.zip` from [releases](https://github.com/h4x0r/nameback/releases/latest), extract it to get both:
+- `nameback.exe` (CLI)
+- `nameback-gui.exe` (GUI)
 
 Then install dependencies:
 ```powershell
@@ -68,8 +68,9 @@ nameback ~/Pictures
 
 ### GUI (All Platforms)
 
-**Windows:** Launch **nameback** from Start Menu
-**macOS/Linux:** Run `./nameback-gui` (download from releases)
+**Windows:** Start Menu → nameback
+**macOS/Linux (Homebrew):** Run `nameback-gui` in terminal
+**macOS/Linux (portable):** Run `./nameback-gui` from download location
 
 1. Click **"📁 Select Directory"** to choose a folder
 2. Review proposed renames in the right pane (original names on left)
@@ -172,6 +173,10 @@ cargo test --workspace
 - [Metadata Extraction Details](docs/GUIDE.md#metadata-extraction-details) - How nameback prioritizes different metadata fields
 - [Advanced Features](docs/GUIDE.md#advanced-features) - Multi-language OCR, HEIC support, video frame extraction
 - [Troubleshooting](docs/GUIDE.md#troubleshooting) - Common issues and solutions
+
+## Security
+
+Nameback is developed with security best practices. For automated security controls in your GitHub repositories, check out [1-click-github-sec](https://github.com/h4x0r/1-click-github-sec) by the same author (Albert Hui) - automated Dependabot, CodeQL, secret scanning, and more.
 
 ## License
 
