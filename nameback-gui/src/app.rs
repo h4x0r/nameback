@@ -1,5 +1,5 @@
 use eframe::egui;
-use nameback_core::{FileAnalysis, RenameConfig, RenameEngine, RenameResult};
+use nameback_core::{DependencyNeeds, FileAnalysis, RenameConfig, RenameEngine, RenameResult};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -29,6 +29,14 @@ pub struct NamebackApp {
     error_message: Option<String>,
     status_message: Option<String>,
 
+    // Dependency check dialog
+    show_deps_dialog: bool,
+    pending_directory: Option<PathBuf>,
+    missing_deps: Option<DependencyNeeds>,
+    installing_deps: bool,
+    install_progress: Arc<Mutex<String>>,
+    install_complete: Arc<Mutex<bool>>,
+
     // Configuration
     config: RenameConfig,
 
@@ -45,6 +53,12 @@ impl NamebackApp {
             is_processing: false,
             error_message: None,
             status_message: None,
+            show_deps_dialog: false,
+            pending_directory: None,
+            missing_deps: None,
+            installing_deps: false,
+            install_progress: Arc::new(Mutex::new(String::new())),
+            install_complete: Arc::new(Mutex::new(false)),
             config: RenameConfig::default(),
             processing_thread: None,
             rename_results: Arc::new(Mutex::new(None)),
@@ -54,7 +68,23 @@ impl NamebackApp {
     fn select_directory(&mut self) {
         if let Some(path) = rfd::FileDialog::new().pick_folder() {
             self.current_directory = Some(path.clone());
-            self.start_analysis(path);
+
+            // Check dependencies for this directory
+            match nameback_core::detect_needed_dependencies(&path) {
+                Ok(needs) => {
+                    if needs.has_required_missing() || !needs.missing_optional.is_empty() {
+                        self.show_deps_dialog = true;
+                        self.pending_directory = Some(path);
+                        self.missing_deps = Some(needs);
+                    } else {
+                        self.start_analysis(path);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Dependency check failed: {}", e);
+                    self.start_analysis(path); // Proceed anyway
+                }
+            }
         }
     }
 
@@ -187,6 +217,45 @@ impl NamebackApp {
     fn deselect_all(&mut self) {
         for entry in &mut self.file_entries {
             entry.selected = false;
+        }
+    }
+
+    fn install_dependencies(&mut self) {
+        self.installing_deps = true;
+
+        let progress = Arc::clone(&self.install_progress);
+        let complete = Arc::clone(&self.install_complete);
+
+        std::thread::spawn(move || {
+            let result = nameback_core::install_dependencies_with_progress(Some(Box::new(
+                move |msg: &str, pct: u8| {
+                    let mut prog = progress.lock().unwrap();
+                    *prog = format!("{} ({}%)", msg, pct);
+                },
+            )));
+
+            let mut comp = complete.lock().unwrap();
+            *comp = result.is_ok();
+        });
+    }
+
+    fn check_install_complete(&mut self) {
+        let complete = self.install_complete.lock().unwrap();
+        if *complete {
+            drop(complete); // Release lock before modifying self
+
+            self.installing_deps = false;
+            self.show_deps_dialog = false;
+
+            // Reset completion flag
+            *self.install_complete.lock().unwrap() = false;
+
+            // Start analysis with the pending directory
+            if let Some(path) = self.pending_directory.take() {
+                self.start_analysis(path);
+            }
+
+            self.missing_deps = None;
         }
     }
 
@@ -340,6 +409,12 @@ impl eframe::App for NamebackApp {
             ctx.request_repaint(); // Keep refreshing while processing
         }
 
+        // Check for dependency installation completion
+        if self.installing_deps {
+            self.check_install_complete();
+            ctx.request_repaint(); // Keep refreshing during installation
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("nameback - File Renaming Tool");
             ui.add_space(10.0);
@@ -376,5 +451,85 @@ impl eframe::App for NamebackApp {
         egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
             self.render_status_bar(ui);
         });
+
+        // Dependency check modal dialog
+        if self.show_deps_dialog {
+            egui::Window::new("Dependencies Required")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    if let Some(ref needs) = self.missing_deps {
+                        if !needs.missing_required.is_empty() {
+                            ui.heading("⚠️ Required Dependencies Missing");
+                            ui.add_space(10.0);
+                            ui.label("The following required dependencies are not installed:");
+                            ui.add_space(5.0);
+
+                            for dep in &needs.missing_required {
+                                ui.horizontal(|ui| {
+                                    ui.label("❌");
+                                    ui.strong(dep.name());
+                                    ui.label("-");
+                                    ui.label(dep.description());
+                                });
+                            }
+                            ui.add_space(10.0);
+                        }
+
+                        if !needs.missing_optional.is_empty() {
+                            if needs.missing_required.is_empty() {
+                                ui.heading("Optional Dependencies Missing");
+                            } else {
+                                ui.heading("Optional Dependencies Also Missing");
+                            }
+                            ui.add_space(10.0);
+                            ui.label("The following optional dependencies would improve functionality:");
+                            ui.add_space(5.0);
+
+                            for dep in &needs.missing_optional {
+                                ui.horizontal(|ui| {
+                                    ui.label("⚠️");
+                                    ui.strong(dep.name());
+                                    ui.label("-");
+                                    ui.label(dep.description());
+                                });
+                            }
+                            ui.add_space(10.0);
+                        }
+
+                        if self.installing_deps {
+                            ui.add_space(10.0);
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                let progress = self.install_progress.lock().unwrap();
+                                ui.label(progress.as_str());
+                            });
+                            ui.add_space(10.0);
+                        } else {
+                            ui.add_space(10.0);
+                            ui.horizontal(|ui| {
+                                if ui.button("✅ Install Dependencies").clicked() {
+                                    self.install_dependencies();
+                                }
+
+                                if ui.button("⏭️ Skip").clicked() {
+                                    self.show_deps_dialog = false;
+                                    if let Some(path) = self.pending_directory.take() {
+                                        self.start_analysis(path);
+                                    }
+                                    self.missing_deps = None;
+                                }
+
+                                if ui.button("❌ Cancel").clicked() {
+                                    self.show_deps_dialog = false;
+                                    self.pending_directory = None;
+                                    self.missing_deps = None;
+                                }
+                            });
+                        }
+                    }
+                });
+        }
     }
 }

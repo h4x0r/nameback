@@ -65,6 +65,66 @@ fn main() -> Result<()> {
 
     let engine = RenameEngine::new(config);
 
+    // Smart dependency detection - check if missing deps are needed for this directory
+    log::info!("Checking dependencies for: {}", directory.display());
+    match nameback_core::detect_needed_dependencies(directory) {
+        Ok(needs) => {
+            if needs.has_required_missing() {
+                eprintln!("\n⚠️  ERROR: Required dependencies are missing!\n");
+                for dep in &needs.missing_required {
+                    eprintln!("  ✗ {} - {}", dep.name(), dep.description());
+                }
+                eprintln!("\nRun 'nameback --install-deps' to install them.\n");
+                std::process::exit(1);
+            }
+
+            if !needs.missing_optional.is_empty() {
+                println!("\n⚠️  Optional dependencies missing:");
+                for dep in &needs.missing_optional {
+                    println!("  • {} - {}", dep.name(), dep.description());
+                }
+
+                print!("\nWould you like to install them now? [Y/n]: ");
+                use std::io::Write;
+                std::io::stdout().flush()?;
+
+                let mut response = String::new();
+                std::io::stdin().read_line(&mut response)?;
+                let response = response.trim().to_lowercase();
+
+                if response.is_empty() || response == "y" || response == "yes" {
+                    println!();
+                    // Install with simple progress reporting
+                    match nameback_core::install_dependencies_with_progress(Some(Box::new(
+                        |msg: &str, pct: u8| {
+                            if pct == 0 {
+                                print!("⏳ ");
+                            }
+                            if pct == 100 {
+                                println!("✓ {}", msg);
+                            } else {
+                                print!("{}... ", msg);
+                                use std::io::Write;
+                                std::io::stdout().flush().ok();
+                            }
+                        },
+                    ))) {
+                        Ok(_) => println!("\n✅ Dependencies installed successfully!\n"),
+                        Err(e) => {
+                            eprintln!("\n❌ Failed to install dependencies: {}", e);
+                            eprintln!("You can install them manually or skip for now.\n");
+                        }
+                    }
+                } else {
+                    println!("\nSkipping dependency installation. Some features may not work.\n");
+                }
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to check dependencies: {}. Continuing anyway...", e);
+        }
+    }
+
     // Process directory
     log::info!("Analyzing directory: {}", directory.display());
     let analyses = engine.analyze_directory(directory)?;

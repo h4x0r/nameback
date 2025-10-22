@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 // Internal modules (private)
 mod code_docstring;
 mod deps;
+mod deps_check;
 mod detector;
 mod dir_context;
 mod extractor;
@@ -22,6 +23,7 @@ mod text_content;
 mod video_ocr;
 
 // Re-export public types
+pub use deps_check::{detect_needed_dependencies, Dependency, DependencyNeeds};
 pub use detector::FileCategory;
 
 /// Configuration options for the rename engine
@@ -267,3 +269,13 @@ pub fn check_dependencies() -> Result<()> {
 pub fn install_dependencies() -> Result<()> {
     deps::run_installer().map_err(|e| anyhow::anyhow!(e))
 }
+
+/// Install dependencies with progress callback
+pub fn install_dependencies_with_progress(
+    progress: Option<deps::ProgressCallback>,
+) -> Result<()> {
+    deps::run_installer_with_progress(progress).map_err(|e| anyhow::anyhow!(e))
+}
+
+/// Re-export progress callback type
+pub use deps::ProgressCallback;

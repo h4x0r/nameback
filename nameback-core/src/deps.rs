@@ -89,15 +89,35 @@ pub fn print_dependency_status() {
     }
 }
 
+/// Progress callback for dependency installation
+pub type ProgressCallback = Box<dyn Fn(&str, u8) + Send>;
+
 /// Runs the appropriate installer script based on the platform
 pub fn run_installer() -> Result<(), String> {
-    println!("\n==================================================");
-    println!("  Installing Dependencies");
-    println!("==================================================\n");
+    run_installer_with_progress(None)
+}
+
+/// Runs the installer with optional progress callback
+/// Callback receives: (status_message, percentage)
+pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result<(), String> {
+    let report_progress = |msg: &str, pct: u8| {
+        if let Some(ref cb) = progress {
+            cb(msg, pct);
+        } else {
+            if pct == 0 {
+                println!("\n==================================================");
+                println!("  Installing Dependencies");
+                println!("==================================================\n");
+            }
+            println!("{}", msg);
+        }
+    };
+
+    report_progress("Starting installation...", 0);
 
     #[cfg(target_os = "windows")]
     {
-        println!("Launching Windows dependency installer...\n");
+        report_progress("Installing Windows dependencies...", 25);
         let status = Command::new("powershell")
             .arg("-ExecutionPolicy")
             .arg("Bypass")
@@ -109,11 +129,12 @@ pub fn run_installer() -> Result<(), String> {
         if !status.success() {
             return Err("Installer script failed".to_string());
         }
+        report_progress("Windows dependencies installed", 100);
     }
 
     #[cfg(target_os = "macos")]
     {
-        println!("Launching macOS dependency installer...\n");
+        report_progress("Installing macOS dependencies...", 25);
         let status = Command::new("bash")
             .arg("install-deps-macos.sh")
             .status()
@@ -122,11 +143,12 @@ pub fn run_installer() -> Result<(), String> {
         if !status.success() {
             return Err("Installer script failed".to_string());
         }
+        report_progress("macOS dependencies installed", 100);
     }
 
     #[cfg(target_os = "linux")]
     {
-        println!("Launching Linux dependency installer...\n");
+        report_progress("Installing Linux dependencies...", 25);
         let status = Command::new("bash")
             .arg("install-deps-linux.sh")
             .status()
@@ -135,6 +157,7 @@ pub fn run_installer() -> Result<(), String> {
         if !status.success() {
             return Err("Installer script failed".to_string());
         }
+        report_progress("Linux dependencies installed", 100);
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -142,9 +165,11 @@ pub fn run_installer() -> Result<(), String> {
         return Err("Unsupported platform. Please install dependencies manually.".to_string());
     }
 
-    println!("\n==================================================");
-    println!("  Installation Complete!");
-    println!("==================================================\n");
+    if progress.is_none() {
+        println!("\n==================================================");
+        println!("  Installation Complete!");
+        println!("==================================================\n");
+    }
 
     Ok(())
 }
