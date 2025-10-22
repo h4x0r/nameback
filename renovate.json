@@ -27,13 +27,28 @@
     {
       "description": "Group all Rust workspace dependencies together",
       "matchDatasources": ["crate"],
-      "groupName": "Rust workspace dependencies",
-      "matchFileNames": [
-        "Cargo.toml",
-        "nameback-core/Cargo.toml",
-        "nameback-cli/Cargo.toml",
-        "nameback-gui/Cargo.toml"
-      ]
+      "groupName": "Rust workspace dependencies"
+    },
+    {
+      "description": "Hold back major Rust dependency updates for review",
+      "matchDatasources": ["crate"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    },
+    {
+      "description": "Automerge Python security tools",
+      "matchManagers": ["pip_requirements", "poetry", "pipenv"],
+      "matchPackageNames": ["bandit", "safety", "pip-audit", "semgrep", "black", "flake8", "pylint"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Group Python dependencies",
+      "matchManagers": ["pip_requirements", "poetry", "pipenv"],
+      "groupName": "Python dependencies"
     },
     {
       "description": "Group all GitHub Actions updates together",
@@ -48,26 +63,23 @@
       "description": "Pin GitHub Actions to commit SHA with version comment",
       "matchManagers": ["github-actions"],
       "pinDigests": true
-    },
-    {
-      "description": "Hold back major Rust dependency updates for review",
-      "matchDatasources": ["crate"],
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true,
-      "automerge": false
-    },
-    {
-      "description": "Automerge Python security tools",
-      "matchManagers": ["pip_requirements"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "automerge": true,
-      "automergeType": "pr",
-      "automergeStrategy": "squash"
     }
   ],
   "cargo": {
     "enabled": true,
     "rangeStrategy": "bump"
+  },
+  "rust": {
+    "enabled": true
+  },
+  "pip_requirements": {
+    "enabled": true
+  },
+  "poetry": {
+    "enabled": true
+  },
+  "pipenv": {
+    "enabled": true
   },
   "lockFileMaintenance": {
     "enabled": true,
@@ -81,16 +93,13 @@
     "automerge": true,
     "schedule": ["at any time"]
   },
-  "rust": {
-    "enabled": true
-  },
   "stabilityDays": 3,
   "prBodyDefinitions": {
-    "Change": "{{#if displayFrom}}`{{{displayFrom}}}` -> {{else}}**New dependency** {{/if}}`{{{displayTo}}}`"
+    "Change": "{{#if displayFrom}}\`{{{displayFrom}}}\` -> {{else}}**New dependency** {{/if}}\`{{{displayTo}}}\`"
   },
   "commitMessagePrefix": "chore(deps):",
   "commitMessageAction": "update",
   "commitMessageTopic": "{{depName}}",
   "commitMessageExtra": "to {{newVersion}}",
-  "commitBody": "🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+  "commitBody": "🤖 Generated with 1-Click GitHub Security\n\nCo-Authored-By: Security Controls <noreply@securityronin.com>"
 }

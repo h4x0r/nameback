@@ -100,6 +100,7 @@ When installed with `--github-security` flag:
 
 ### Automatically Configured
 - **Renovate Bot** - Automated dependency updates with automerge, grouping, and scheduling
+- **Vulnerability Alerts** - Automated dependency scanning
 - **Branch Protection Rules** - Requires reviews and status checks
 - **CodeQL Security Scanning** - Automated code analysis
 - **Secret Scanning** - Server-side secret detection
@@ -107,11 +108,11 @@ When installed with `--github-security` flag:
 
 **Note**: This project uses Renovate instead of Dependabot for superior dependency management:
 - ✅ Automerge for patch/minor updates after CI passes
-- ✅ Intelligent grouping (GitHub Actions, Rust workspace deps, Python tools)
-- ✅ Scheduled PRs (weekdays 9am-5pm Pacific)
+- ✅ Intelligent grouping (GitHub Actions, dependency groups)
+- ✅ Scheduled PRs (weekdays during work hours)
 - ✅ Automatic PR rebasing on conflicts
 - ✅ Vulnerability alerts with immediate automerge
-- ✅ Lockfile maintenance on Monday mornings
+- ✅ Better monorepo/workspace support
 
 ## 🎯 Language-Specific Security
 
