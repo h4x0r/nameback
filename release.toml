@@ -1,0 +1,44 @@
+# cargo-release configuration for nameback workspace
+# https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
+
+# Workspace-level configuration
+[workspace]
+# Use a single version for all workspace crates
+allow-branch = ["main"]
+# Update dependencies that are part of the workspace
+consolidate-commits = true
+# Single git tag for the entire workspace release
+tag-name = "v{{version}}"
+# Tag message
+tag-msg = "Release v{{version}}"
+# Push tags automatically
+push = true
+# Disable individual pre-release hooks (we'll use workspace-level)
+pre-release-commit-message = "chore: release v{{version}}"
+# Pro-release-hook runs cargo test by default
+enable-features = []
+enable-all-features = false
+# Publish in topological order (core -> cli -> gui)
+dependent-version = "upgrade"
+
+# Global defaults for all packages
+[[package]]
+# Don't create individual tags for workspace members
+tag = false
+# Publish to crates.io
+publish = true
+# Push after successful release
+push = false
+
+# Package-specific configuration
+[[package]]
+name = "nameback-core"
+# Core library is published first
+
+[[package]]
+name = "nameback"
+# CLI depends on core, published second
+
+[[package]]
+name = "nameback-gui"
+# GUI depends on core, published third
