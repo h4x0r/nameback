@@ -714,17 +714,17 @@ Create test cases covering:
 
 ### Multi-Frame Video Analysis
 
-**Feature**: Extract and analyze multiple video frames to find the best OCR result.
+**Feature**: Extract and analyze multiple video frames to find the best OCR result (default behavior).
 
 **Implementation**: Extracts frames at 00:00:01, 00:00:05, and 00:00:10, runs OCR on each, then uses the quality scoring system to select the best result.
 
-**Usage**: `nameback /path/to/videos --multiframe-video`
+**Default Behavior**: Multi-frame analysis is now the default. Use `--fast-video` for single-frame (faster but less accurate).
 
 **Example**:
 - Single frame (at 1s) might catch a transition: "Loading..."
 - Multi-frame catches better moment (at 5s): "Product Demo Video"
 
-**Performance**: 3x slower than single-frame, but significantly more accurate.
+**Performance**: 3x slower than single-frame, but significantly more accurate. Now enabled by default for better out-of-the-box results.
 
 ### Series Detection and Numbering
 

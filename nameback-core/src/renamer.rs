@@ -68,8 +68,9 @@ pub fn process_file(
         return Ok(());
     }
 
-    // Extract metadata
-    let metadata = match extractor::extract_metadata(file_path) {
+    // Extract metadata (using default config for this legacy function)
+    let config = crate::RenameConfig::default();
+    let metadata = match extractor::extract_metadata(file_path, &config) {
         Ok(m) => m,
         Err(e) => {
             warn!(

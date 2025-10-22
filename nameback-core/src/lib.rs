@@ -43,7 +43,7 @@ impl Default for RenameConfig {
             skip_hidden: false,
             include_location: false,
             include_timestamp: false,
-            multiframe_video: false,
+            multiframe_video: true, // Multi-frame video analysis is now the default
         }
     }
 }
@@ -93,8 +93,6 @@ impl RenameEngine {
     /// Analyze all files in a directory and return proposed renames
     /// This does not perform any actual renaming - use for preview
     pub fn analyze_directory(&self, directory: &Path) -> Result<Vec<FileAnalysis>> {
-        use walkdir::WalkDir;
-
         let mut analyses = Vec::new();
 
         // Scan files
@@ -229,8 +227,8 @@ impl RenameEngine {
             });
         }
 
-        // Extract metadata
-        let metadata = match extractor::extract_metadata(file_path) {
+        // Extract metadata with configuration
+        let metadata = match extractor::extract_metadata(file_path, &self.config) {
             Ok(m) => m,
             Err(_) => {
                 return Ok(FileAnalysis {

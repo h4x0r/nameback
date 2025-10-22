@@ -106,7 +106,7 @@ nameback ~/Downloads --dry-run
 - **PDF Intelligence** - Extracts titles from metadata or document content, with OCR for scanned PDFs
 - **Enhanced Text Extraction** - Markdown frontmatter, CSV semantic columns, nested JSON/YAML fields
 - **Context-Aware Naming** - Leverages directory structure and filename analysis for better names
-- **Multi-Frame Video Analysis** - Extracts multiple frames (1s, 5s, 10s) and picks the best OCR result
+- **Multi-Frame Video Analysis** - Extracts multiple frames (1s, 5s, 10s) and picks the best OCR result (default behavior)
 - **Series Detection** - Automatically detects and maintains file series numbering (e.g., vacation_001.jpg, vacation_002.jpg)
 - **Format-Specific Handlers** - Email files (.eml), web archives (.html), archives (.zip, .tar), source code docstrings
 - **Location & Timestamp Enrichment** - Optional GPS coordinates and formatted timestamps in filenames
@@ -124,7 +124,7 @@ nameback <directory> --verbose              # Show detailed progress
 nameback <directory> --skip-hidden          # Skip hidden files
 nameback <directory> --include-location     # Add GPS coordinates to photo/video names
 nameback <directory> --include-timestamp    # Add formatted timestamps to names
-nameback <directory> --multiframe-video     # Use multi-frame video analysis (slower but better)
+nameback <directory> --fast-video           # Use single-frame video analysis (faster, less accurate)
 nameback --check-deps                       # Check dependencies
 nameback --install-deps                     # Install dependencies
 ```

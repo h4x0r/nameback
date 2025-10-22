@@ -60,7 +60,7 @@ fn main() -> Result<()> {
         skip_hidden: args.skip_hidden,
         include_location: args.include_location,
         include_timestamp: args.include_timestamp,
-        multiframe_video: args.multiframe_video,
+        multiframe_video: !args.fast_video, // Inverted: multiframe is default, fast_video opts out
     };
 
     let engine = RenameEngine::new(config);

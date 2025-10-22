@@ -40,9 +40,9 @@ pub struct Args {
     #[arg(long = "include-timestamp")]
     pub include_timestamp: bool,
 
-    /// Use multi-frame analysis for videos (extracts 3 frames instead of 1)
-    #[arg(long = "multiframe-video")]
-    pub multiframe_video: bool,
+    /// Use single-frame video analysis for faster processing (default is multi-frame)
+    #[arg(long = "fast-video")]
+    pub fast_video: bool,
 }
 
 /// Parses command-line arguments

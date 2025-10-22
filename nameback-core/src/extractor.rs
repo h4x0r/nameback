@@ -119,7 +119,7 @@ impl FileMetadata {
 }
 
 /// Extracts metadata from a file using exiftool
-pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
+pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<FileMetadata> {
     let output = Command::new("exiftool")
         .arg("-json")
         .arg(path)
@@ -226,7 +226,15 @@ pub fn extract_metadata(path: &Path) -> Result<FileMetadata> {
         && !is_useful_metadata(&metadata.creation_date)
     {
         debug!("Video has no useful metadata, attempting frame extraction and OCR");
-        if let Ok(Some(text)) = video_ocr::extract_video_text(path) {
+        let video_text = if config.multiframe_video {
+            debug!("Using multi-frame video analysis (default)");
+            video_ocr::extract_video_text_multiframe(path)
+        } else {
+            debug!("Using single-frame video analysis (--fast-video)");
+            video_ocr::extract_video_text(path)
+        };
+
+        if let Ok(Some(text)) = video_text {
             debug!("Extracted video text: {}", text);
             metadata.title = Some(text);
         }
