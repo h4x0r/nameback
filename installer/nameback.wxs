@@ -109,5 +109,20 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/h4x0r/nameback" />
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
+    <!-- Custom Action to install dependencies automatically -->
+    <CustomAction Id="InstallDependencies"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[INSTALLFOLDER]nameback.exe --install-deps"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!-- Schedule the custom action after files are installed -->
+    <InstallExecuteSequence>
+      <Custom Action="InstallDependencies" After="InstallFiles">
+        NOT Installed AND NOT REMOVE
+      </Custom>
+    </InstallExecuteSequence>
+
   </Package>
 </Wix>

@@ -24,37 +24,21 @@ brew install nameback
 ```
 Automatically installs all dependencies: exiftool, tesseract, ffmpeg, imagemagick
 
-#### Direct Archive Download
+#### GUI App (DMG Installer)
 
-**Intel (CLI + GUI):**
-```bash
-# Download and extract archive
-wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-x86_64-apple-darwin.tar.gz
-tar -xzf nameback-x86_64-apple-darwin.tar.gz
+**Intel Mac:**
+1. Download `nameback-x86_64-apple-darwin.dmg` from [releases](https://github.com/h4x0r/nameback/releases/latest)
+2. Open the DMG file
+3. Drag `nameback.app` to your Applications folder
+4. Launch from Applications
 
-# Install both binaries
-chmod +x nameback nameback-gui
-sudo mv nameback /usr/local/bin/
-sudo mv nameback-gui /usr/local/bin/
+**Apple Silicon:**
+1. Download `nameback-aarch64-apple-darwin.dmg` from [releases](https://github.com/h4x0r/nameback/releases/latest)
+2. Open the DMG file
+3. Drag `nameback.app` to your Applications folder
+4. Launch from Applications
 
-# Dependencies
-brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
-```
-
-**Apple Silicon (CLI + GUI):**
-```bash
-# Download and extract archive
-wget https://github.com/h4x0r/nameback/releases/latest/download/nameback-aarch64-apple-darwin.tar.gz
-tar -xzf nameback-aarch64-apple-darwin.tar.gz
-
-# Install both binaries
-chmod +x nameback nameback-gui
-sudo mv nameback /usr/local/bin/
-sudo mv nameback-gui /usr/local/bin/
-
-# Dependencies
-brew install exiftool tesseract tesseract-lang ffmpeg imagemagick
-```
+**Note:** For CLI usage, use Homebrew instead (see above).
 
 ### Windows
 
@@ -65,27 +49,9 @@ Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https
 **What you get:**
 - **CLI**: Type `nameback` in any terminal (automatically added to PATH)
 - **GUI**: Launch from Start Menu → nameback
+- **Auto-install dependencies**: exiftool, tesseract, ffmpeg, imagemagick
 
-**Install dependencies:**
-```powershell
-nameback --install-deps
-```
-
-Or manually:
-```powershell
-# With winget
-winget install OliverBetz.ExifTool UB-Mannheim.TesseractOCR Gyan.FFmpeg ImageMagick.ImageMagick
-
-# With Chocolatey
-choco install exiftool tesseract ffmpeg imagemagick
-```
-
-#### Portable Archive
-
-For portable use without installation:
-1. Download `nameback-x86_64-pc-windows-msvc.zip` from [releases](https://github.com/h4x0r/nameback/releases/latest)
-2. Extract the archive to get both `nameback.exe` (CLI) and `nameback-gui.exe` (GUI)
-3. Install dependencies with `nameback --install-deps`
+The MSI installer automatically installs all required dependencies during setup. No manual configuration needed!
 
 ### Linux
 

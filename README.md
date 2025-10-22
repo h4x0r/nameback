@@ -34,17 +34,9 @@ Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https
 **What you get:**
 - **CLI**: Type `nameback` in any terminal (automatically added to PATH)
 - **GUI**: Launch from Start Menu → nameback
+- **Auto-install dependencies**: exiftool, tesseract, ffmpeg, imagemagick installed automatically
 
-**Alternative: Portable Archive**
-
-Download `nameback-x86_64-pc-windows-msvc.zip` from [releases](https://github.com/h4x0r/nameback/releases/latest), extract it to get both:
-- `nameback.exe` (CLI)
-- `nameback-gui.exe` (GUI)
-
-Then install dependencies:
-```powershell
-nameback --install-deps
-```
+No manual setup required - everything works out of the box!
 
 ### Linux
 ```bash

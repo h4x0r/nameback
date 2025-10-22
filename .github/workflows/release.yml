@@ -85,58 +85,29 @@ jobs:
 
             ## Installation
 
-            ### Windows (Recommended: MSI Installer)
+            ### Windows
 
             Download and install `nameback-x86_64-pc-windows-msvc.msi`
 
             **What you get:**
             - 🖥️ **CLI**: Type `nameback` in any terminal (automatically added to PATH)
             - 🎨 **GUI**: Launch from Start Menu → nameback
+            - ⚙️ **Auto-install dependencies**: exiftool, tesseract, ffmpeg, imagemagick installed automatically
 
-            **Alternative: Portable Executables**
-            - CLI: `nameback-x86_64-pc-windows-msvc.exe`
-            - GUI: `nameback-gui-x86_64-pc-windows-msvc.exe`
+            ### macOS
 
-            Then install dependencies:
-            ```powershell
-            nameback --install-deps
-            ```
-
-            ### macOS (Recommended: Homebrew)
-
+            **CLI Users (Recommended: Homebrew)**
             ```bash
             brew tap h4x0r/nameback
             brew install nameback
             ```
-            Automatically installs all dependencies: exiftool, tesseract, ffmpeg, imagemagick
+            Automatically installs all dependencies.
 
-            **Alternative: Direct Download (with GUI)**
+            **GUI Users**
+            - Intel Mac: Download `nameback-x86_64-apple-darwin.dmg`
+            - Apple Silicon: Download `nameback-aarch64-apple-darwin.dmg`
 
-            Intel:
-            ```bash
-            # CLI
-            curl -L -o nameback https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-x86_64-apple-darwin
-            chmod +x nameback
-            sudo mv nameback /usr/local/bin/
-
-            # GUI (optional)
-            curl -L -o nameback-gui https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-gui-x86_64-apple-darwin
-            chmod +x nameback-gui
-            sudo mv nameback-gui /usr/local/bin/
-            ```
-
-            Apple Silicon:
-            ```bash
-            # CLI
-            curl -L -o nameback https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-aarch64-apple-darwin
-            chmod +x nameback
-            sudo mv nameback /usr/local/bin/
-
-            # GUI (optional)
-            curl -L -o nameback-gui https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.version }}/nameback-gui-aarch64-apple-darwin
-            chmod +x nameback-gui
-            sudo mv nameback-gui /usr/local/bin/
-            ```
+            Drag to Applications folder and launch!
 
             ### Linux
 
@@ -147,7 +118,7 @@ jobs:
 
             ## Verification
 
-            All binaries include SHA256 checksums in `checksums.txt`
+            All installers include SHA256 checksums in `checksums.txt`
 
             ---
             🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -170,12 +141,12 @@ jobs:
           # macOS Intel
           - target: x86_64-apple-darwin
             os: macos-13
-            archive: tar.gz
+            archive: dmg
 
           # macOS Apple Silicon
           - target: aarch64-apple-darwin
             os: macos-latest
-            archive: tar.gz
+            archive: dmg
 
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -232,18 +203,28 @@ jobs:
       - name: Build GUI release binary
         run: cargo build --release --target ${{ matrix.target }} -p nameback-gui
 
-      - name: Strip binaries (Unix only)
-        if: matrix.os != 'windows-latest'
+      - name: Strip binaries (macOS only)
+        if: matrix.archive == 'dmg'
         run: |
-          strip target/${{ matrix.target }}/release/nameback
           strip target/${{ matrix.target }}/release/nameback-gui
 
-      - name: Create archive with CLI and GUI (Unix)
-        if: matrix.archive == 'tar.gz'
+      - name: Create DMG installer (macOS only)
+        if: matrix.archive == 'dmg'
         run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../nameback-${{ matrix.target }}.tar.gz nameback nameback-gui
-          cd ../../..
+          mkdir -p dmg-temp
+          cp target/${{ matrix.target }}/release/nameback-gui dmg-temp/nameback.app
+          chmod +x dmg-temp/nameback.app
+
+          # Create DMG
+          hdiutil create -volname "nameback" -srcfolder dmg-temp -ov -format UDZO nameback-${{ matrix.target }}.dmg
+
+          # Clean up
+          rm -rf dmg-temp
+
+      - name: Generate DMG checksum (macOS only)
+        if: matrix.archive == 'dmg'
+        run: |
+          shasum -a 256 nameback-${{ matrix.target }}.dmg > checksums-temp.txt
 
       - name: Create archive with CLI and GUI (Windows)
         if: matrix.archive == 'zip'
@@ -253,25 +234,19 @@ jobs:
           Compress-Archive -Path nameback.exe,nameback-gui.exe -DestinationPath ../../../nameback-${{ matrix.target }}.zip
           cd ../../..
 
-      - name: Generate SHA256 checksum (Unix)
-        if: matrix.archive == 'tar.gz'
-        run: |
-          shasum -a 256 nameback-${{ matrix.target }}.tar.gz > nameback-${{ matrix.target }}.tar.gz.sha256
-
-      - name: Generate SHA256 checksum (Windows)
+      - name: Generate ZIP checksum (Windows)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.zip).Hash.ToLower()
-          "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII nameback-${{ matrix.target }}.zip.sha256
+          "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII checksums-temp.txt
 
-      - name: Upload archive to release
+      - name: Upload installer to release
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           tag_name: ${{ needs.create-release.outputs.version }}
           files: |
             nameback-${{ matrix.target }}.${{ matrix.archive }}
-            nameback-${{ matrix.target }}.${{ matrix.archive }}.sha256
 
       - name: Install WiX Toolset (Windows only)
         if: matrix.os == 'windows-latest'
@@ -291,32 +266,36 @@ jobs:
         shell: pwsh
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.msi).Hash.ToLower()
-          "$hash  nameback-${{ matrix.target }}.msi" | Out-File -Encoding ASCII nameback-${{ matrix.target }}.msi.sha256
+          "$hash  nameback-${{ matrix.target }}.msi" | Out-File -Encoding ASCII -Append checksums-temp.txt
 
-      - name: Upload MSI installer and checksum (Windows only)
+      - name: Upload MSI installer (Windows only)
         if: matrix.os == 'windows-latest'
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           tag_name: ${{ needs.create-release.outputs.version }}
-          files: |
-            nameback-${{ matrix.target }}.msi
-            nameback-${{ matrix.target }}.msi.sha256
+          files: nameback-${{ matrix.target }}.msi
+
+      - name: Upload checksums
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: checksums-temp.txt
 
   generate-checksums:
     name: Generate Combined Checksums
     needs: [create-release, build-release]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all release assets
+      - name: Download all checksum files
         uses: robinraju/release-downloader@a96f54c1b5f5e09e47d9504526e96febd949d4c2 # v1.11
         with:
           tag: ${{ needs.create-release.outputs.version }}
-          fileName: '*.sha256'
+          fileName: 'checksums-temp.txt'
           out-file-path: checksums
 
       - name: Combine checksums
         run: |
-          cat checksums/*.sha256 > checksums.txt
+          cat checksums/checksums-temp.txt* > checksums.txt
           echo "Combined checksums:"
           cat checksums.txt
 
@@ -325,6 +304,12 @@ jobs:
         with:
           tag_name: ${{ needs.create-release.outputs.version }}
           files: checksums.txt
+
+      - name: Delete temporary checksum files
+        run: |
+          gh release delete-asset ${{ needs.create-release.outputs.version }} checksums-temp.txt --yes || true
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   publish-crates-io:
     name: Publish to crates.io
