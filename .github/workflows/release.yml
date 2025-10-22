@@ -264,22 +264,19 @@ jobs:
           echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
           find /usr -name "lept.pc" 2>/dev/null || echo "lept.pc not found in /usr"
 
-      - name: Set PKG_CONFIG_PATH for Linux build
-        if: matrix.archive == 'deb'
-        run: echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
         run: |
-          # Verify PKG_CONFIG_PATH is set
+          # Set PKG_CONFIG_PATH for the multiarch location
+          export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
           echo "PKG_CONFIG_PATH is: $PKG_CONFIG_PATH"
 
           # Verify pkg-config can find lept with the new path
           pkg-config --exists lept && echo "✓ pkg-config can find lept" || echo "✗ pkg-config cannot find lept"
           pkg-config --modversion lept 2>/dev/null && echo "✓ lept version: $(pkg-config --modversion lept)" || echo "✗ Could not get lept version"
 
-          # Build both binaries
-          cargo build --release --workspace
+          # Build both binaries with PKG_CONFIG_PATH set
+          PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" cargo build --release --workspace
 
           # Create package structure
           mkdir -p debian-pkg/DEBIAN
