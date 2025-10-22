@@ -16,14 +16,13 @@
     <MediaTemplate EmbedCab="yes" />
 
     <!-- Directory structure -->
-    <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLFOLDER" Name="nameback" />
-      </Directory>
-      <Directory Id="ProgramMenuFolder">
-        <Directory Id="ApplicationProgramsFolder" Name="nameback"/>
-      </Directory>
-    </Directory>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="nameback" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="nameback"/>
+    </StandardDirectory>
 
     <!-- CLI Executable Component -->
     <DirectoryRef Id="INSTALLFOLDER">
@@ -119,9 +118,7 @@
 
     <!-- Schedule the custom action after files are installed -->
     <InstallExecuteSequence>
-      <Custom Action="InstallDependencies" After="InstallFiles">
-        NOT Installed AND NOT REMOVE
-      </Custom>
+      <Custom Action="InstallDependencies" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
     </InstallExecuteSequence>
 
   </Package>
