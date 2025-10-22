@@ -16,7 +16,7 @@ name = "nameback"
 path = "src/main.rs"
 
 [dependencies]
-nameback-core = { path = "../nameback-core" }
+nameback-core = { workspace = true }
 clap.workspace = true
 env_logger.workspace = true
 anyhow.workspace = true

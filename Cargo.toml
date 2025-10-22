@@ -15,6 +15,9 @@ repository = "https://github.com/h4x0r/nameback"
 homepage = "https://github.com/h4x0r/nameback"
 
 [workspace.dependencies]
+# Workspace member (for internal dependencies)
+nameback-core = { version = "0.5.0", path = "nameback-core" }
+
 # Core dependencies
 anyhow = "1.0"
 serde = { version = "1.0", features = ["derive"] }

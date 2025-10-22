@@ -15,7 +15,7 @@ name = "nameback-gui"
 path = "src/main.rs"
 
 [dependencies]
-nameback-core = { path = "../nameback-core" }
+nameback-core = { workspace = true }
 eframe.workspace = true
 egui.workspace = true
 rfd.workspace = true
