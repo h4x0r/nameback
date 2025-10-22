@@ -261,12 +261,18 @@ jobs:
       - name: Build Debian package (Linux only)
         if: matrix.archive == 'deb'
         run: |
+          # Verify lept.pc exists and location
+          find /usr -name "lept.pc" 2>/dev/null || echo "✗ lept.pc not found in /usr"
+          echo "PKG_CONFIG_PATH locations to check:"
+          ls -la /usr/lib/x86_64-linux-gnu/pkgconfig/lept.pc || echo "✗ Not in multiarch location"
+          ls -la /usr/lib/pkgconfig/lept.pc || echo "✗ Not in standard location"
+
           # Verify pkg-config can find lept
           pkg-config --exists lept && echo "✓ pkg-config can find lept" || echo "✗ pkg-config cannot find lept"
-          pkg-config --modversion lept && echo "✓ lept version found" || echo "✗ Could not get lept version"
+          pkg-config --modversion lept 2>/dev/null && echo "✓ lept version found" || echo "✗ Could not get lept version"
 
-          # Build with PKG_CONFIG_PATH set inline (passes to cargo subprocess)
-          PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig cargo build --release --workspace
+          # Build with target-specific PKG_CONFIG_PATH (leptonica-sys checks this first)
+          PKG_CONFIG_PATH_x86_64_unknown_linux_gnu=/usr/lib/x86_64-linux-gnu/pkgconfig cargo build --release --workspace
 
           # Create package structure
           mkdir -p debian-pkg/DEBIAN
