@@ -64,7 +64,7 @@ pub fn detect_series(files: &[PathBuf]) -> Vec<FileSeries> {
 
                     series_map
                         .entry((base.clone(), *pattern_type))
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push((file_path.clone(), number));
                 }
             }

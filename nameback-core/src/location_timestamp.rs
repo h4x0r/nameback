@@ -39,8 +39,7 @@ pub fn extract_gps_from_metadata(
 fn parse_gps_coordinate(coord_str: &str) -> Option<f64> {
     let cleaned = coord_str
         .replace("deg", "")
-        .replace('\'', " ")
-        .replace('"', " ")
+        .replace(['\'', '"'], " ")
         .trim()
         .to_string();
 

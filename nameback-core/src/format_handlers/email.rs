@@ -1,3 +1,5 @@
+#![allow(unused_assignments)]
+
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::io::{BufRead, BufReader};

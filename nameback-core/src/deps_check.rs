@@ -61,7 +61,7 @@ impl DependencyNeeds {
 pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
     let mut needs_tesseract = false;
     let mut needs_ffmpeg = false;
-    let mut needs_imagemagick = false;
+    let needs_imagemagick = false;
 
     // Quick scan of file types (just check extensions)
     let mut file_count = 0;

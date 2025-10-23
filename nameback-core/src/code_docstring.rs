@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_assignments)]
+
 use anyhow::Result;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -330,8 +333,8 @@ fn clean_docstring(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
+    
+    
 
     #[test]
     fn test_detect_language() {

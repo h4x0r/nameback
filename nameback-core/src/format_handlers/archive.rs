@@ -168,7 +168,7 @@ fn is_junk_file(filename: &str) -> bool {
 /// Extracts meaningful stem from a filename
 fn extract_stem(filename: &str) -> Option<String> {
     // Get just the filename without path
-    let name = filename.split('/').last().unwrap_or(filename);
+    let name = filename.split('/').next_back().unwrap_or(filename);
 
     // Remove extension
     let stem = if let Some(dot_pos) = name.rfind('.') {

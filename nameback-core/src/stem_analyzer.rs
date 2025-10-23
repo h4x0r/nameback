@@ -10,7 +10,7 @@ pub fn extract_meaningful_stem(path: &Path) -> Option<String> {
 
     // Split on common separators
     let parts: Vec<&str> = cleaned
-        .split(|c| matches!(c, '_' | '-' | '.' | ' '))
+        .split(['_', '-', '.', ' '])
         .filter(|s| !s.is_empty())
         .collect();
 
@@ -147,16 +147,14 @@ fn is_version_pattern(s: &str) -> bool {
     }
 
     // rev1, rev2, revision3
-    if lower.starts_with("rev") {
-        let rest = &lower[3..];
+    if let Some(rest) = lower.strip_prefix("rev") {
         if rest.is_empty() || rest.chars().all(|c| c.is_numeric()) {
             return true;
         }
     }
 
     // copy, copy2, copy3
-    if lower.starts_with("copy") {
-        let rest = &lower[4..];
+    if let Some(rest) = lower.strip_prefix("copy") {
         if rest.is_empty() || rest.chars().all(|c| c.is_numeric()) {
             return true;
         }
