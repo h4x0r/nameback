@@ -91,10 +91,28 @@ gh attestation verify nameback_0.5.0-1_amd64.deb --owner h4x0r
 - ✅ Shows the exact commit SHA that built it
 
 **Additional verification with checksums:**
+
+Download `checksums.txt` from the [release page](https://github.com/h4x0r/nameback/releases/latest), then:
+
 ```bash
-# Download and verify checksum
-sha256sum -c checksums.txt
+# macOS
+shasum -a 256 -c checksums.txt --ignore-missing
+
+# Linux
+sha256sum -c checksums.txt --ignore-missing
+
+# Windows (PowerShell)
+Get-Content checksums.txt | Select-String "nameback.*windows" | ForEach-Object {
+  $hash, $file = $_ -split '  '
+  if ((Get-FileHash $file -Algorithm SHA256).Hash -eq $hash.ToUpper()) {
+    "✓ $file verified"
+  } else {
+    "✗ $file FAILED"
+  }
+}
 ```
+
+The `--ignore-missing` flag lets you verify just the file you downloaded without errors for other platforms.
 
 For maximum security, use **both** attestation verification (proves authenticity) and checksum verification (proves integrity).
 
