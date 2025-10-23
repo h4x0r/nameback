@@ -700,13 +700,13 @@ Create test cases covering:
 
 - **Implementation task**: See `sessions/tasks/enhance-naming-heuristics.md`
 - **Code modules**:
-  - `src/extractor.rs` - Metadata extraction and filtering
-  - `src/generator.rs` - Filename sanitization and generation
-  - `src/detector.rs` - File type detection
-  - `src/pdf_content.rs` - PDF text extraction
-  - `src/text_content.rs` - Plain text extraction
-  - `src/image_ocr.rs` - Image OCR
-  - `src/video_ocr.rs` - Video frame OCR
+  - `nameback-core/src/extractor.rs` - Metadata extraction and filtering
+  - `nameback-core/src/generator.rs` - Filename sanitization and generation
+  - `nameback-core/src/detector.rs` - File type detection
+  - `nameback-core/src/pdf_content.rs` - PDF text extraction
+  - `nameback-core/src/text_content.rs` - Plain text extraction
+  - `nameback-core/src/image_ocr.rs` - Image OCR
+  - `nameback-core/src/video_ocr.rs` - Video frame OCR
 
 ---
 
@@ -820,15 +820,19 @@ IMG_20231015_143022.jpg → 2023-10-15_afternoon.jpg
 
 ## Implementation Files
 
-**Advanced features added in**:
-- `src/series_detector.rs` - Series pattern detection
-- `src/location_timestamp.rs` - GPS and timestamp formatting
-- `src/code_docstring.rs` - Source code docstring extraction
-- `src/format_handlers/email.rs` - Email metadata extraction
-- `src/format_handlers/web.rs` - HTML title extraction
-- `src/format_handlers/archive.rs` - Archive content inspection
-- `src/video_ocr.rs` - Multi-frame video analysis (extract_video_text_multiframe)
+**Core library modules** (nameback-core/src/):
+- `code_docstring.rs` - Source code docstring extraction (active)
+- `format_handlers/email.rs` - Email metadata extraction (active)
+- `format_handlers/web.rs` - HTML title extraction (active)
+- `format_handlers/archive.rs` - Archive content inspection (active)
+- `video_ocr.rs` - Multi-frame video analysis (active, default behavior)
+
+**Future enhancement modules** (implemented but not yet integrated):
+- `series_detector.rs` - Series pattern detection
+- `location_timestamp.rs` - GPS and timestamp formatting (partially integrated via RenameConfig flags)
+- `scorer.rs` - Quality scoring system for name candidates
+- `key_phrases.rs` - NLP-based phrase extraction
 
 ---
 
-**Status**: All planned enhancements implemented and tested
+**Status**: Core features implemented and active. Advanced scoring and series detection planned for future release.

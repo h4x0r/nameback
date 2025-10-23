@@ -218,12 +218,48 @@ jobs:
       - name: Create DMG installer (macOS only)
         if: matrix.archive == 'dmg'
         run: |
-          mkdir -p dmg-temp
-          cp target/${{ matrix.target }}/release/nameback-gui dmg-temp/nameback.app
-          chmod +x dmg-temp/nameback.app
+          # Create app bundle structure
+          mkdir -p dmg-temp/Nameback.app/Contents/MacOS
+          mkdir -p dmg-temp/Nameback.app/Contents/Resources
+
+          # Copy binary
+          cp target/${{ matrix.target }}/release/nameback-gui dmg-temp/Nameback.app/Contents/MacOS/nameback-gui
+          chmod +x dmg-temp/Nameback.app/Contents/MacOS/nameback-gui
+
+          # Create Info.plist
+          cat > dmg-temp/Nameback.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>nameback-gui</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.securityronin.nameback</string>
+            <key>CFBundleName</key>
+            <string>Nameback</string>
+            <key>CFBundleDisplayName</key>
+            <string>Nameback</string>
+            <key>CFBundleVersion</key>
+            <string>${{ needs.create-release.outputs.version }}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${{ needs.create-release.outputs.version }}</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>10.15</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Also copy CLI binary alongside the app
+          cp target/${{ matrix.target }}/release/nameback dmg-temp/nameback
+          chmod +x dmg-temp/nameback
 
           # Create DMG
-          hdiutil create -volname "nameback" -srcfolder dmg-temp -ov -format UDZO nameback-${{ matrix.target }}.dmg
+          hdiutil create -volname "Nameback" -srcfolder dmg-temp -ov -format UDZO nameback-${{ matrix.target }}.dmg
 
           # Clean up
           rm -rf dmg-temp

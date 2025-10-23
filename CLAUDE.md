@@ -6,39 +6,44 @@ This file provides instructions for Claude Code for working in the cc-sessions f
 
 ## Project Overview
 
-Nameback is a command-line utility that intelligently renames files based on their metadata. It recursively scans directories, detects file types, extracts metadata using external tools, and generates descriptive filenames.
+Nameback is a file renaming utility that intelligently renames files based on their metadata. It provides both a command-line interface (CLI) and a graphical user interface (GUI) for renaming files using metadata extraction, OCR, and content analysis.
 
 ## Architecture
 
-The project is implemented in Rust as a modular CLI application with the following structure:
+The project is implemented in Rust as a Cargo workspace with three packages:
 
-### Core Modules
+### Workspace Structure
 
-- **main.rs** - Entry point and file scanning logic
-  - Initializes logger based on verbose flag
-  - Scans directories recursively using walkdir
-  - Pre-populates existing filenames to prevent duplicates
-  - Coordinates processing pipeline
+- **nameback-core** - Shared library containing all core functionality
+- **nameback-cli** - Command-line interface binary
+- **nameback-gui** - Graphical user interface using egui/eframe
 
-- **cli.rs** - Command-line argument parsing using clap
-  - Directory path (required positional argument)
-  - Dry-run mode flag (-n, --dry-run)
-  - Skip hidden files flag (-s, --skip-hidden)
-  - Verbose logging flag (-v, --verbose)
+This workspace architecture enables code reuse between CLI and GUI while maintaining clean separation of concerns. The core library handles all file processing logic, while the CLI and GUI packages provide different user interfaces to the same functionality.
+
+**Note:** The legacy `/src` directory at the repository root still exists from the pre-workspace architecture but is no longer used. All active development happens in the workspace packages:
+- nameback-core/src/ - Core library code
+- nameback-cli/src/ - CLI binary code (main.rs, cli.rs)
+- nameback-gui/src/ - GUI application code
+
+### Core Modules (nameback-core/src/)
+
+All core functionality lives in the `nameback-core` library at /Users/4n6h4x0r/src/nameback/nameback-core/src/:
+
+- **lib.rs** - Public API and module coordination
+  - Exports public types: RenameConfig, FileCategory, Dependency, DependencyNeeds
+  - Provides high-level functions: process_directory, check_dependencies, install_dependencies
+  - Default configuration with multi-frame video analysis enabled
 
 - **detector.rs** - File type detection
-  - Executes `file -b` command for type detection
+  - Uses `infer` crate for magic number detection
   - Categorizes files: Image, Document, Audio, Video, Unknown
-  - Pattern matching on file command output
+  - Handles HEIC/HEIF and other modern formats
 
 - **extractor.rs** - Metadata extraction
   - Executes `exiftool -json` for metadata extraction
-  - Parses JSON output into FileMetadata struct
-  - Priority-based name extraction by file category:
-    - Images: Title > Description > DateTimeOriginal
-    - Documents: Title > Subject > Author
-    - Audio: Title > Artist > Album
-    - Video: Title > CreationDate
+  - Parses JSON output into structured data
+  - Priority-based field extraction by file category
+  - Integrates OCR results for images and videos
 
 - **generator.rs** - Filename generation
   - Sanitizes filenames (removes special characters, control chars)
@@ -52,27 +57,140 @@ The project is implemented in Rust as a modular CLI application with the followi
   - Orchestrates the full processing pipeline
   - Checks file and directory permissions
   - Prevents file overwrites (safety check)
-  - Supports dry-run preview mode
+  - Pre-populates existing filenames to prevent duplicates
   - Handles errors gracefully with logging
+
+- **image_ocr.rs** - Image OCR processing
+  - Uses tesseract-rs for text extraction
+  - Supports 160+ languages including Chinese (Traditional/Simplified)
+  - Extracts text from image files
+
+- **video_ocr.rs** - Video frame OCR
+  - Extracts frames at 1s, 5s, 10s intervals (multi-frame mode)
+  - Single frame extraction (fast-video mode)
+  - Runs OCR on each frame and selects best result
+  - Uses ffmpeg for frame extraction
+
+- **pdf_content.rs** - PDF text extraction
+  - Extracts text from PDF documents
+  - Falls back to OCR for scanned PDFs
+  - Prioritizes metadata title over content
+
+- **text_content.rs** - Structured text parsing
+  - Markdown frontmatter extraction (YAML/TOML)
+  - CSV semantic column detection
+  - Nested JSON/YAML field extraction
+
+- **code_docstring.rs** - Source code metadata
+  - Extracts docstrings from Python, Rust, JavaScript, etc.
+  - Parses module-level documentation
+
+- **dir_context.rs** - Directory structure analysis
+  - Analyzes parent directory names for context
+  - Helps improve naming based on file organization
+
+- **stem_analyzer.rs** - Filename analysis
+  - Extracts meaningful parts from original filenames
+  - Removes camera/device patterns
+  - Identifies useful name components
+
+- **format_handlers/** - Format-specific handlers
+  - **archive.rs** - ZIP/TAR file analysis
+  - **email.rs** - EML file parsing
+  - **web.rs** - HTML/MHTML processing
+
+- **deps.rs** - Dependency installation
+  - Platform-specific package manager detection
+  - Interactive dependency installation
+  - Homebrew (macOS), apt/dnf (Linux), Chocolatey (Windows)
+
+- **deps_check.rs** - Dependency verification
+  - Detects which external tools are needed
+  - Checks if required dependencies are installed
+  - Returns structured dependency status
+
+### Future Feature Modules (Not Yet Integrated)
+
+These modules exist in the codebase with complete implementations but are not yet integrated into the main pipeline. They are planned for future releases:
+
+- **scorer.rs** - Quality scoring system for candidate names
+  - Implements NameCandidate with score and source tracking
+  - Multi-criteria scoring: length, specificity, language, format
+  - Filters out low-quality names (device IDs, errors, generic placeholders)
+  - Will enable intelligent selection from multiple naming sources
+
+- **series_detector.rs** - File series detection
+  - Detects numbered sequences (name_001, name_002, etc.)
+  - Supports multiple patterns: underscore, parentheses, hyphen, space
+  - Maintains consistent numbering across series
+  - Prevents breaking existing sequences during rename
+
+- **location_timestamp.rs** - GPS and timestamp enrichment
+  - Extracts GPS coordinates from EXIF data
+  - Formats timestamps in configurable styles
+  - Enables location-based and time-based filename components
+  - Partially integrated via RenameConfig flags
+
+- **key_phrases.rs** - NLP-based phrase extraction
+  - Lightweight n-gram based key phrase extraction
+  - Stop word filtering
+  - TF-IDF style ranking without heavy ML dependencies
+  - Will improve naming from extracted text content
 
 ### Dependencies
 
-Defined in /Users/4n6h4x0r/src/nameback/Cargo.toml:
-- clap 4.5 - CLI argument parsing with derive macros
-- walkdir 2.4 - Recursive directory traversal
+Workspace-level dependencies defined in /Users/4n6h4x0r/src/nameback/Cargo.toml:
+
+**Core libraries:**
+- anyhow 1.0 - Error handling with context
 - serde 1.0 - Serialization framework
 - serde_json 1.0 - JSON parsing for exiftool output
-- anyhow 1.0 - Error handling with context
-- regex 1.10 - Filename sanitization
+- regex 1.10 - Pattern matching and sanitization
 - log 0.4 - Logging facade
+- walkdir 2.4 - Recursive directory traversal
+- chrono 0.4 - Date and time handling
+- infer 0.16 - File type detection via magic numbers
+
+**File format handling:**
+- pdf-extract 0.7 - PDF text extraction
+- image 0.25 - Image processing
+
+**OCR:**
+- tesseract 0.14 - OCR engine bindings
+
+**CLI (nameback-cli):**
+- clap 4.5 - CLI argument parsing with derive macros
 - env_logger 0.11 - Logger implementation
+
+**GUI (nameback-gui):**
+- eframe 0.29 - egui framework
+- egui 0.29 - Immediate mode GUI
+- rfd 0.15 - Native file dialogs
+- tokio 1.x - Async runtime for background processing
+
+**Platform-specific:**
+- libc 0.2 - System-level operations
+
+**Testing:**
+- tempfile 3.8 - Temporary file handling for tests
 
 ### External Tool Requirements
 
-The application depends on two external command-line tools:
+The application depends on several external command-line tools:
 
-- **file** - System utility for file type detection (pre-installed on macOS/Linux)
-- **exiftool** - Metadata extraction tool (install via `brew install exiftool` or `apt-get install libimage-exiftool-perl`)
+**Required:**
+- **exiftool** - Metadata extraction (EXIF, IPTC, XMP, etc.)
+
+**Optional (for advanced features):**
+- **tesseract** - OCR for images and video frames (160+ languages)
+- **ffmpeg** - Video frame extraction for video OCR
+- **imagemagick** - HEIC/HEIF image format support
+
+**Installation:**
+- macOS (Homebrew): `brew install exiftool tesseract tesseract-lang ffmpeg imagemagick`
+- Linux (Debian/Ubuntu): `apt-get install libimage-exiftool-perl tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-chi-sim ffmpeg imagemagick`
+- Windows (MSI installer): All dependencies auto-installed during setup
+- Or use: `nameback --install-deps` for interactive installation
 
 ### Error Handling
 
@@ -91,29 +209,110 @@ Recent bug fixes have added important safety mechanisms:
 
 ### Usage Examples
 
-See /Users/4n6h4x0r/src/nameback/src/cli.rs for all available command-line flags.
-
-Basic usage:
-```
+**CLI tool** (see /Users/4n6h4x0r/src/nameback/nameback-cli/src/main.rs):
+```bash
+# Basic usage
 nameback /path/to/directory
-```
 
-Preview mode (no changes):
-```
+# Preview mode (no changes)
 nameback --dry-run /path/to/directory
+
+# Skip hidden files with verbose output
+nameback --skip-hidden --verbose /path/to/directory
+
+# Include GPS location in photo/video names
+nameback --include-location ~/Pictures
+
+# Use faster single-frame video analysis
+nameback --fast-video /path/to/videos
+
+# Check dependency status
+nameback --check-deps
+
+# Install missing dependencies
+nameback --install-deps
 ```
 
-Skip hidden files with verbose output:
-```
-nameback --skip-hidden --verbose /path/to/directory
-```
+**GUI application** (see /Users/4n6h4x0r/src/nameback/nameback-gui/src/main.rs):
+- Launch via: `nameback-gui` command or from Start Menu/Applications
+- Visual dual-pane interface with checkbox selection
+- Real-time preview before renaming
+- Color-coded status indicators
 
 ### Build and Run
 
-Standard Rust project build:
-```
-cargo build --release
-cargo run -- /path/to/directory
+The project uses a Cargo workspace structure:
+
+```bash
+# Build entire workspace (all packages)
+cargo build --release --workspace
+
+# Build specific packages
+cargo build --release -p nameback-cli
+cargo build --release -p nameback-gui
+cargo build --release -p nameback-core
+
+# Run CLI directly
+cargo run -p nameback-cli -- /path/to/directory
+
+# Run GUI
+cargo run -p nameback-gui
+
+# Run tests
+cargo test --workspace
 ```
 
-Binary location after build: /Users/4n6h4x0r/src/nameback/target/release/nameback
+**Binary locations after build:**
+- CLI: /Users/4n6h4x0r/src/nameback/target/release/nameback
+- GUI: /Users/4n6h4x0r/src/nameback/target/release/nameback-gui
+
+### Release Management
+
+This project uses cargo-release for automated version management. See /Users/4n6h4x0r/src/nameback/RELEASING.md for details.
+
+**Quick release commands:**
+```bash
+# Preview a patch release (0.5.0 → 0.5.1)
+cargo release patch --dry-run
+
+# Execute a patch release (updates all versions, publishes to crates.io, tags, pushes)
+cargo release patch --execute
+```
+
+cargo-release automatically:
+- Updates workspace.package.version
+- Updates workspace.dependencies.nameback-core.version
+- Publishes all packages in dependency order
+- Creates git tags and triggers GitHub Actions release workflow
+
+### Distribution and Installation
+
+**macOS:**
+- Homebrew formula: /Users/4n6h4x0r/src/homebrew-nameback/Formula/nameback.rb (CLI)
+- Homebrew cask: /Users/4n6h4x0r/src/homebrew-nameback/Casks/nameback.rb (GUI)
+
+**Windows:**
+- MSI installer built via WiX Toolset (see /Users/4n6h4x0r/src/nameback/installer/nameback.wxs)
+- Auto-installs all dependencies via Chocolatey
+
+**Linux:**
+- Debian package built via GitHub Actions (see /Users/4n6h4x0r/src/nameback/.github/workflows/release.yml)
+- Includes both CLI and GUI binaries
+- Desktop entry for GUI application
+
+**GitHub Actions Release Workflow:**
+The release workflow (`.github/workflows/release.yml`) handles:
+- Building platform-specific installers (MSI, DMG, DEB)
+- Generating SHA256 checksums with unique filenames to avoid collisions
+- Creating SLSA build provenance attestations for supply chain security
+- Publishing to GitHub Releases
+- Publishing to crates.io
+
+**Linux Build Fix:**
+The workflow sets `PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"` inline with the cargo build command to find leptonica/tesseract dependencies in multiarch locations.
+
+**Checksum Verification:**
+Platform-specific instructions documented in README.md:
+- macOS: `shasum -a 256 -c checksums.txt --ignore-missing`
+- Linux: `sha256sum -c checksums.txt --ignore-missing`
+- Windows: PowerShell script for verification
