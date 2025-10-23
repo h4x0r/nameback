@@ -11,6 +11,7 @@ mod dir_context;
 mod extractor;
 mod format_handlers;
 mod generator;
+mod geocoding;
 mod image_ocr;
 mod key_phrases;
 mod location_timestamp;
@@ -37,15 +38,19 @@ pub struct RenameConfig {
     pub include_timestamp: bool,
     /// Use multi-frame video analysis (slower but better OCR)
     pub multiframe_video: bool,
+    /// Use geocoding to convert GPS coordinates to city names (defaults to true)
+    /// When false, shows coordinates like "47.6N_122.3W" instead of "Seattle_WA"
+    pub geocode: bool,
 }
 
 impl Default for RenameConfig {
     fn default() -> Self {
         Self {
             skip_hidden: false,
-            include_location: false,
-            include_timestamp: false,
+            include_location: true, // Include GPS location by default
+            include_timestamp: true, // Include timestamps by default
             multiframe_video: true, // Multi-frame video analysis is now the default
+            geocode: true, // Geocoding is enabled by default
         }
     }
 }
@@ -100,6 +105,18 @@ impl RenameEngine {
         // Scan files
         let files = self.scan_files(directory)?;
 
+        // Detect file series (e.g., IMG_001.jpg, IMG_002.jpg, etc.)
+        let series_list = series_detector::detect_series(&files);
+        log::info!("Detected {} file series", series_list.len());
+
+        // Build a map of file paths to their series
+        let mut file_series_map = std::collections::HashMap::new();
+        for series in &series_list {
+            for (file_path, _) in &series.files {
+                file_series_map.insert(file_path.clone(), series.clone());
+            }
+        }
+
         // Pre-populate existing names
         let mut existing_names = HashSet::new();
         for file_path in &files {
@@ -113,7 +130,30 @@ impl RenameEngine {
         // Analyze each file
         for file_path in files {
             match self.analyze_file(&file_path, &mut existing_names) {
-                Ok(analysis) => analyses.push(analysis),
+                Ok(mut analysis) => {
+                    // Check if this file is part of a series
+                    if let Some(series) = file_series_map.get(&file_path) {
+                        // Apply series naming if we have a proposed name
+                        if let Some(proposed_name) = &analysis.proposed_name {
+                            // Extract just the base name without extension
+                            let base_name = if let Some(pos) = proposed_name.rfind('.') {
+                                &proposed_name[..pos]
+                            } else {
+                                proposed_name
+                            };
+
+                            // Apply series naming pattern
+                            if let Some(series_name) = series_detector::apply_series_naming(
+                                series,
+                                &file_path,
+                                base_name,
+                            ) {
+                                analysis.proposed_name = Some(series_name);
+                            }
+                        }
+                    }
+                    analyses.push(analysis);
+                },
                 Err(e) => {
                     log::warn!("Failed to analyze {}: {}", file_path.display(), e);
                     // Still add to results but with no proposed name
@@ -247,7 +287,7 @@ impl RenameEngine {
 
         let proposed_name = candidate_name.map(|name| {
             let extension = file_path.extension();
-            generator::generate_filename(&name, extension, existing_names)
+            generator::generate_filename_with_metadata(&name, extension, existing_names, Some(&metadata))
         });
 
         Ok(FileAnalysis {

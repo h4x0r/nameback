@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 authors = ["Albert Hui"]
 license = "MIT"
@@ -16,7 +16,7 @@ homepage = "https://github.com/h4x0r/nameback"
 
 [workspace.dependencies]
 # Workspace member (for internal dependencies)
-nameback-core = { version = "0.5.1", path = "nameback-core" }
+nameback-core = { version = "0.5.2", path = "nameback-core" }
 
 # Core dependencies
 anyhow = "1.0"
@@ -44,6 +44,10 @@ eframe = "0.29"
 egui = "0.29"
 rfd = "0.15"
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
+
+# HTTP
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+lazy_static = "1.4"
 
 # Platform-specific
 libc = "0.2"

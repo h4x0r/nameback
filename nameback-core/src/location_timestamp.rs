@@ -25,8 +25,8 @@ pub fn extract_gps_from_metadata(
     let lon = parse_gps_coordinate(lon_str)?;
 
     // Apply direction (N/S for latitude, E/W for longitude)
-    let latitude = if lat_ref == "S" { -lat } else { lat };
-    let longitude = if lon_ref == "W" { -lon } else { lon };
+    let latitude = if lat_ref == "S" || lat_ref == "South" { -lat } else { lat };
+    let longitude = if lon_ref == "W" || lon_ref == "West" { -lon } else { lon };
 
     Some(LocationData {
         latitude,
@@ -35,7 +35,7 @@ pub fn extract_gps_from_metadata(
 }
 
 /// Parses GPS coordinate string in DMS (degrees, minutes, seconds) format
-/// Examples: "37 deg 46' 26.40\"", "37.7749", "37 46.44"
+/// Examples: "37 deg 46' 26.40\" N", "37 deg 46' 26.40\"", "37.7749", "37 46.44"
 fn parse_gps_coordinate(coord_str: &str) -> Option<f64> {
     let cleaned = coord_str
         .replace("deg", "")
@@ -45,22 +45,29 @@ fn parse_gps_coordinate(coord_str: &str) -> Option<f64> {
 
     let parts: Vec<&str> = cleaned.split_whitespace().collect();
 
-    match parts.len() {
+    // Filter out directional letters (N, S, E, W) that might appear at the end
+    let numeric_parts: Vec<&str> = parts
+        .iter()
+        .filter(|p| !matches!(p.to_uppercase().as_str(), "N" | "S" | "E" | "W"))
+        .copied()
+        .collect();
+
+    match numeric_parts.len() {
         1 => {
             // Decimal format: "37.7749"
-            parts[0].parse::<f64>().ok()
+            numeric_parts[0].parse::<f64>().ok()
         }
         2 => {
             // Degrees and decimal minutes: "37 46.44"
-            let degrees: f64 = parts[0].parse().ok()?;
-            let minutes: f64 = parts[1].parse().ok()?;
+            let degrees: f64 = numeric_parts[0].parse().ok()?;
+            let minutes: f64 = numeric_parts[1].parse().ok()?;
             Some(degrees + minutes / 60.0)
         }
         3 => {
             // Degrees, minutes, seconds: "37 46 26.40"
-            let degrees: f64 = parts[0].parse().ok()?;
-            let minutes: f64 = parts[1].parse().ok()?;
-            let seconds: f64 = parts[2].parse().ok()?;
+            let degrees: f64 = numeric_parts[0].parse().ok()?;
+            let minutes: f64 = numeric_parts[1].parse().ok()?;
+            let seconds: f64 = numeric_parts[2].parse().ok()?;
             Some(degrees + minutes / 60.0 + seconds / 3600.0)
         }
         _ => None,

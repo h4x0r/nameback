@@ -195,6 +195,50 @@ You'll miss out on:
 
 ## Advanced Features
 
+### GPS Location & Timestamp Enrichment
+
+**By default**, nameback automatically enriches filenames with GPS location and timestamps when available:
+
+#### GPS Location (Enabled by Default)
+Photos and videos with GPS metadata get location information added to their filenames:
+
+**Default behavior (geocoding enabled):**
+```
+IMG_1234.jpg with GPS 37.7749N, 122.4194W
+→ Sunset_at_the_Beach_San_Francisco_CA_2024-03-15.jpg
+```
+
+**With `--no-geocode` (raw coordinates):**
+```
+→ Sunset_at_the_Beach_37.77N_122.42W_2024-03-15.jpg
+```
+
+**Disable location entirely with `--no-location`:**
+```
+→ Sunset_at_the_Beach_2024-03-15.jpg
+```
+
+#### Timestamp Enrichment (Enabled by Default)
+Timestamps are automatically added when available in EXIF metadata:
+
+```
+Screenshot.png with DateTimeOriginal: 2024-03-15 14:30:22
+→ Screenshot_2024-03-15.png
+```
+
+**Disable with `--no-timestamp`:**
+```
+→ Screenshot.png
+```
+
+#### Geocoding Details
+- Uses **OpenStreetMap Nominatim API** (free, no API key required)
+- Automatically rate-limited to comply with usage policy (1 req/sec)
+- Results cached for 1 hour to minimize API calls
+- Falls back to coordinates if geocoding fails (offline, rate limit, etc.)
+- US/Canada locations abbreviated: "Seattle_WA", "Toronto_ON"
+- International locations: "Paris_France", "Tokyo_Japan"
+
 ### Multi-Language OCR
 
 When tesseract-lang is installed, nameback automatically tries multiple languages and selects the best result:

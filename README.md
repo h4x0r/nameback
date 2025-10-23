@@ -181,16 +181,19 @@ nameback ~/Downloads --dry-run
 ## Options
 
 ```bash
-nameback <directory>                        # Rename files
+nameback <directory>                        # Rename files (includes GPS location & timestamps by default)
 nameback <directory> --dry-run              # Preview changes only
 nameback <directory> --verbose              # Show detailed progress
 nameback <directory> --skip-hidden          # Skip hidden files
-nameback <directory> --include-location     # Add GPS coordinates to photo/video names
-nameback <directory> --include-timestamp    # Add formatted timestamps to names
+nameback <directory> --no-location          # Exclude GPS location from filenames
+nameback <directory> --no-timestamp         # Exclude timestamps from filenames
+nameback <directory> --no-geocode           # Use raw GPS coordinates instead of city names
 nameback <directory> --fast-video           # Use single-frame video analysis (faster, less accurate)
 nameback --check-deps                       # Check dependencies
 nameback --install-deps                     # Install dependencies
 ```
+
+**Default behavior:** By default, nameback includes GPS location (reverse geocoded to city names like "Seattle_WA") and timestamps in filenames when available. Use `--no-location`, `--no-timestamp`, or `--no-geocode` to disable these features.
 
 ## Learn More
 

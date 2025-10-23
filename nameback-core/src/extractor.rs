@@ -21,6 +21,10 @@ pub struct FileMetadata {
     pub subject: Option<String>,
     pub author: Option<String>,
     pub creation_date: Option<String>,
+    pub gps_location: Option<crate::location_timestamp::LocationData>,
+    pub geocode_enabled: Option<bool>,
+    pub include_location: bool,
+    pub include_timestamp: bool,
 }
 
 impl FileMetadata {
@@ -157,6 +161,14 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
         creation_date: Option<String>,
         #[serde(rename = "CreateDate")]
         create_date: Option<String>,
+        #[serde(rename = "GPSLatitude")]
+        gps_latitude: Option<String>,
+        #[serde(rename = "GPSLatitudeRef")]
+        gps_latitude_ref: Option<String>,
+        #[serde(rename = "GPSLongitude")]
+        gps_longitude: Option<String>,
+        #[serde(rename = "GPSLongitudeRef")]
+        gps_longitude_ref: Option<String>,
     }
 
     let parsed: Vec<ExiftoolOutput> =
@@ -179,6 +191,14 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
         None
     };
 
+    // Extract GPS location if available
+    let gps_location = crate::location_timestamp::extract_gps_from_metadata(
+        exif_data.gps_latitude.as_deref(),
+        exif_data.gps_latitude_ref.as_deref(),
+        exif_data.gps_longitude.as_deref(),
+        exif_data.gps_longitude_ref.as_deref(),
+    );
+
     let mut metadata = FileMetadata {
         title: exif_data.title,
         artist: exif_data.artist,
@@ -188,6 +208,10 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
         subject: exif_data.subject,
         author: filtered_author,
         creation_date: exif_data.creation_date.or(exif_data.create_date),
+        gps_location,
+        geocode_enabled: Some(config.geocode),
+        include_location: config.include_location,
+        include_timestamp: config.include_timestamp,
     };
 
     // For PDFs without useful metadata, try extracting text content

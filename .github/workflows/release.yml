@@ -226,6 +226,12 @@ jobs:
           cp target/${{ matrix.target }}/release/nameback-gui dmg-temp/Nameback.app/Contents/MacOS/nameback-gui
           chmod +x dmg-temp/Nameback.app/Contents/MacOS/nameback-gui
 
+          # Copy Security Ronin logo as icon (if available)
+          if [ -f "docs/Security Ronin Logo.png" ]; then
+            # Convert PNG to ICNS format for macOS app icon
+            sips -s format icns "docs/Security Ronin Logo.png" --out dmg-temp/Nameback.app/Contents/Resources/AppIcon.icns 2>/dev/null || true
+          fi
+
           # Create Info.plist
           cat > dmg-temp/Nameback.app/Contents/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -246,6 +252,8 @@ jobs:
             <string>${{ needs.create-release.outputs.version }}</string>
             <key>CFBundlePackageType</key>
             <string>APPL</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
             <key>LSMinimumSystemVersion</key>
             <string>10.15</string>
             <key>NSHighResolutionCapable</key>
@@ -258,8 +266,34 @@ jobs:
           cp target/${{ matrix.target }}/release/nameback dmg-temp/nameback
           chmod +x dmg-temp/nameback
 
-          # Create DMG
-          hdiutil create -volname "Nameback" -srcfolder dmg-temp -ov -format UDZO nameback-${{ matrix.target }}.dmg
+          # Create symlink to /Applications for easy installation
+          ln -s /Applications dmg-temp/Applications
+
+          # Copy Security Ronin branding files if available
+          if [ -f "docs/Security Ronin Logo.png" ]; then
+            cp "docs/Security Ronin Logo.png" "dmg-temp/.background.png" 2>/dev/null || true
+          fi
+
+          # Create a README with Security Ronin branding
+          cat > dmg-temp/README.txt << 'EOF'
+          Nameback - Intelligent File Renaming Tool
+          ==========================================
+
+          Developed by Security Ronin
+          https://github.com/h4x0r/nameback
+
+          Installation:
+          1. Drag Nameback.app to your Applications folder
+          2. The CLI tool 'nameback' is also included in this DMG
+
+          For CLI installation:
+          Copy the 'nameback' binary to /usr/local/bin/ or add to your PATH
+
+          Security Ronin - Professional Security Solutions
+          EOF
+
+          # Create DMG with custom volume name
+          hdiutil create -volname "Nameback by Security Ronin" -srcfolder dmg-temp -ov -format UDZO nameback-${{ matrix.target }}.dmg
 
           # Clean up
           rm -rf dmg-temp

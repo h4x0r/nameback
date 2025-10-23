@@ -58,9 +58,10 @@ fn main() -> Result<()> {
     // Create rename engine with configuration from CLI args
     let config = RenameConfig {
         skip_hidden: args.skip_hidden,
-        include_location: args.include_location,
-        include_timestamp: args.include_timestamp,
+        include_location: !args.no_location, // Inverted: location is default, no_location opts out
+        include_timestamp: !args.no_timestamp, // Inverted: timestamp is default, no_timestamp opts out
         multiframe_video: !args.fast_video, // Inverted: multiframe is default, fast_video opts out
+        geocode: !args.no_geocode, // Inverted: geocoding is default, no_geocode opts out
     };
 
     let engine = RenameEngine::new(config);

@@ -1,6 +1,7 @@
 use regex::Regex;
 use std::collections::HashSet;
 use std::ffi::OsStr;
+use crate::extractor::FileMetadata;
 
 /// Generates a sanitized filename from a candidate name
 pub fn generate_filename(
@@ -8,8 +9,59 @@ pub fn generate_filename(
     original_extension: Option<&OsStr>,
     existing_names: &mut HashSet<String>,
 ) -> String {
+    generate_filename_with_metadata(candidate, original_extension, existing_names, None)
+}
+
+/// Generates a sanitized filename from a candidate name with optional metadata enhancements
+pub fn generate_filename_with_metadata(
+    candidate: &str,
+    original_extension: Option<&OsStr>,
+    existing_names: &mut HashSet<String>,
+    metadata: Option<&FileMetadata>,
+) -> String {
     // Sanitize the candidate name
-    let sanitized = sanitize_filename(candidate);
+    let mut sanitized = sanitize_filename(candidate);
+
+    // Add location and timestamp if enabled in config and available in metadata
+    if let Some(meta) = metadata {
+        let mut additions: Vec<String> = Vec::new();
+
+        // Add GPS location if enabled and available
+        if meta.include_location {
+            if let Some(location) = &meta.gps_location {
+                // Try geocoding first (enabled by default)
+                // This will convert GPS to city names like "Seattle_WA"
+                let location_str = if meta.geocode_enabled.unwrap_or(true) {
+                    // Try to reverse geocode to get city/state name
+                    crate::geocoding::reverse_geocode(location.latitude, location.longitude)
+                        .unwrap_or_else(|| {
+                            // Fall back to coordinates if geocoding fails
+                            crate::location_timestamp::format_location(location)
+                        })
+                } else {
+                    // User disabled geocoding, use coordinates format
+                    crate::location_timestamp::format_location(location)
+                };
+                additions.push(location_str);
+            }
+        }
+
+        // Add timestamp if enabled and available (use date_time_original or creation_date)
+        if meta.include_timestamp {
+            if let Some(timestamp) = meta.date_time_original.as_ref().or(meta.creation_date.as_ref()) {
+                // Format timestamp to YYYY-MM-DD for filename
+                if let Some(formatted) = format_timestamp_for_filename(timestamp) {
+                    additions.push(formatted);
+                }
+            }
+        }
+
+        // Append additions to the filename
+        if !additions.is_empty() {
+            let additions_str = additions.join("_");
+            sanitized = format!("{}_{}", sanitized, additions_str);
+        }
+    }
 
     // Limit length to 200 characters to leave room for extension and counter
     let mut base_name = sanitized.chars().take(200).collect::<String>();
@@ -36,6 +88,20 @@ pub fn generate_filename(
 
     existing_names.insert(filename.clone());
     filename
+}
+
+/// Formats a timestamp string for use in filename (YYYY-MM-DD format)
+fn format_timestamp_for_filename(timestamp: &str) -> Option<String> {
+    // Try to extract date in YYYY:MM:DD format from EXIF timestamp
+    // Format is typically "YYYY:MM:DD HH:MM:SS"
+    if let Some(date_part) = timestamp.split_whitespace().next() {
+        // Convert colons to dashes for filename compatibility
+        let formatted = date_part.replace(':', "-");
+        if formatted.len() == 10 && formatted.chars().filter(|c| *c == '-').count() == 2 {
+            return Some(formatted);
+        }
+    }
+    None
 }
 
 /// Sanitizes a filename by removing or replacing invalid characters

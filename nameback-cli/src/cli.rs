@@ -37,17 +37,21 @@ pub struct Args {
     #[arg(long = "check-deps")]
     pub check_deps: bool,
 
-    /// Include GPS location in filenames (for photos/videos with GPS data)
-    #[arg(long = "include-location")]
-    pub include_location: bool,
+    /// Disable GPS location in filenames (location is included by default)
+    #[arg(long = "no-location")]
+    pub no_location: bool,
 
-    /// Include formatted timestamp in filenames (fallback when no metadata)
-    #[arg(long = "include-timestamp")]
-    pub include_timestamp: bool,
+    /// Disable timestamp in filenames (timestamp is included by default)
+    #[arg(long = "no-timestamp")]
+    pub no_timestamp: bool,
 
     /// Use single-frame video analysis for faster processing (default is multi-frame)
     #[arg(long = "fast-video")]
     pub fast_video: bool,
+
+    /// Disable geocoding of GPS coordinates (shows raw coordinates instead of city names)
+    #[arg(long = "no-geocode")]
+    pub no_geocode: bool,
 }
 
 /// Parses command-line arguments

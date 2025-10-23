@@ -97,8 +97,13 @@ pub fn process_file(
     // Get original extension
     let extension = file_path.extension();
 
-    // Generate sanitized, unique filename
-    let new_filename = generator::generate_filename(&candidate_name, extension, existing_names);
+    // Generate sanitized, unique filename with metadata enhancements
+    let new_filename = generator::generate_filename_with_metadata(
+        &candidate_name,
+        extension,
+        existing_names,
+        Some(&metadata),
+    );
 
     // Rename the file
     rename_file(file_path, &new_filename, dry_run)?;
