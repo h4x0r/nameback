@@ -20,6 +20,32 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "nameback",
         native_options,
-        Box::new(|cc| Ok(Box::new(NamebackApp::new(cc)))),
+        Box::new(|cc| {
+            // Load emoji font
+            let mut fonts = egui::FontDefinitions::default();
+
+            // Load Noto Emoji font
+            fonts.font_data.insert(
+                "noto_emoji".to_owned(),
+                egui::FontData::from_static(include_bytes!("../fonts/NotoEmoji-Regular.ttf")),
+            );
+
+            // Add emoji font as fallback for all font families
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .push("noto_emoji".to_owned());
+
+            fonts
+                .families
+                .entry(egui::FontFamily::Monospace)
+                .or_default()
+                .push("noto_emoji".to_owned());
+
+            cc.egui_ctx.set_fonts(fonts);
+
+            Ok(Box::new(NamebackApp::new(cc)))
+        }),
     )
 }

@@ -219,12 +219,16 @@ jobs:
         if: matrix.archive == 'dmg'
         run: |
           # Create app bundle structure
-          mkdir -p dmg-temp/Nameback.app/Contents/MacOS
+          mkdir -p dmg-temp/Nameback.app/Contents/MacOS/bin
           mkdir -p dmg-temp/Nameback.app/Contents/Resources
 
-          # Copy binary
+          # Copy GUI binary
           cp target/${{ matrix.target }}/release/nameback-gui dmg-temp/Nameback.app/Contents/MacOS/nameback-gui
           chmod +x dmg-temp/Nameback.app/Contents/MacOS/nameback-gui
+
+          # Copy CLI binary into app bundle
+          cp target/${{ matrix.target }}/release/nameback dmg-temp/Nameback.app/Contents/MacOS/bin/nameback
+          chmod +x dmg-temp/Nameback.app/Contents/MacOS/bin/nameback
 
           # Copy Security Ronin logo as icon (if available)
           if [ -f "docs/Security Ronin Logo.png" ]; then
@@ -262,38 +266,50 @@ jobs:
           </plist>
           EOF
 
-          # Also copy CLI binary alongside the app
-          cp target/${{ matrix.target }}/release/nameback dmg-temp/nameback
-          chmod +x dmg-temp/nameback
-
           # Create symlink to /Applications for easy installation
           ln -s /Applications dmg-temp/Applications
 
-          # Copy Security Ronin branding files if available
+          # Copy Security Ronin logo as DMG background
           if [ -f "docs/Security Ronin Logo.png" ]; then
-            cp "docs/Security Ronin Logo.png" "dmg-temp/.background.png" 2>/dev/null || true
+            cp "docs/Security Ronin Logo.png" "dmg-temp/.background.png"
           fi
 
-          # Create a README with Security Ronin branding
-          cat > dmg-temp/README.txt << 'EOF'
-          Nameback - Intelligent File Renaming Tool
-          ==========================================
+          # Create DMG with custom appearance using AppleScript
+          # First create a temporary DMG
+          hdiutil create -volname "Nameback by Security Ronin" -srcfolder dmg-temp -ov -format UDRW temp.dmg
 
-          Developed by Security Ronin
-          https://github.com/h4x0r/nameback
+          # Mount the DMG
+          device=$(hdiutil attach -readwrite -noverify -noautoopen "temp.dmg" | egrep '^/dev/' | sed 1q | awk '{print $1}')
 
-          Installation:
-          1. Drag Nameback.app to your Applications folder
-          2. The CLI tool 'nameback' is also included in this DMG
+          # Set DMG window properties with AppleScript
+          echo '
+            tell application "Finder"
+              tell disk "Nameback by Security Ronin"
+                open
+                set current view of container window to icon view
+                set toolbar visible of container window to false
+                set statusbar visible of container window to false
+                set the bounds of container window to {100, 100, 700, 500}
+                set viewOptions to the icon view options of container window
+                set arrangement of viewOptions to not arranged
+                set icon size of viewOptions to 128
+                set background picture of viewOptions to file ".background.png"
+                set position of item "Nameback.app" of container window to {150, 200}
+                set position of item "Applications" of container window to {450, 200}
+                close
+                open
+                update without registering applications
+                delay 2
+              end tell
+            end tell
+          ' | osascript
 
-          For CLI installation:
-          Copy the 'nameback' binary to /usr/local/bin/ or add to your PATH
-
-          Security Ronin - Professional Security Solutions
-          EOF
-
-          # Create DMG with custom volume name
-          hdiutil create -volname "Nameback by Security Ronin" -srcfolder dmg-temp -ov -format UDZO nameback-${{ matrix.target }}.dmg
+          # Finalize DMG
+          chmod -Rf go-w /Volumes/Nameback\ by\ Security\ Ronin
+          sync
+          hdiutil detach ${device}
+          hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o nameback-${{ matrix.target }}.dmg
+          rm -f temp.dmg
 
           # Clean up
           rm -rf dmg-temp
