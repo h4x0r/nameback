@@ -231,7 +231,7 @@ jobs:
       - name: Generate DMG checksum (macOS only)
         if: matrix.archive == 'dmg'
         run: |
-          shasum -a 256 nameback-${{ matrix.target }}.dmg > checksums-temp.txt
+          shasum -a 256 nameback-${{ matrix.target }}.dmg > checksums-${{ matrix.target }}.txt
 
       - name: Attest DMG installer (macOS only)
         if: matrix.archive == 'dmg'
@@ -340,7 +340,7 @@ jobs:
         run: |
           VERSION=${{ needs.create-release.outputs.version }}
           VERSION_NUM=${VERSION#v}
-          sha256sum nameback_${VERSION_NUM}-1_amd64.deb > checksums-temp.txt
+          sha256sum nameback_${VERSION_NUM}-1_amd64.deb > checksums-linux.txt
 
       - name: Attest Debian package (Linux only)
         if: matrix.archive == 'deb'
@@ -370,7 +370,7 @@ jobs:
         shell: pwsh
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.zip).Hash.ToLower()
-          "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII checksums-temp.txt
+          "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII checksums-windows.txt
 
       - name: Attest ZIP archive (Windows only)
         if: matrix.archive == 'zip'
@@ -403,7 +403,7 @@ jobs:
         shell: pwsh
         run: |
           $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.msi).Hash.ToLower()
-          "$hash  nameback-${{ matrix.target }}.msi" | Out-File -Encoding ASCII -Append checksums-temp.txt
+          "$hash  nameback-${{ matrix.target }}.msi" | Out-File -Encoding ASCII -Append checksums-windows.txt
 
       - name: Attest MSI installer (Windows only)
         if: matrix.os == 'windows-latest'
@@ -418,27 +418,28 @@ jobs:
           tag_name: ${{ needs.create-release.outputs.version }}
           files: nameback-${{ matrix.target }}.msi
 
-      - name: Upload checksums
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+      - name: Upload checksums as artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: checksums-temp.txt
+          name: checksums-${{ matrix.target }}
+          path: checksums-*.txt
+          retention-days: 1
 
   generate-checksums:
     name: Generate Combined Checksums
     needs: [create-release, build-release]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all checksum files
-        uses: robinraju/release-downloader@a96f54c1b5f5e09e47d9504526e96febd949d4c2 # v1.11
+      - name: Download all checksum artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          tag: ${{ needs.create-release.outputs.version }}
-          fileName: 'checksums-temp.txt'
-          out-file-path: checksums
+          pattern: checksums-*
+          path: checksums
+          merge-multiple: true
 
       - name: Combine checksums
         run: |
-          cat checksums/checksums-temp.txt* > checksums.txt
+          cat checksums/*.txt > checksums.txt
           echo "Combined checksums:"
           cat checksums.txt
 
@@ -447,12 +448,6 @@ jobs:
         with:
           tag_name: ${{ needs.create-release.outputs.version }}
           files: checksums.txt
-
-      - name: Delete temporary checksum files
-        run: |
-          gh release delete-asset ${{ needs.create-release.outputs.version }} checksums-temp.txt --yes || true
-        env:
-          GH_TOKEN: ${{ github.token }}
 
   publish-crates-io:
     name: Publish to crates.io
