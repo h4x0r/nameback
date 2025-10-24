@@ -44,8 +44,9 @@ pub struct NamebackApp {
     config: RenameConfig,
 
     // Processing
-    processing_thread: Option<std::thread::JoinHandle<Result<Vec<FileAnalysis>, String>>>,
+    processing_thread: Option<std::thread::JoinHandle<Result<(), String>>>,
     rename_results: Arc<Mutex<Option<Vec<RenameResult>>>>,
+    shared_file_entries: Arc<Mutex<Vec<FileEntry>>>,
 }
 
 impl NamebackApp {
@@ -70,6 +71,7 @@ impl NamebackApp {
             config: RenameConfig::default(),
             processing_thread: None,
             rename_results: Arc::new(Mutex::new(None)),
+            shared_file_entries: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -105,34 +107,114 @@ impl NamebackApp {
     fn start_analysis(&mut self, path: PathBuf) {
         self.is_processing = true;
         self.error_message = None;
-        self.status_message = Some("Analyzing directory...".to_string());
+        self.status_message = Some("Scanning directory...".to_string());
         self.file_entries.clear();
 
         let config = self.config.clone();
+        let file_entries = Arc::new(Mutex::new(Vec::new()));
+        let file_entries_clone = Arc::clone(&file_entries);
 
+        // Spawn thread to scan directory and analyze files progressively
         self.processing_thread = Some(std::thread::spawn(move || {
+            use walkdir::WalkDir;
+
+            // First, scan directory to get list of files
+            let mut files = Vec::new();
+            for entry in WalkDir::new(&path)
+                .follow_links(false)
+                .into_iter()
+                .filter_entry(|e| {
+                    if config.skip_hidden {
+                        !e.file_name()
+                            .to_str()
+                            .map(|s| s.starts_with('.'))
+                            .unwrap_or(false)
+                    } else {
+                        true
+                    }
+                })
+            {
+                match entry {
+                    Ok(entry) => {
+                        if entry.file_type().is_file() {
+                            files.push(entry.path().to_path_buf());
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to access entry: {}", e);
+                    }
+                }
+            }
+
+            // Create placeholder entries for all files
+            let mut entries_lock = file_entries_clone.lock().unwrap();
+            for file_path in &files {
+                let original_name = file_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                entries_lock.push(FileEntry {
+                    analysis: FileAnalysis {
+                        original_path: file_path.clone(),
+                        original_name: original_name.clone(),
+                        proposed_name: None, // Will be filled in progressively
+                        file_category: nameback_core::FileCategory::Unknown,
+                    },
+                    selected: true,
+                    status: FileStatus::Pending,
+                });
+            }
+            drop(entries_lock);
+
+            // Now analyze each file and update progressively
             let engine = RenameEngine::new(config);
-            engine
-                .analyze_directory(&path)
-                .map_err(|e| e.to_string())
+            for analysis in engine.analyze_directory(&path).map_err(|e| e.to_string())? {
+                // Find and update the matching entry
+                let mut entries_lock = file_entries_clone.lock().unwrap();
+                if let Some(entry) = entries_lock
+                    .iter_mut()
+                    .find(|e| e.analysis.original_path == analysis.original_path)
+                {
+                    entry.analysis = analysis;
+                }
+            }
+
+            Ok(())
         }));
+
+        // Store reference for UI updates
+        self.shared_file_entries = file_entries;
     }
 
     fn check_analysis_complete(&mut self) {
+        // Update file_entries from shared state (progressive updates)
+        {
+            let shared = self.shared_file_entries.lock().unwrap();
+            self.file_entries = shared.clone();
+        }
+
+        // Update status message with progress
+        let total = self.file_entries.len();
+        let analyzed = self
+            .file_entries
+            .iter()
+            .filter(|e| e.analysis.proposed_name.is_some() || e.analysis.file_category != nameback_core::FileCategory::Unknown)
+            .count();
+
+        if self.is_processing && total > 0 {
+            self.status_message = Some(format!(
+                "Analyzing... {}/{} files processed",
+                analyzed, total
+            ));
+        }
+
+        // Check if background thread is complete
         if let Some(thread) = self.processing_thread.take() {
             if thread.is_finished() {
                 match thread.join() {
-                    Ok(Ok(analyses)) => {
-                        self.file_entries = analyses
-                            .into_iter()
-                            .map(|analysis| FileEntry {
-                                analysis,
-                                selected: true, // Select by default
-                                status: FileStatus::Pending,
-                            })
-                            .collect();
-
-                        let total = self.file_entries.len();
+                    Ok(Ok(())) => {
                         let renameable = self
                             .file_entries
                             .iter()
