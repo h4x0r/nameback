@@ -44,7 +44,7 @@ jobs:
 
     - name: Cache dependencies
       if: ${{ steps.rust.outputs.has == 'true' }}
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: |
           ~/.cargo/bin/
@@ -94,7 +94,7 @@ jobs:
         fetch-depth: 0
 
     - name: Run Gitleaks
-      uses: gitleaks/gitleaks-action@44c470ffc35caa8b1eb3e8012ca53c2f9bea4eb5 # v2.3.6
+      uses: gitleaks/gitleaks-action@cb7149b9e61c3d6896c4bc2616d4c9e86ee2d0c2 # v2.3.6
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -157,17 +157,9 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Install Linux build dependencies
-      if: ${{ steps.rust.outputs.has == 'true' }}
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
-
     - name: Build project
       if: ${{ steps.rust.outputs.has == 'true' }}
-      run: |
-        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
-        cargo build --release
+      run: cargo build --release
 
     - name: Perform CodeQL Analysis
       if: ${{ steps.rust.outputs.has == 'true' }}
@@ -201,9 +193,16 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Install Linux build dependencies
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
+
     - name: Generate SBOM
       if: ${{ steps.rust.outputs.has == 'true' }}
       run: |
+        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
         cargo install --locked cargo-auditable
         cargo auditable build --release
         cargo install --locked cargo-cyclonedx
@@ -310,17 +309,9 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Install Linux build dependencies
-      if: ${{ steps.rust.outputs.has == 'true' }}
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
-
     - name: Build release binary
       if: ${{ steps.rust.outputs.has == 'true' }}
-      run: |
-        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
-        cargo build --release
+      run: cargo build --release
 
     - name: Install binary analysis tools
       if: ${{ steps.rust.outputs.has == 'true' }}
@@ -360,11 +351,12 @@ jobs:
         done
 
     - name: Upload binary analysis results
-      if: ${{ steps.rust.outputs.has == 'true' && hashFiles('binary-secrets.txt') != '' }}
+      if: ${{ steps.rust.outputs.has == 'true' }}
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: binary-analysis-results
         path: binary-secrets.txt
+      if: hashFiles('binary-secrets.txt') != ''
 
   dependency-confusion-check:
     name: Dependency Confusion Detection
@@ -443,22 +435,15 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Install Linux build dependencies
-      if: ${{ steps.rust.outputs.has == 'true' }}
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
-
     - name: Validate Cargo.lock
       if: ${{ steps.rust.outputs.has == 'true' }}
       run: |
-        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
         echo "🔍 Validating Cargo.lock..."
         if [[ ! -f "Cargo.lock" ]]; then
           echo "::error::Cargo.lock not found - this is required for reproducible builds"
           exit 1
         fi
-
+        
         # Check if Cargo.lock is up-to-date
         if ! cargo check --locked >/dev/null 2>&1; then
           echo "::error::Cargo.lock is out of date"
