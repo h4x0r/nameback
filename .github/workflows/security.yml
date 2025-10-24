@@ -351,12 +351,11 @@ jobs:
         done
 
     - name: Upload binary analysis results
-      if: ${{ steps.rust.outputs.has == 'true' }}
+      if: ${{ steps.rust.outputs.has == 'true' && hashFiles('binary-secrets.txt') != '' }}
       uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: binary-analysis-results
         path: binary-secrets.txt
-      if: hashFiles('binary-secrets.txt') != ''
 
   dependency-confusion-check:
     name: Dependency Confusion Detection
