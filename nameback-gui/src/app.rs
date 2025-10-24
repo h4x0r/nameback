@@ -75,7 +75,7 @@ impl NamebackApp {
             // Check dependencies for this directory
             match nameback_core::detect_needed_dependencies(&path) {
                 Ok(needs) => {
-                    if needs.has_required_missing() || !needs.missing_optional.is_empty() {
+                    if needs.has_required_missing() {
                         self.show_deps_dialog = true;
                         self.pending_directory = Some(path);
                         self.missing_deps = Some(needs);
