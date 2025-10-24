@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/nameback.png" alt="nameback logo" width="200"/>
+</p>
+
 # nameback
 
 Rename files based on their metadata. Automatically extracts titles, dates, and descriptions from your files to give them meaningful names.
