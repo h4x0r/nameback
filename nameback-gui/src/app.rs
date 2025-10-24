@@ -1,4 +1,5 @@
 use eframe::egui;
+use egui_phosphor::regular;
 use nameback_core::{DependencyNeeds, FileAnalysis, RenameConfig, RenameEngine, RenameResult};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -264,7 +265,7 @@ impl NamebackApp {
     fn render_controls(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             // Directory selection
-            if ui.button("📁 Select Directory").clicked() {
+            if ui.button(format!("{} Select Directory", regular::FOLDER)).clicked() {
                 self.select_directory();
             }
 
@@ -272,7 +273,7 @@ impl NamebackApp {
 
             // Refresh button
             if let Some(dir) = &self.current_directory {
-                if ui.button("🔄 Refresh").clicked() && !self.is_processing {
+                if ui.button(format!("{} Refresh", regular::ARROW_CLOCKWISE)).clicked() && !self.is_processing {
                     self.start_analysis(dir.clone());
                 }
             }
@@ -280,10 +281,10 @@ impl NamebackApp {
             ui.separator();
 
             // Select/Deselect buttons
-            if ui.button("☑️ Select All").clicked() {
+            if ui.button(format!("{} Select All", regular::CHECK_SQUARE)).clicked() {
                 self.select_all();
             }
-            if ui.button("☐ Deselect All").clicked() {
+            if ui.button(format!("{} Deselect All", regular::SQUARE)).clicked() {
                 self.deselect_all();
             }
 
@@ -296,7 +297,7 @@ impl NamebackApp {
                 .filter(|e| e.selected && e.analysis.proposed_name.is_some())
                 .count();
 
-            let rename_button = egui::Button::new(format!("✅ Rename {} Files", selected_count));
+            let rename_button = egui::Button::new(format!("{} Rename {} Files", regular::LIGHTNING, selected_count));
             let can_rename = selected_count > 0 && !self.is_processing;
 
             if ui
@@ -310,7 +311,7 @@ impl NamebackApp {
             ui.separator();
 
             // About button
-            if ui.button("ℹ️ About").clicked() {
+            if ui.button(format!("{} About", regular::INFO)).clicked() {
                 self.show_about_dialog = true;
             }
         });
@@ -369,7 +370,7 @@ impl NamebackApp {
         ui.separator();
         ui.horizontal(|ui| {
             if let Some(dir) = &self.current_directory {
-                ui.label(format!("📂 {}", dir.display()));
+                ui.label(format!("{} {}", regular::FOLDER_OPEN, dir.display()));
                 ui.separator();
             }
 
@@ -390,13 +391,13 @@ impl NamebackApp {
                 .filter(|e| matches!(e.status, FileStatus::Renamed))
                 .count();
 
-            ui.label(format!("📄 Total: {}", total));
+            ui.label(format!("{} Total: {}", regular::FILE, total));
             ui.separator();
-            ui.label(format!("✅ Renameable: {}", renameable));
+            ui.label(format!("{} Renameable: {}", regular::CHECK_CIRCLE, renameable));
             ui.separator();
-            ui.label(format!("☑️ Selected: {}", selected));
+            ui.label(format!("{} Selected: {}", regular::CHECK_SQUARE, selected));
             ui.separator();
-            ui.label(format!("✔️ Renamed: {}", renamed));
+            ui.label(format!("{} Renamed: {}", regular::CHECK, renamed));
 
             if self.is_processing {
                 ui.separator();
@@ -434,14 +435,14 @@ impl eframe::App for NamebackApp {
 
             // Error message
             if let Some(error) = &self.error_message {
-                ui.colored_label(egui::Color32::RED, format!("❌ {}", error));
+                ui.colored_label(egui::Color32::RED, format!("{} {}", regular::X_CIRCLE, error));
                 ui.add_space(10.0);
             }
 
             // Status message
             if let Some(status) = &self.status_message {
                 if !self.is_processing {
-                    ui.colored_label(egui::Color32::GREEN, format!("ℹ️ {}", status));
+                    ui.colored_label(egui::Color32::GREEN, format!("{} {}", regular::INFO, status));
                     ui.add_space(10.0);
                 }
             }
@@ -470,14 +471,14 @@ impl eframe::App for NamebackApp {
                 .show(ctx, |ui| {
                     if let Some(ref needs) = self.missing_deps {
                         if !needs.missing_required.is_empty() {
-                            ui.heading("⚠️ Required Dependencies Missing");
+                            ui.heading(format!("{} Required Dependencies Missing", regular::WARNING));
                             ui.add_space(10.0);
                             ui.label("The following required dependencies are not installed:");
                             ui.add_space(5.0);
 
                             for dep in &needs.missing_required {
                                 ui.horizontal(|ui| {
-                                    ui.label("❌");
+                                    ui.label(format!("{}", regular::X_CIRCLE));
                                     ui.strong(dep.name());
                                     ui.label("-");
                                     ui.label(dep.description());
@@ -498,7 +499,7 @@ impl eframe::App for NamebackApp {
 
                             for dep in &needs.missing_optional {
                                 ui.horizontal(|ui| {
-                                    ui.label("⚠️");
+                                    ui.label(format!("{}", regular::WARNING));
                                     ui.strong(dep.name());
                                     ui.label("-");
                                     ui.label(dep.description());
@@ -518,11 +519,11 @@ impl eframe::App for NamebackApp {
                         } else {
                             ui.add_space(10.0);
                             ui.horizontal(|ui| {
-                                if ui.button("✅ Install Dependencies").clicked() {
+                                if ui.button(format!("{} Install Dependencies", regular::DOWNLOAD_SIMPLE)).clicked() {
                                     self.install_dependencies();
                                 }
 
-                                if ui.button("⏭️ Skip").clicked() {
+                                if ui.button(format!("{} Skip", regular::SKIP_FORWARD)).clicked() {
                                     self.show_deps_dialog = false;
                                     if let Some(path) = self.pending_directory.take() {
                                         self.start_analysis(path);
@@ -530,7 +531,7 @@ impl eframe::App for NamebackApp {
                                     self.missing_deps = None;
                                 }
 
-                                if ui.button("❌ Cancel").clicked() {
+                                if ui.button(format!("{} Cancel", regular::X)).clicked() {
                                     self.show_deps_dialog = false;
                                     self.pending_directory = None;
                                     self.missing_deps = None;

@@ -18,6 +18,7 @@ path = "src/main.rs"
 nameback-core = { workspace = true }
 eframe.workspace = true
 egui.workspace = true
+egui-phosphor = "0.7"
 rfd.workspace = true
 tokio.workspace = true
 anyhow.workspace = true

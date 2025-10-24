@@ -20,6 +20,13 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "nameback",
         native_options,
-        Box::new(|cc| Ok(Box::new(NamebackApp::new(cc)))),
+        Box::new(|cc| {
+            // Load Phosphor icon font
+            let mut fonts = egui::FontDefinitions::default();
+            egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+            cc.egui_ctx.set_fonts(fonts);
+
+            Ok(Box::new(NamebackApp::new(cc)))
+        }),
     )
 }
