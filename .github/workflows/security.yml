@@ -157,9 +157,17 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Install Linux build dependencies
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
+
     - name: Build project
       if: ${{ steps.rust.outputs.has == 'true' }}
-      run: cargo build --release
+      run: |
+        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
+        cargo build --release
 
     - name: Perform CodeQL Analysis
       if: ${{ steps.rust.outputs.has == 'true' }}
@@ -302,9 +310,17 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Install Linux build dependencies
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
+
     - name: Build release binary
       if: ${{ steps.rust.outputs.has == 'true' }}
-      run: cargo build --release
+      run: |
+        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
+        cargo build --release
 
     - name: Install binary analysis tools
       if: ${{ steps.rust.outputs.has == 'true' }}
@@ -427,15 +443,22 @@ jobs:
       with:
         toolchain: stable
 
+    - name: Install Linux build dependencies
+      if: ${{ steps.rust.outputs.has == 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libleptonica-dev libtesseract-dev libclang-dev clang
+
     - name: Validate Cargo.lock
       if: ${{ steps.rust.outputs.has == 'true' }}
       run: |
+        export PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
         echo "🔍 Validating Cargo.lock..."
         if [[ ! -f "Cargo.lock" ]]; then
           echo "::error::Cargo.lock not found - this is required for reproducible builds"
           exit 1
         fi
-        
+
         # Check if Cargo.lock is up-to-date
         if ! cargo check --locked >/dev/null 2>&1; then
           echo "::error::Cargo.lock is out of date"
