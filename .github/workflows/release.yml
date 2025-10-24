@@ -232,8 +232,26 @@ jobs:
 
           # Copy nameback logo as icon (if available)
           if [ -f "docs/nameback.png" ]; then
-            # Convert PNG to ICNS format for macOS app icon
-            sips -s format icns "docs/nameback.png" --out dmg-temp/Nameback.app/Contents/Resources/AppIcon.icns 2>/dev/null || true
+            # Create iconset for proper macOS app icon
+            mkdir -p AppIcon.iconset
+
+            # Generate required icon sizes
+            sips -z 16 16     "docs/nameback.png" --out AppIcon.iconset/icon_16x16.png
+            sips -z 32 32     "docs/nameback.png" --out AppIcon.iconset/icon_16x16@2x.png
+            sips -z 32 32     "docs/nameback.png" --out AppIcon.iconset/icon_32x32.png
+            sips -z 64 64     "docs/nameback.png" --out AppIcon.iconset/icon_32x32@2x.png
+            sips -z 128 128   "docs/nameback.png" --out AppIcon.iconset/icon_128x128.png
+            sips -z 256 256   "docs/nameback.png" --out AppIcon.iconset/icon_128x128@2x.png
+            sips -z 256 256   "docs/nameback.png" --out AppIcon.iconset/icon_256x256.png
+            sips -z 512 512   "docs/nameback.png" --out AppIcon.iconset/icon_256x256@2x.png
+            sips -z 512 512   "docs/nameback.png" --out AppIcon.iconset/icon_512x512.png
+            sips -z 1024 1024 "docs/nameback.png" --out AppIcon.iconset/icon_512x512@2x.png
+
+            # Convert iconset to icns
+            iconutil -c icns AppIcon.iconset -o dmg-temp/Nameback.app/Contents/Resources/AppIcon.icns
+
+            # Clean up
+            rm -rf AppIcon.iconset
           fi
 
           # Create Info.plist

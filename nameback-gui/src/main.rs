@@ -20,8 +20,41 @@ fn load_icon() -> egui::IconData {
     }
 }
 
+/// Ensure common tool paths are in PATH for dependency detection
+/// This fixes the issue where GUI launched from Finder doesn't inherit shell PATH
+fn setup_path() {
+    use std::env;
+
+    let current_path = env::var("PATH").unwrap_or_default();
+
+    // Common installation locations for dependencies
+    let additional_paths = if cfg!(target_os = "macos") {
+        vec![
+            "/opt/homebrew/bin",      // Apple Silicon Homebrew
+            "/usr/local/bin",          // Intel Homebrew
+            "/opt/local/bin",          // MacPorts
+        ]
+    } else if cfg!(target_os = "linux") {
+        vec![
+            "/usr/local/bin",
+            "/usr/bin",
+        ]
+    } else {
+        vec![] // Windows uses different mechanism
+    };
+
+    // Build new PATH with additional directories prepended
+    let mut path_components: Vec<&str> = additional_paths.clone();
+    path_components.push(&current_path);
+    let new_path = path_components.join(":");
+
+    log::debug!("Enhanced PATH for dependency detection: {}", new_path);
+    env::set_var("PATH", new_path);
+}
+
 fn main() -> eframe::Result<()> {
     env_logger::init(); // Initialize logging
+    setup_path(); // Ensure dependencies can be found
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
