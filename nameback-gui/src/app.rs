@@ -30,6 +30,7 @@ pub struct NamebackApp {
     error_message: Option<String>,
     status_message: Option<String>,
     show_about_dialog: bool,
+    dark_mode: bool,
 
     // Dependency check dialog
     show_deps_dialog: bool,
@@ -48,7 +49,10 @@ pub struct NamebackApp {
 }
 
 impl NamebackApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Default to dark mode (can be changed via toggle)
+        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+
         Self {
             current_directory: None,
             file_entries: Vec::new(),
@@ -56,6 +60,7 @@ impl NamebackApp {
             error_message: None,
             status_message: None,
             show_about_dialog: false,
+            dark_mode: true, // Default to dark mode
             show_deps_dialog: false,
             pending_directory: None,
             missing_deps: None,
@@ -431,10 +436,32 @@ impl eframe::App for NamebackApp {
             ctx.request_repaint(); // Keep refreshing during installation
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading(format!("nameback v{} - File Renaming Tool", env!("CARGO_PKG_VERSION")));
-            ui.add_space(10.0);
+        // Top panel with theme toggle
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading(format!("nameback v{}", env!("CARGO_PKG_VERSION")));
 
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Theme toggle button
+                    let theme_icon = if self.dark_mode {
+                        regular::SUN // Show sun icon when in dark mode (click to go light)
+                    } else {
+                        regular::MOON // Show moon icon when in light mode (click to go dark)
+                    };
+
+                    if ui.button(format!("{}", theme_icon)).clicked() {
+                        self.dark_mode = !self.dark_mode;
+                        ctx.set_visuals(if self.dark_mode {
+                            egui::Visuals::dark()
+                        } else {
+                            egui::Visuals::light()
+                        });
+                    }
+                });
+            });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
             // Control buttons
             self.render_controls(ui);
             ui.add_space(10.0);
