@@ -203,20 +203,44 @@ fn extract_from_plain_text(path: &Path) -> Result<Option<String>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
 
-    // Read first few lines to find something meaningful
-    for line in reader.lines().take(20) {
+    // Read first 100 lines to gather enough text for key phrase extraction
+    let mut full_text = String::new();
+    let mut line_count = 0;
+
+    for line in reader.lines().take(100) {
         let line = line?;
         let trimmed = line.trim();
 
-        // Skip empty lines and very short lines
-        if trimmed.len() > 10 {
-            let cleaned = clean_text(trimmed);
-            if cleaned.len() > 10 {
-                let truncated = truncate_text(&cleaned, 80);
-                debug!("Extracted text content: {}", truncated);
-                return Ok(Some(truncated));
+        if !trimmed.is_empty() {
+            full_text.push_str(trimmed);
+            full_text.push(' ');
+            line_count += 1;
+        }
+
+        // Break early if we have enough text
+        if full_text.len() > 500 {
+            break;
+        }
+    }
+
+    if full_text.len() > 10 {
+        let cleaned = clean_text(&full_text);
+
+        // Use key phrase extraction for longer text
+        if cleaned.len() > 150 && line_count > 3 {
+            debug!("Extracting key phrases from text file ({} chars, {} lines)", cleaned.len(), line_count);
+            let phrases = crate::key_phrases::extract_key_phrases(&cleaned, 3);
+            if !phrases.is_empty() {
+                let best_phrase = &phrases[0];
+                debug!("Selected key phrase from text: {}", best_phrase);
+                return Ok(Some(best_phrase.clone()));
             }
         }
+
+        // For shorter text or if key phrase extraction failed, truncate
+        let truncated = truncate_text(&cleaned, 80);
+        debug!("Extracted text content: {}", truncated);
+        return Ok(Some(truncated));
     }
 
     Ok(None)

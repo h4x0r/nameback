@@ -91,6 +91,7 @@ pub fn format_location(loc: &LocationData) -> String {
 
 /// Formats a timestamp string into a human-readable format
 /// Supports various EXIF timestamp formats
+#[allow(dead_code)]
 pub fn format_timestamp(datetime_str: &str) -> Option<String> {
     // Try common EXIF timestamp formats
     let formats = vec![
@@ -117,6 +118,7 @@ pub fn format_timestamp(datetime_str: &str) -> Option<String> {
 }
 
 /// Formats date-only strings
+#[allow(dead_code)]
 fn format_date_only(date_str: &str) -> Option<String> {
     use chrono::NaiveDate;
 
@@ -137,6 +139,7 @@ fn format_date_only(date_str: &str) -> Option<String> {
 
 /// Determines time of day from timestamp for optional enrichment
 /// Returns: "morning", "afternoon", "evening", or "night"
+#[allow(dead_code)]
 pub fn get_time_of_day(datetime_str: &str) -> Option<&'static str> {
     let formats = vec![
         "%Y:%m:%d %H:%M:%S",

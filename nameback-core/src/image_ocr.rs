@@ -18,6 +18,18 @@ pub fn extract_image_text(path: &Path) -> Result<Option<String>> {
         Ok(text) => {
             let cleaned = clean_text(&text);
             if cleaned.len() > 10 {
+                // Use key phrase extraction for longer OCR text
+                if cleaned.len() > 150 {
+                    debug!("Extracting key phrases from image OCR text ({} chars)", cleaned.len());
+                    let phrases = crate::key_phrases::extract_key_phrases(&cleaned, 3);
+                    if !phrases.is_empty() {
+                        let best_phrase = &phrases[0];
+                        debug!("Selected key phrase from image OCR: {}", best_phrase);
+                        return Ok(Some(best_phrase.clone()));
+                    }
+                }
+
+                // For shorter text or if key phrase extraction failed, truncate
                 let truncated = if cleaned.len() > 80 {
                     &cleaned[..80]
                 } else {

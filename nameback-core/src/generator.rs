@@ -4,6 +4,7 @@ use std::ffi::OsStr;
 use crate::extractor::FileMetadata;
 
 /// Generates a sanitized filename from a candidate name
+#[allow(dead_code)]
 pub fn generate_filename(
     candidate: &str,
     original_extension: Option<&OsStr>,

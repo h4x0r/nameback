@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 /// Extracts key phrases from text using lightweight NLP
 /// Returns top N most relevant phrases without heavy ML dependencies
+#[allow(dead_code)]
 pub fn extract_key_phrases(text: &str, max_phrases: usize) -> Vec<String> {
     // Tokenize and remove stop words
     let words: Vec<&str> = text
@@ -57,6 +58,7 @@ pub fn extract_key_phrases(text: &str, max_phrases: usize) -> Vec<String> {
 }
 
 /// Checks if a word is a common stop word
+#[allow(dead_code)]
 fn is_stop_word(word: &str) -> bool {
     let lower = word.to_lowercase();
 

@@ -39,6 +39,18 @@ pub fn extract_video_text(path: &Path) -> Result<Option<String>> {
         Ok(text) => {
             let cleaned = clean_text(&text);
             if cleaned.len() > 10 {
+                // Use key phrase extraction for longer video OCR text
+                if cleaned.len() > 150 {
+                    debug!("Extracting key phrases from video OCR text ({} chars)", cleaned.len());
+                    let phrases = crate::key_phrases::extract_key_phrases(&cleaned, 3);
+                    if !phrases.is_empty() {
+                        let best_phrase = &phrases[0];
+                        debug!("Selected key phrase from video OCR: {}", best_phrase);
+                        return Ok(Some(best_phrase.clone()));
+                    }
+                }
+
+                // For shorter text or if key phrase extraction failed, truncate
                 let truncated = if cleaned.len() > 80 {
                     &cleaned[..80]
                 } else {
@@ -89,14 +101,32 @@ pub fn extract_video_text_multiframe(path: &Path) -> Result<Option<String>> {
                     Ok(text) => {
                         let cleaned = clean_text(&text);
                         if cleaned.len() > 10 {
-                            let truncated = if cleaned.len() > 80 {
-                                &cleaned[..80]
+                            // Use key phrase extraction for longer frame OCR text
+                            let extracted_text = if cleaned.len() > 150 {
+                                debug!("Extracting key phrases from frame OCR text ({} chars)", cleaned.len());
+                                let phrases = crate::key_phrases::extract_key_phrases(&cleaned, 3);
+                                if !phrases.is_empty() {
+                                    phrases[0].clone()
+                                } else {
+                                    // Fallback to truncation
+                                    if cleaned.len() > 80 {
+                                        cleaned[..80].to_string()
+                                    } else {
+                                        cleaned.clone()
+                                    }
+                                }
                             } else {
-                                &cleaned
+                                // For shorter text, just truncate
+                                if cleaned.len() > 80 {
+                                    cleaned[..80].to_string()
+                                } else {
+                                    cleaned.clone()
+                                }
                             };
-                            debug!("Frame at {} extracted: {}", time, truncated);
+
+                            debug!("Frame at {} extracted: {}", time, extracted_text);
                             candidates.push(NameCandidate::new(
-                                truncated.to_string(),
+                                extracted_text,
                                 NameSource::OcrVideo,
                             ));
                         }

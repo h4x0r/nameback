@@ -215,6 +215,7 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
     };
 
     // For PDFs without useful metadata, try extracting text content
+    // pdf_content module now uses key_phrases internally for longer text
     if is_pdf(path)
         && !is_useful_metadata(&metadata.title)
         && !is_useful_metadata(&metadata.subject)
@@ -227,6 +228,7 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
     }
 
     // For plain text files without useful metadata, try extracting content
+    // text_content module now uses key_phrases internally for longer text
     if is_text_file(path) && !has_any_useful_metadata(&metadata) {
         debug!("Text file has no useful metadata, attempting content extraction");
         if let Ok(Some(content)) = text_content::extract_text_content(path) {
@@ -236,6 +238,7 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
     }
 
     // For images without useful metadata, try OCR
+    // image_ocr module now uses key_phrases internally for longer text
     if is_image(path) && !has_any_useful_metadata(&metadata) {
         debug!("Image has no useful metadata, attempting OCR");
         if let Ok(Some(text)) = image_ocr::extract_image_text(path) {
@@ -245,6 +248,7 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
     }
 
     // For videos without useful metadata, try extracting and OCR'ing a frame
+    // video_ocr module now uses key_phrases internally for longer text
     if is_video(path)
         && !is_useful_metadata(&metadata.title)
         && !is_useful_metadata(&metadata.creation_date)

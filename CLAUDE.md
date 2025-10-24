@@ -109,33 +109,35 @@ All core functionality lives in the `nameback-core` library at /Users/4n6h4x0r/s
   - Checks if required dependencies are installed
   - Returns structured dependency status
 
-### Future Feature Modules (Not Yet Integrated)
-
-These modules exist in the codebase with complete implementations but are not yet integrated into the main pipeline. They are planned for future releases:
-
-- **scorer.rs** - Quality scoring system for candidate names
+- **scorer.rs** - Quality scoring system for candidate names (INTEGRATED)
   - Implements NameCandidate with score and source tracking
   - Multi-criteria scoring: length, specificity, language, format
   - Filters out low-quality names (device IDs, errors, generic placeholders)
-  - Will enable intelligent selection from multiple naming sources
+  - Used by extractor.rs to intelligently select from multiple naming sources
+  - Integrated in: extractor.rs:34-121, video_ocr.rs:64-125
 
-- **series_detector.rs** - File series detection
+- **series_detector.rs** - File series detection (INTEGRATED)
   - Detects numbered sequences (name_001, name_002, etc.)
   - Supports multiple patterns: underscore, parentheses, hyphen, space
   - Maintains consistent numbering across series
   - Prevents breaking existing sequences during rename
+  - Integrated in: lib.rs:109-154
 
-- **location_timestamp.rs** - GPS and timestamp enrichment
+- **location_timestamp.rs** - GPS and timestamp enrichment (INTEGRATED)
   - Extracts GPS coordinates from EXIF data
   - Formats timestamps in configurable styles
   - Enables location-based and time-based filename components
-  - Partially integrated via RenameConfig flags
+  - Integrated in: extractor.rs:195-200, generator.rs:32-47
+  - Controlled by RenameConfig.include_location and RenameConfig.include_timestamp flags
 
-- **key_phrases.rs** - NLP-based phrase extraction
+- **key_phrases.rs** - NLP-based phrase extraction (INTEGRATED)
   - Lightweight n-gram based key phrase extraction
   - Stop word filtering
-  - TF-IDF style ranking without heavy ML dependencies
-  - Will improve naming from extracted text content
+  - Position-based scoring (earlier text weighted higher)
+  - Length bonus for multi-word phrases
+  - Automatically extracts meaningful phrases from long text (>150 chars)
+  - Integrated in: pdf_content.rs:15-22,70-77, image_ocr.rs:21-29, video_ocr.rs:42-50,105-117, text_content.rs:230-236
+  - Improves naming quality for OCR results, PDF content, and text files
 
 ### Dependencies
 

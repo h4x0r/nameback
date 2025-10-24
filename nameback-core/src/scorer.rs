@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 /// Represents a candidate name with its quality score
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct NameCandidate {
     pub name: String,
     pub score: f32,
@@ -10,6 +11,7 @@ pub struct NameCandidate {
 
 /// Source of a candidate name
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum NameSource {
     Metadata,       // From EXIF/metadata fields
     TextExtract,    // Extracted from text content
@@ -29,6 +31,7 @@ impl NameCandidate {
     }
 
     /// Returns true if this candidate is high quality (score >= 5.0)
+    #[allow(dead_code)]
     pub fn is_high_quality(&self) -> bool {
         self.score >= 5.0
     }

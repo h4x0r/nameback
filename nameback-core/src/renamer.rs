@@ -49,6 +49,7 @@ pub fn rename_file(old_path: &Path, new_filename: &str, dry_run: bool) -> Result
 }
 
 /// Processes a single file: detects type, extracts metadata, generates name, and renames
+#[allow(dead_code)]
 pub fn process_file(
     file_path: &Path,
     dry_run: bool,

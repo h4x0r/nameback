@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 /// Represents a detected file series
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FileSeries {
     pub base_name: String,
     pub files: Vec<(PathBuf, usize)>, // (path, sequence_number)
