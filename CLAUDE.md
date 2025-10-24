@@ -266,38 +266,6 @@ cargo test --workspace
 - CLI: /Users/4n6h4x0r/src/nameback/target/release/nameback
 - GUI: /Users/4n6h4x0r/src/nameback/target/release/nameback-gui
 
-### Pre-Push Hook and Cargo.lock Validation
-
-This project uses a pre-push hook (installed via 1-click-github-sec) that automatically validates Cargo.lock before every push.
-
-**What it does:**
-- Runs `cargo update --dry-run` to detect if Cargo.lock is out of date
-- Blocks pushes if lockfile drift is detected
-- Prevents CI failures due to Cargo.lock inconsistencies
-
-**If the hook fails:**
-```bash
-🔒 Validating Cargo.lock...
-❌ Cargo.lock is out of date
-   Run 'cargo update' to update Cargo.lock
-```
-
-**Fix:**
-```bash
-cargo update  # Updates Cargo.lock to latest compatible versions
-git add Cargo.lock
-git commit -m "chore: update Cargo.lock"
-git push
-```
-
-**Why this matters:**
-- Security workflow validates Cargo.lock with `cargo check --locked`
-- Out-of-date lockfiles cause build failures in CI
-- Pre-push validation catches this before CI runs
-- Ensures consistency between local dev and CI environments
-
-**Hook location:** `.git/hooks/pre-push` (installed by 1-click-github-sec v0.6.12+)
-
 ### Release Management
 
 This project uses cargo-release for automated version management. See /Users/4n6h4x0r/src/nameback/RELEASING.md for details.
