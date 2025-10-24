@@ -138,31 +138,40 @@ pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
 // Helper functions to check if dependencies are available
 
 fn check_exiftool() -> bool {
-    std::process::Command::new("exiftool")
+    let result = std::process::Command::new("exiftool")
         .arg("-ver")
         .output()
         .map(|o| o.status.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+
+    log::debug!("Dependency check - exiftool: {}", if result { "available" } else { "missing" });
+    result
 }
 
 fn check_tesseract() -> bool {
-    std::process::Command::new("tesseract")
+    let result = std::process::Command::new("tesseract")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+
+    log::debug!("Dependency check - tesseract: {}", if result { "available" } else { "missing" });
+    result
 }
 
 fn check_ffmpeg() -> bool {
-    std::process::Command::new("ffmpeg")
+    let result = std::process::Command::new("ffmpeg")
         .arg("-version")
         .output()
         .map(|o| o.status.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+
+    log::debug!("Dependency check - ffmpeg: {}", if result { "available" } else { "missing" });
+    result
 }
 
 fn check_imagemagick() -> bool {
-    std::process::Command::new("magick")
+    let result = std::process::Command::new("magick")
         .arg("-version")
         .output()
         .or_else(|_| {
@@ -171,7 +180,10 @@ fn check_imagemagick() -> bool {
                 .output()
         })
         .map(|o| o.status.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+
+    log::debug!("Dependency check - imagemagick: {}", if result { "available" } else { "missing" });
+    result
 }
 
 #[cfg(test)]

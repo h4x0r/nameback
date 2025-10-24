@@ -75,11 +75,17 @@ impl NamebackApp {
             // Check dependencies for this directory
             match nameback_core::detect_needed_dependencies(&path) {
                 Ok(needs) => {
-                    if needs.has_required_missing() {
+                    log::debug!("Dependency check results - required missing: {}, optional missing: {}",
+                        needs.has_required_missing(),
+                        !needs.missing_optional.is_empty());
+
+                    if needs.has_required_missing() || !needs.missing_optional.is_empty() {
+                        log::info!("Showing dependency dialog");
                         self.show_deps_dialog = true;
                         self.pending_directory = Some(path);
                         self.missing_deps = Some(needs);
                     } else {
+                        log::info!("All required dependencies available, starting analysis");
                         self.start_analysis(path);
                     }
                 }
