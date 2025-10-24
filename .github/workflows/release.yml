@@ -230,10 +230,10 @@ jobs:
           cp target/${{ matrix.target }}/release/nameback dmg-temp/Nameback.app/Contents/MacOS/bin/nameback
           chmod +x dmg-temp/Nameback.app/Contents/MacOS/bin/nameback
 
-          # Copy Security Ronin logo as icon (if available)
-          if [ -f "docs/Security Ronin Logo.png" ]; then
+          # Copy nameback logo as icon (if available)
+          if [ -f "docs/nameback.png" ]; then
             # Convert PNG to ICNS format for macOS app icon
-            sips -s format icns "docs/Security Ronin Logo.png" --out dmg-temp/Nameback.app/Contents/Resources/AppIcon.icns 2>/dev/null || true
+            sips -s format icns "docs/nameback.png" --out dmg-temp/Nameback.app/Contents/Resources/AppIcon.icns 2>/dev/null || true
           fi
 
           # Create Info.plist
@@ -269,14 +269,14 @@ jobs:
           # Create symlink to /Applications for easy installation
           ln -s /Applications dmg-temp/Applications
 
-          # Copy Security Ronin logo as DMG background
-          if [ -f "docs/Security Ronin Logo.png" ]; then
-            cp "docs/Security Ronin Logo.png" "dmg-temp/.background.png"
+          # Copy nameback logo as DMG background
+          if [ -f "docs/nameback.png" ]; then
+            cp "docs/nameback.png" "dmg-temp/.background.png"
           fi
 
           # Create DMG with custom appearance using AppleScript
           # First create a temporary DMG
-          hdiutil create -volname "Nameback by Security Ronin" -srcfolder dmg-temp -ov -format UDRW temp.dmg
+          hdiutil create -volname "Nameback" -srcfolder dmg-temp -ov -format UDRW temp.dmg
 
           # Mount the DMG
           device=$(hdiutil attach -readwrite -noverify -noautoopen "temp.dmg" | egrep '^/dev/' | sed 1q | awk '{print $1}')
@@ -284,7 +284,7 @@ jobs:
           # Set DMG window properties with AppleScript
           echo '
             tell application "Finder"
-              tell disk "Nameback by Security Ronin"
+              tell disk "Nameback"
                 open
                 set current view of container window to icon view
                 set toolbar visible of container window to false
@@ -293,7 +293,6 @@ jobs:
                 set viewOptions to the icon view options of container window
                 set arrangement of viewOptions to not arranged
                 set icon size of viewOptions to 128
-                set background picture of viewOptions to file ".background.png"
                 set position of item "Nameback.app" of container window to {150, 200}
                 set position of item "Applications" of container window to {450, 200}
                 close
@@ -305,7 +304,7 @@ jobs:
           ' | osascript
 
           # Finalize DMG
-          chmod -Rf go-w /Volumes/Nameback\ by\ Security\ Ronin
+          chmod -Rf go-w /Volumes/Nameback
           sync
           hdiutil detach ${device}
           hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o nameback-${{ matrix.target }}.dmg
