@@ -7,7 +7,7 @@ use app::NamebackApp;
 use eframe::egui;
 
 fn load_icon() -> egui::IconData {
-    let icon_bytes = include_bytes!("../../docs/nameback.png");
+    let icon_bytes = include_bytes!("../assets/nameback.png");
     let image = image::load_from_memory(icon_bytes)
         .expect("Failed to load icon")
         .into_rgba8();
