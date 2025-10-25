@@ -550,77 +550,22 @@ jobs:
   # and creating GitHub Releases with those artifacts.
 
   update-homebrew:
-    name: Update Homebrew formulae
+    name: Trigger Homebrew formulae update
     needs: [create-release, build-release, generate-checksums]
     runs-on: ubuntu-latest
     if: ${{ !contains(needs.create-release.outputs.version, '-') }}
     steps:
-      - name: Checkout nameback repo
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-
-      - name: Checkout homebrew-nameback repo
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        with:
-          repository: h4x0r/homebrew-nameback
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: homebrew-nameback
-
-      - name: Download release artifacts
+      - name: Trigger homebrew-nameback workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ needs.create-release.outputs.version }}
-          gh release download ${VERSION} -p "*.dmg" -p "checksums.txt"
-
-      - name: Extract checksums for macOS
-        id: checksums
-        run: |
-          INTEL_SHA=$(grep "nameback-x86_64-apple-darwin.dmg" checksums.txt | awk '{print $1}')
-          ARM_SHA=$(grep "nameback-aarch64-apple-darwin.dmg" checksums.txt | awk '{print $1}')
-          echo "intel_sha=${INTEL_SHA}" >> $GITHUB_OUTPUT
-          echo "arm_sha=${ARM_SHA}" >> $GITHUB_OUTPUT
-          echo "Extracted Intel SHA: ${INTEL_SHA}"
-          echo "Extracted ARM SHA: ${ARM_SHA}"
-
-      - name: Update Homebrew formula (CLI)
-        run: |
-          VERSION=${{ needs.create-release.outputs.version }}
           VERSION_NO_V=${VERSION#v}
 
-          cd homebrew-nameback
+          echo "Triggering Homebrew update workflow for version ${VERSION_NO_V}..."
+          gh workflow run update-formulae.yml \
+            --repo h4x0r/homebrew-nameback \
+            -f version="${VERSION_NO_V}"
 
-          # Update CLI formula
-          sed -i "s/version \".*\"/version \"${VERSION_NO_V}\"/" Formula/nameback.rb
-          sed -i "s|url \".*\"|url \"https://github.com/h4x0r/nameback/releases/download/${VERSION}/nameback-x86_64-apple-darwin.dmg\"|" Formula/nameback.rb
-          sed -i "s/sha256 \".*\"/sha256 \"${{ steps.checksums.outputs.intel_sha }}\"/" Formula/nameback.rb
-
-          echo "Updated Formula/nameback.rb:"
-          cat Formula/nameback.rb
-
-      - name: Update Homebrew cask (GUI)
-        run: |
-          VERSION=${{ needs.create-release.outputs.version }}
-          VERSION_NO_V=${VERSION#v}
-
-          cd homebrew-nameback
-
-          # Update GUI cask - using both Intel and ARM builds
-          sed -i "s/version \".*\"/version \"${VERSION_NO_V}\"/" Casks/nameback.rb
-
-          # Update Intel build SHA
-          sed -i "0,/sha256 \".*\"/s/sha256 \".*\"/sha256 \"${{ steps.checksums.outputs.intel_sha }}\"/" Casks/nameback.rb
-
-          # Update ARM build SHA (second occurrence)
-          sed -i "0,/sha256 \".*\"/!s/sha256 \".*\"/sha256 \"${{ steps.checksums.outputs.arm_sha }}\"/" Casks/nameback.rb
-
-          echo "Updated Casks/nameback.rb:"
-          cat Casks/nameback.rb
-
-      - name: Commit and push changes
-        run: |
-          cd homebrew-nameback
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/nameback.rb Casks/nameback.rb
-          git commit -m "chore: update to version ${{ needs.create-release.outputs.version }}"
-          git push
+          echo "✓ Homebrew update workflow triggered successfully"
+          echo "View workflow at: https://github.com/h4x0r/homebrew-nameback/actions"
