@@ -555,17 +555,20 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ !contains(needs.create-release.outputs.version, '-') }}
     steps:
-      - name: Trigger homebrew-nameback workflow
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger homebrew-nameback workflow via repository_dispatch
         run: |
           VERSION=${{ needs.create-release.outputs.version }}
           VERSION_NO_V=${VERSION#v}
 
-          echo "Triggering Homebrew update workflow for version ${VERSION_NO_V}..."
-          gh workflow run update-formulae.yml \
-            --repo h4x0r/homebrew-nameback \
-            -f version="${VERSION_NO_V}"
+          echo "Sending repository_dispatch event to homebrew-nameback for version ${VERSION_NO_V}..."
 
-          echo "✓ Homebrew update workflow triggered successfully"
+          curl -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/h4x0r/homebrew-nameback/dispatches \
+            -d "{\"event_type\":\"update-formulae\",\"client_payload\":{\"version\":\"${VERSION_NO_V}\"}}"
+
+          echo "✓ Repository dispatch event sent successfully"
           echo "View workflow at: https://github.com/h4x0r/homebrew-nameback/actions"
