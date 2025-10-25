@@ -1,5 +1,6 @@
 name: Release
 
+# Force workflow re-registration after branches-ignore removal
 on:
   push:
     tags:
