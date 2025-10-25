@@ -31,6 +31,7 @@ pub struct NamebackApp {
     status_message: Option<String>,
     show_about_dialog: bool,
     dark_mode: bool,
+    security_ronin_logo: Option<egui::TextureHandle>,
 
     // Dependency check dialog
     show_deps_dialog: bool,
@@ -62,6 +63,7 @@ impl NamebackApp {
             status_message: None,
             show_about_dialog: false,
             dark_mode: true, // Default to dark mode
+            security_ronin_logo: None,
             show_deps_dialog: false,
             pending_directory: None,
             missing_deps: None,
@@ -666,6 +668,32 @@ impl eframe::App for NamebackApp {
                 .show(ctx, |ui| {
                     ui.vertical_centered(|ui| {
                         ui.add_space(10.0);
+
+                        // Load Security Ronin logo if not already loaded
+                        if self.security_ronin_logo.is_none() {
+                            let logo_bytes = include_bytes!("../../docs/Security Ronin Logo.png");
+                            if let Ok(image) = image::load_from_memory(logo_bytes) {
+                                let size = [image.width() as usize, image.height() as usize];
+                                let image_buffer = image.to_rgba8();
+                                let pixels = image_buffer.as_flat_samples();
+                                let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                                    size,
+                                    pixels.as_slice(),
+                                );
+                                self.security_ronin_logo = Some(ctx.load_texture(
+                                    "security_ronin_logo",
+                                    color_image,
+                                    egui::TextureOptions::LINEAR,
+                                ));
+                            }
+                        }
+
+                        // Display Security Ronin logo
+                        if let Some(logo) = &self.security_ronin_logo {
+                            ui.add(egui::Image::new(logo).max_width(200.0));
+                            ui.add_space(15.0);
+                        }
+
                         ui.heading(format!("nameback v{}", env!("CARGO_PKG_VERSION")));
                         ui.add_space(20.0);
 
@@ -677,6 +705,14 @@ impl eframe::App for NamebackApp {
                         ui.hyperlink_to(
                             "https://github.com/h4x0r/nameback",
                             "https://github.com/h4x0r/nameback"
+                        );
+                        ui.add_space(20.0);
+
+                        // Security Ronin branding
+                        ui.label("A Security Ronin production");
+                        ui.hyperlink_to(
+                            "https://securityronin.com",
+                            "https://securityronin.com"
                         );
                         ui.add_space(20.0);
 
