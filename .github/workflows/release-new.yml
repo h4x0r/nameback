@@ -28,6 +28,14 @@ jobs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
+      - name: Check trigger type
+        run: |
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "${{ github.ref }}" != refs/tags/* ]]; then
+            echo "⚠️  Workflow triggered by push to branch, but should only run on tags or workflow_dispatch"
+            echo "Exiting gracefully to avoid spurious failures"
+            exit 0
+          fi
+
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0  # Fetch all history for changelog generation
