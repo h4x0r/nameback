@@ -47,14 +47,42 @@ When you run `cargo release <version> --execute`, it will:
    - Second: `nameback` (CLI)
    - Third: `nameback-gui`
 
-6. ✅ **Push to GitHub** - Triggers binary release workflow
+6. ✅ **Push to GitHub** - Commits and tags are pushed
 
-7. ✅ **Binary release workflow runs automatically**:
+7. ⚠️ **Manually trigger binary release workflow**:
+   ```bash
+   # Get the version that was just released
+   VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "nameback") | .version')
+
+   # Trigger the release workflow
+   gh workflow run release.yml -f tag=v${VERSION}
+
+   # Monitor progress
+   gh run watch
+   ```
+
+   **Why manual trigger?**
+
+   GitHub Actions' `GITHUB_TOKEN` cannot trigger other workflows (intentional security protection against infinite loops). While you could use a Personal Access Token (PAT) or GitHub App for automation, **manual triggering is the most secure approach** for semantic version releases:
+
+   - ✅ No additional credentials to manage or rotate
+   - ✅ Uses `GITHUB_TOKEN` only (auto-expires after job)
+   - ✅ Manual approval prevents accidental releases
+   - ✅ Officially recommended by GitHub for infrequent releases
+
+   **GitHub's 2025 Authentication Recommendations:**
+   - **GITHUB_TOKEN** (default): Most secure, use first
+   - **GitHub App**: Best for high-frequency automation, short-lived tokens
+   - **Fine-grained PAT**: Only when cross-repo access needed
+   - **Classic PAT**: Discouraged, migrate away
+
+8. ✅ **Binary release workflow builds artifacts**:
    - Builds Windows MSI installer
    - Builds macOS DMG files (Intel + Apple Silicon)
    - Builds Linux .deb package
    - Generates SLSA attestations
    - Creates GitHub Release with all artifacts
+   - Updates Homebrew formulae automatically
 
 ## No More Manual Version Updates! 🎉
 
@@ -141,7 +169,10 @@ Publishes nameback-gui to crates.io
          ↓
 Pushes tag to GitHub
          ↓
-GitHub Actions release workflow triggers
+⚠️  You manually trigger workflow ⚠️
+    gh workflow run release.yml -f tag=v0.6.0
+         ↓
+GitHub Actions release workflow starts
          ↓
 Builds Windows MSI
          ↓
@@ -152,6 +183,8 @@ Builds Linux .deb
 Generates SLSA attestations
          ↓
 Creates GitHub Release
+         ↓
+Updates Homebrew formulae
          ↓
 ✅ DONE!
 ```
@@ -274,6 +307,32 @@ Check:
 - Workflow logs: `gh run view --log-failed`
 - CARGO_REGISTRY_TOKEN secret is set
 - Build dependencies installed correctly
+
+### Workflow doesn't trigger automatically on tag push
+
+This is **expected behavior**! GitHub Actions' `GITHUB_TOKEN` cannot trigger other workflows (security protection). You must manually trigger the workflow:
+
+```bash
+# Get the version
+VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "nameback") | .version')
+
+# Trigger workflow
+gh workflow run release.yml -f tag=v${VERSION}
+
+# Monitor
+gh run watch
+```
+
+**Why this happens:**
+- cargo-release uses git credentials with `GITHUB_TOKEN` scope
+- Events from `GITHUB_TOKEN` don't trigger workflows (prevents infinite loops)
+- Manual triggering is the secure, recommended approach
+
+**Alternative (not recommended):**
+- Use Personal Access Token (PAT) for git operations
+- Requires credential management and rotation
+- Security risk if leaked
+- Only needed for high-frequency automation
 
 ## Manual Override (Emergency Only)
 
