@@ -30,7 +30,7 @@ jobs:
     steps:
       - name: Check trigger type
         run: |
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" && "${{ github.ref }}" != refs/tags/* ]]; then
+          if [[ "${{ github.event_name }}" == "push" && ! "${{ github.ref }}" =~ ^refs/tags/ ]]; then
             echo "⚠️  Workflow triggered by push to branch, but should only run on tags or workflow_dispatch"
             echo "Exiting gracefully to avoid spurious failures"
             exit 0
