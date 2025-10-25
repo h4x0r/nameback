@@ -1,0 +1,104 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v0.6.3)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Get version from input
+        id: get_version
+        run: |
+          VERSION="${{ github.event.inputs.tag }}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          release_name: Release ${{ steps.get_version.outputs.version }}
+          body: |
+            Release ${{ steps.get_version.outputs.version }}
+
+            ## Installation
+
+            See installation instructions in the README.
+
+            ## Checksums
+
+            Please verify checksums after download.
+          draft: false
+          prerelease: false
+
+  build:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            archive: zip
+            os: windows-latest
+          - target: x86_64-apple-darwin
+            archive: dmg
+            os: macos-13
+          - target: aarch64-apple-darwin
+            archive: dmg
+            os: macos-14
+
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          ref: ${{ needs.create-release.outputs.version }}
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Build release
+        run: |
+          cargo build --release --workspace --target ${{ matrix.target }}
+
+      - name: Create archive
+        run: |
+          # Archive creation steps here
+          echo "Creating archive for ${{ matrix.target }}"
+
+      - name: Upload to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/release/nameback
+          asset_name: nameback-${{ matrix.target }}
+          asset_content_type: application/octet-stream
