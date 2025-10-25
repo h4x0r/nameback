@@ -551,7 +551,7 @@ jobs:
 
   update-homebrew:
     name: Update Homebrew formulae
-    needs: [create-release, build-release, upload-release-artifacts]
+    needs: [create-release, build-release, generate-checksums]
     runs-on: ubuntu-latest
     if: ${{ !contains(needs.create-release.outputs.version, '-') }}
     steps:
