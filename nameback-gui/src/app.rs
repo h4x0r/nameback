@@ -52,8 +52,14 @@ pub struct NamebackApp {
 
 impl NamebackApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Default to dark mode (can be changed via toggle)
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        // Use system theme preference by default
+        // egui automatically detects system dark/light mode on supported platforms
+        let dark_mode = cc.egui_ctx.style().visuals.dark_mode;
+        if dark_mode {
+            cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        } else {
+            cc.egui_ctx.set_visuals(egui::Visuals::light());
+        }
 
         Self {
             current_directory: None,
@@ -62,7 +68,7 @@ impl NamebackApp {
             error_message: None,
             status_message: None,
             show_about_dialog: false,
-            dark_mode: true, // Default to dark mode
+            dark_mode,
             security_ronin_logo: None,
             show_deps_dialog: false,
             pending_directory: None,
