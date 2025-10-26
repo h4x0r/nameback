@@ -686,10 +686,17 @@ impl NamebackApp {
                         ui.label("→");
 
                         // New filename with color coding
+                        // Use theme-aware blue color - darker blue for light mode, lighter for dark mode
+                        let blue_color = if self.dark_mode {
+                            egui::Color32::LIGHT_BLUE // Light blue works well in dark mode
+                        } else {
+                            egui::Color32::from_rgb(0, 90, 181) // Darker blue for light mode (WCAG AA compliant)
+                        };
+
                         match &entry.status {
                             FileStatus::Pending => {
                                 if let Some(new_name) = &entry.analysis.proposed_name {
-                                    ui.colored_label(egui::Color32::LIGHT_BLUE, new_name.as_str());
+                                    ui.colored_label(blue_color, new_name.as_str());
                                 } else {
                                     ui.colored_label(
                                         egui::Color32::GRAY,
@@ -700,7 +707,7 @@ impl NamebackApp {
                             FileStatus::Processing(msg) => {
                                 ui.horizontal(|ui| {
                                     ui.spinner();
-                                    ui.colored_label(egui::Color32::LIGHT_BLUE, msg.as_str());
+                                    ui.colored_label(blue_color, msg.as_str());
                                 });
                             }
                             FileStatus::Renamed => {
