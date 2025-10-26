@@ -17,6 +17,7 @@ mod key_phrases;
 mod location_timestamp;
 mod metadata_cache;
 mod pdf_content;
+mod rename_history;
 mod renamer;
 mod scorer;
 mod series_detector;
@@ -27,6 +28,7 @@ mod video_ocr;
 // Re-export public types
 pub use deps_check::{detect_needed_dependencies, Dependency, DependencyNeeds};
 pub use detector::FileCategory;
+pub use rename_history::{RenameHistory, RenameOperation};
 
 /// Configuration options for the rename engine
 #[derive(Debug, Clone)]
@@ -290,12 +292,34 @@ impl RenameEngine {
     /// Rename files based on analysis results
     /// Only renames files where analysis.proposed_name is Some()
     pub fn rename_files(&self, analyses: &[FileAnalysis], dry_run: bool) -> Vec<RenameResult> {
+        self.rename_files_with_history(analyses, dry_run, None)
+    }
+
+    /// Rename files with history tracking
+    /// If history is provided, successful renames will be added to the history
+    pub fn rename_files_with_history(
+        &self,
+        analyses: &[FileAnalysis],
+        dry_run: bool,
+        mut history: Option<&mut RenameHistory>,
+    ) -> Vec<RenameResult> {
         let mut results = Vec::new();
 
         for analysis in analyses {
             if let Some(new_name) = &analysis.proposed_name {
                 match renamer::rename_file(&analysis.original_path, new_name, dry_run) {
-                    Ok(_) => {
+                    Ok(new_path) => {
+                        // Add to history if provided and not dry run
+                        if let Some(hist) = history.as_deref_mut() {
+                            if !dry_run {
+                                let operation = RenameOperation::new(
+                                    analysis.original_path.clone(),
+                                    new_path.clone(),
+                                );
+                                hist.add(operation);
+                            }
+                        }
+
                         results.push(RenameResult {
                             original_path: analysis.original_path.clone(),
                             new_name: new_name.clone(),

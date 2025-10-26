@@ -4,7 +4,8 @@ use std::fs;
 use std::path::Path;
 
 /// Renames a file, either in dry-run mode (preview only) or actual mode
-pub fn rename_file(old_path: &Path, new_filename: &str, dry_run: bool) -> Result<()> {
+/// Returns the new path of the file
+pub fn rename_file(old_path: &Path, new_filename: &str, dry_run: bool) -> Result<std::path::PathBuf> {
     let parent = old_path.parent().context("File has no parent directory")?;
 
     let new_path = parent.join(new_filename);
@@ -45,7 +46,7 @@ pub fn rename_file(old_path: &Path, new_filename: &str, dry_run: bool) -> Result
         info!("Renamed: {} -> {}", old_path.display(), new_filename);
     }
 
-    Ok(())
+    Ok(new_path)
 }
 
 /// Processes a single file: detects type, extracts metadata, generates name, and renames
@@ -107,7 +108,7 @@ pub fn process_file(
     );
 
     // Rename the file
-    rename_file(file_path, &new_filename, dry_run)?;
+    let _new_path = rename_file(file_path, &new_filename, dry_run)?;
 
     Ok(())
 }

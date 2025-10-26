@@ -1,6 +1,6 @@
 use eframe::egui;
 use egui_phosphor::regular;
-use nameback_core::{DependencyNeeds, FileAnalysis, RenameConfig, RenameEngine, RenameResult};
+use nameback_core::{DependencyNeeds, FileAnalysis, RenameConfig, RenameEngine, RenameHistory, RenameResult};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -56,6 +56,10 @@ pub struct NamebackApp {
 
     // Configuration
     config: RenameConfig,
+
+    // History tracking
+    rename_history: Option<RenameHistory>,
+    show_history_dialog: bool,
 
     // Processing
     processing_thread: Option<std::thread::JoinHandle<Result<(), String>>>,
@@ -127,6 +131,8 @@ impl NamebackApp {
             install_progress: Arc::new(Mutex::new(String::new())),
             install_complete: Arc::new(Mutex::new(false)),
             config: RenameConfig::default(),
+            rename_history: None,
+            show_history_dialog: false,
             processing_thread: None,
             rename_results: Arc::new(Mutex::new(None)),
             shared_file_entries: Arc::new(Mutex::new(Vec::new())),
