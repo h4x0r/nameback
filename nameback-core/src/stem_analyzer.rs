@@ -1,5 +1,11 @@
 use std::path::Path;
 
+lazy_static::lazy_static! {
+    /// Regex pattern for matching date formats: YYYY-MM-DD, YYYY/MM/DD, or YYYYMMDD
+    static ref DATE_REGEX: regex::Regex = regex::Regex::new(r"(\d{4}[-/]\d{2}[-/]\d{2}|\d{8})")
+        .expect("DATE_REGEX pattern should be valid");
+}
+
 /// Analyzes original filename stem to extract meaningful parts
 /// Removes common prefixes and filters out date/numeric patterns
 pub fn extract_meaningful_stem(path: &Path) -> Option<String> {
@@ -15,7 +21,7 @@ pub fn extract_meaningful_stem(path: &Path) -> Option<String> {
     let mut preserved_dates = Vec::new();
 
     // Match patterns like YYYY-MM-DD, YYYY/MM/DD, or YYYYMMDD
-    let date_regex = regex::Regex::new(r"(\d{4}[-/]\d{2}[-/]\d{2}|\d{8})").unwrap();
+    let date_regex = &*DATE_REGEX;
     for cap in date_regex.captures_iter(&cleaned) {
         if let Some(matched) = cap.get(0) {
             preserved_dates.push(matched.as_str().to_string());
