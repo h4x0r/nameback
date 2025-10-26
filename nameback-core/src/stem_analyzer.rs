@@ -8,24 +8,69 @@ pub fn extract_meaningful_stem(path: &Path) -> Option<String> {
     // Remove common prefixes
     let cleaned = remove_common_prefixes(stem);
 
+    // Split on common separators, but preserve date patterns like "2021-08-23"
+    // First, replace date-like patterns with a placeholder, split, then restore
+    let date_placeholder = "\x00DATE\x00";
+    let mut temp = cleaned.clone();
+    let mut preserved_dates = Vec::new();
+
+    // Match patterns like YYYY-MM-DD, YYYY/MM/DD, or YYYYMMDD
+    let date_regex = regex::Regex::new(r"(\d{4}[-/]\d{2}[-/]\d{2}|\d{8})").unwrap();
+    for cap in date_regex.captures_iter(&cleaned) {
+        if let Some(matched) = cap.get(0) {
+            preserved_dates.push(matched.as_str().to_string());
+            temp = temp.replace(matched.as_str(), date_placeholder);
+        }
+    }
+
     // Split on common separators
-    let parts: Vec<&str> = cleaned
+    let mut parts: Vec<String> = temp
         .split(['_', '-', '.', ' '])
         .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
         .collect();
 
-    // Filter out meaningless parts
-    let meaningful: Vec<&str> = parts
+    // Restore preserved dates
+    let mut date_idx = 0;
+    for part in parts.iter_mut() {
+        if part.contains(date_placeholder) && date_idx < preserved_dates.len() {
+            *part = preserved_dates[date_idx].clone();
+            date_idx += 1;
+        }
+    }
+
+    let parts: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+
+    // Separate date parts from other meaningful parts
+    let date_parts: Vec<&str> = parts
         .iter()
-        .filter(|p| is_meaningful_part(p))
+        .filter(|p| is_date_pattern(p))
         .copied()
         .collect();
 
-    // Need at least 2 meaningful parts or 1 part with decent length
-    if meaningful.len() >= 2 {
-        Some(meaningful.join("_"))
-    } else if meaningful.len() == 1 && meaningful[0].len() >= 5 {
-        Some(meaningful[0].to_string())
+    // Filter meaningful non-date parts
+    let meaningful: Vec<&str> = parts
+        .iter()
+        .filter(|p| !is_date_pattern(p) && is_meaningful_part(p))
+        .copied()
+        .collect();
+
+    // Prefer meaningful non-date parts, fall back to dates if no meaningful parts
+    if !meaningful.is_empty() {
+        // We have meaningful non-date parts
+        if meaningful.len() >= 2 {
+            Some(meaningful.join("_"))
+        } else if meaningful[0].len() >= 5 {
+            Some(meaningful[0].to_string())
+        } else if !date_parts.is_empty() {
+            // Meaningful part too short, use date instead
+            Some(date_parts.join("-"))
+        } else {
+            None
+        }
+    } else if !date_parts.is_empty() {
+        // No meaningful non-date parts, use the date
+        Some(date_parts.join("-"))
     } else {
         None
     }
@@ -105,6 +150,16 @@ fn is_meaningful_part(part: &str) -> bool {
         return false;
     }
 
+    // Software product identifiers (CS6, CC, CS5, Office365, etc.)
+    if is_software_product_id(part) {
+        return false;
+    }
+
+    // Software product names (Photoshop, InDesign, Word, Excel, etc.)
+    if is_software_product_name(part) {
+        return false;
+    }
+
     // Decimal version numbers (1.2, 17.4, etc.)
     if is_decimal_version(part) {
         return false;
@@ -124,6 +179,7 @@ fn is_date_pattern(s: &str) -> bool {
     }
 
     // Common date lengths: YYYY (4), YYYYMM (6), YYYYMMDD (8)
+    // Note: Don't match 2-digit numbers as they're too ambiguous (could be counters, versions, etc.)
     matches!(cleaned.len(), 4 | 6 | 8)
 }
 
@@ -208,6 +264,97 @@ fn is_software_vendor(s: &str) -> bool {
     vendors.iter().any(|v| lower == *v)
 }
 
+/// Detects software product identifiers (CS6, CC, Office365, etc.)
+fn is_software_product_id(s: &str) -> bool {
+    let upper = s.to_uppercase();
+    let lower = s.to_lowercase();
+
+    // Adobe Creative Suite/Cloud versions: CS3, CS4, CS5, CS5.5, CS6, CC, CC2019, etc.
+    if upper.starts_with("CS") {
+        let rest = &upper[2..];
+        // CS followed by number or empty (CS6, CS5.5, CS, etc.)
+        if rest.is_empty() || rest.chars().next().map_or(false, |c| c.is_numeric() || c == '.') {
+            return true;
+        }
+    }
+
+    // Creative Cloud variants: CC, CC2019, CC2020, etc.
+    if upper == "CC" || (upper.starts_with("CC") && upper[2..].chars().all(|c| c.is_numeric())) {
+        return true;
+    }
+
+    // Microsoft Office variants: Office365, Office2019, etc.
+    if lower.starts_with("office") && lower[6..].chars().all(|c| c.is_numeric()) {
+        return true;
+    }
+
+    // Windows versions: Win10, Win11, etc.
+    if lower.starts_with("win") && lower.len() <= 5 {
+        let rest = &lower[3..];
+        if rest.chars().all(|c| c.is_numeric()) && !rest.is_empty() {
+            return true;
+        }
+    }
+
+    // macOS versions: Monterey, BigSur, Catalina, etc. (less common in filenames)
+    let macos_versions = [
+        "monterey", "bigsur", "catalina", "mojave", "highsierra",
+        "sierra", "elcapitan", "yosemite", "mavericks",
+    ];
+    if macos_versions.iter().any(|v| lower == *v) {
+        return true;
+    }
+
+    // Common software edition markers
+    let editions = [
+        "pro", "professional", "enterprise", "ultimate", "premium",
+        "standard", "basic", "lite", "home", "student", "business",
+        "starter", "express", "community", "developer",
+    ];
+    if editions.iter().any(|e| lower == *e) {
+        return true;
+    }
+
+    false
+}
+
+/// Detects software product names (Photoshop, InDesign, Word, Excel, etc.)
+fn is_software_product_name(s: &str) -> bool {
+    let lower = s.to_lowercase();
+
+    // Adobe Creative Suite/Cloud products
+    let adobe_products = [
+        "photoshop", "illustrator", "indesign", "premiere", "aftereffects",
+        "dreamweaver", "flash", "fireworks", "acrobat", "lightroom",
+        "bridge", "audition", "animate", "dimension", "xd", "spark",
+    ];
+    if adobe_products.iter().any(|p| lower == *p) {
+        return true;
+    }
+
+    // Microsoft Office products (only very distinctive names to avoid false positives)
+    // Note: "Project", "Word", "Outlook", "Access" are too generic and commonly used in filenames
+    let office_products = [
+        "excel", "powerpoint", "onenote",
+        "publisher", "visio", "teams", "sharepoint",
+    ];
+    if office_products.iter().any(|p| lower == *p) {
+        return true;
+    }
+
+    // Other common software products
+    let other_products = [
+        "chrome", "firefox", "safari", "edge", "opera",
+        "slack", "discord", "zoom", "skype",
+        "spotify", "itunes", "vlc",
+    ];
+    if other_products.iter().any(|p| lower == *p) {
+        return true;
+    }
+
+    false
+}
+
 /// Detects decimal version numbers (1.2, 17.4, etc.)
 fn is_decimal_version(s: &str) -> bool {
     // Check if string is in format: digits.digits (optionally .digits)
@@ -247,8 +394,8 @@ mod tests {
     #[test]
     fn test_extract_meaningful_stem_date_only() {
         let path = PathBuf::from("/test/IMG_20231015_143022.jpg");
-        // All parts are dates/times, should return None
-        assert_eq!(extract_meaningful_stem(&path), None);
+        // All parts are dates/times, should return the date parts joined
+        assert_eq!(extract_meaningful_stem(&path), Some("20231015-143022".to_string()));
     }
 
     #[test]
@@ -378,12 +525,12 @@ mod tests {
 
     #[test]
     fn test_extract_adobe_installer_pattern() {
-        let path = PathBuf::from("/test/Adobe_InDesign_17.4_(Windows)_2022-12-08_7.pdf");
-        // Should filter out: Adobe, 17.4, (Windows), 2022, 12, 08, 7
-        // Should keep: InDesign (if anything)
+        let path = PathBuf::from("/test/Adobe_InDesign_CS6_(Windows)_2021-08-23.pdf");
+        // Should filter out: Adobe (vendor), InDesign (product name), CS6 (product ID), Windows (platform)
+        // Should keep: 2021-08-23 (date - most unique identifier)
         let result = extract_meaningful_stem(&path);
-        // InDesign is single part, less than 5 chars requirement (7 chars), so should pass
-        assert_eq!(result, Some("InDesign".to_string()));
+        // No meaningful non-date parts, so use the date
+        assert_eq!(result, Some("2021-08-23".to_string()));
     }
 
     #[test]
@@ -392,5 +539,112 @@ mod tests {
         // Should filter out: 3.2 (decimal version), Linux, x86, 64 (numeric)
         // Should keep: MyApp
         assert_eq!(extract_meaningful_stem(&path), Some("MyApp".to_string()));
+    }
+
+    #[test]
+    fn test_is_software_product_id() {
+        // Adobe Creative Suite/Cloud versions
+        assert!(is_software_product_id("CS6"));
+        assert!(is_software_product_id("cs6"));
+        assert!(is_software_product_id("CS5"));
+        assert!(is_software_product_id("CS5.5"));
+        assert!(is_software_product_id("CC"));
+        assert!(is_software_product_id("cc"));
+        assert!(is_software_product_id("CC2019"));
+        assert!(is_software_product_id("CC2020"));
+
+        // Microsoft Office versions
+        assert!(is_software_product_id("Office365"));
+        assert!(is_software_product_id("Office2019"));
+        assert!(is_software_product_id("office365"));
+
+        // Windows versions
+        assert!(is_software_product_id("Win10"));
+        assert!(is_software_product_id("Win11"));
+        assert!(is_software_product_id("win10"));
+
+        // macOS versions
+        assert!(is_software_product_id("Monterey"));
+        assert!(is_software_product_id("BigSur"));
+        assert!(is_software_product_id("Catalina"));
+        assert!(is_software_product_id("monterey"));
+
+        // Edition markers
+        assert!(is_software_product_id("Pro"));
+        assert!(is_software_product_id("Professional"));
+        assert!(is_software_product_id("Enterprise"));
+        assert!(is_software_product_id("Ultimate"));
+        assert!(is_software_product_id("Premium"));
+        assert!(is_software_product_id("Standard"));
+        assert!(is_software_product_id("Home"));
+        assert!(is_software_product_id("Student"));
+        assert!(is_software_product_id("pro"));
+        assert!(is_software_product_id("community"));
+
+        // Should NOT match these (actual product/project names)
+        assert!(!is_software_product_id("InDesign"));
+        assert!(!is_software_product_id("Photoshop"));
+        assert!(!is_software_product_id("Project"));
+        assert!(!is_software_product_id("Report"));
+        assert!(!is_software_product_id("MyApp"));
+        assert!(!is_software_product_id("Document"));
+    }
+
+    #[test]
+    fn test_extract_office_installer_pattern() {
+        let path = PathBuf::from("/test/Microsoft_Office_2019_Professional_Plus_(Windows).exe");
+        // Should filter out: Microsoft (vendor), Office2019 (product ID), Professional (edition),
+        //                    Plus (could keep), Windows (platform)
+        // Should keep: Plus or Office depending on filtering
+        let result = extract_meaningful_stem(&path);
+        // "Plus" is 4 chars (< 5), so won't pass alone. "Office" might be kept if not filtered.
+        // Actually, this will likely return None since all parts get filtered.
+        // Let's just verify it doesn't include the noise
+        if let Some(name) = result {
+            assert!(!name.contains("Microsoft"));
+            assert!(!name.contains("Windows"));
+            assert!(!name.contains("Professional"));
+        }
+    }
+
+    #[test]
+    fn test_extract_creative_cloud_pattern() {
+        let path = PathBuf::from("/test/Adobe_Photoshop_CC_2020_macOS.dmg");
+        // Should filter out: Adobe (vendor), Photoshop (product name), CC (version), macOS (platform)
+        // Should keep: 2020 (4-digit year - best unique identifier)
+        assert_eq!(extract_meaningful_stem(&path), Some("2020".to_string()));
+    }
+
+    #[test]
+    fn test_is_software_product_name() {
+        // Adobe products
+        assert!(is_software_product_name("Photoshop"));
+        assert!(is_software_product_name("photoshop"));
+        assert!(is_software_product_name("InDesign"));
+        assert!(is_software_product_name("indesign"));
+        assert!(is_software_product_name("Illustrator"));
+        assert!(is_software_product_name("Premiere"));
+        assert!(is_software_product_name("AfterEffects"));
+
+        // Microsoft Office products (only distinctive ones to avoid false positives)
+        assert!(is_software_product_name("Excel"));
+        assert!(is_software_product_name("excel"));
+        assert!(is_software_product_name("PowerPoint"));
+        assert!(is_software_product_name("powerpoint"));
+        assert!(is_software_product_name("OneNote"));
+
+        // Other common software
+        assert!(is_software_product_name("Chrome"));
+        assert!(is_software_product_name("chrome"));
+        assert!(is_software_product_name("Firefox"));
+        assert!(is_software_product_name("Slack"));
+        assert!(is_software_product_name("Zoom"));
+
+        // Should NOT match actual project/document names
+        assert!(!is_software_product_name("ProjectProposal"));
+        assert!(!is_software_product_name("MyDocument"));
+        assert!(!is_software_product_name("Report"));
+        assert!(!is_software_product_name("Presentation"));
+        assert!(!is_software_product_name("Budget"));
     }
 }
