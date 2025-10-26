@@ -107,8 +107,8 @@ fn format_timestamp_for_filename(timestamp: &str) -> Option<String> {
 
 /// Sanitizes a filename by removing or replacing invalid characters
 fn sanitize_filename(name: &str) -> String {
-    // Replace problematic characters with underscores
-    let re = Regex::new(r#"[/\\:*?"<>|]"#).unwrap();
+    // Replace problematic characters with underscores (includes parentheses for cleaner names)
+    let re = Regex::new(r#"[/\\:*?"<>|()\[\]]"#).unwrap();
     let mut sanitized = re.replace_all(name, "_").to_string();
 
     // Replace spaces with underscores
