@@ -179,9 +179,10 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
         .next()
         .context("No metadata found in exiftool output")?;
 
+    // Don't use Creator field - it contains software name, not author name
+    // (e.g., "Adobe InDesign CS6 (Windows)" instead of actual author)
     let author = exif_data
         .author
-        .or(exif_data.creator)
         .or(exif_data.last_modified_by);
 
     // Filter out unhelpful author names (like scanner/printer names)
