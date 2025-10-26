@@ -644,7 +644,7 @@ impl NamebackApp {
                     // Header row
                     ui.label("");
                     ui.strong("Original Filename");
-                    ui.label("→");
+                    ui.label("->");
                     ui.strong("New Filename");
                     ui.end_row();
 
@@ -683,7 +683,7 @@ impl NamebackApp {
                         }
 
                         // Arrow
-                        ui.label("→");
+                        ui.label("->");
 
                         // New filename with color coding
                         // Use theme-aware blue color - darker blue for light mode, lighter for dark mode
