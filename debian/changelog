@@ -6,7 +6,7 @@ nameback (0.4.1-1) unstable; urgency=medium
   * Progress reporting during dependency installation
   * Better UX for all installation methods
 
- -- Albert Hui <albert@example.com>  Wed, 22 Oct 2025 12:00:00 -0700
+ -- Albert Hui <albert@securityronin.com>  Wed, 22 Oct 2025 12:00:00 -0700
 
 nameback (0.4.0-1) unstable; urgency=medium
 
@@ -18,4 +18,4 @@ nameback (0.4.0-1) unstable; urgency=medium
   * Series detection and numbering
   * Safe operation with root execution blocking
 
- -- Albert Hui <albert@example.com>  Mon, 21 Oct 2025 12:00:00 -0700
+ -- Albert Hui <albert@securityronin.com>  Mon, 21 Oct 2025 12:00:00 -0700

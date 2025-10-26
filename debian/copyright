@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: nameback
-Upstream-Contact: Albert Hui <albert@example.com>
+Upstream-Contact: Albert Hui <albert@securityronin.com>
 Source: https://github.com/h4x0r/nameback
 
 Files: *
