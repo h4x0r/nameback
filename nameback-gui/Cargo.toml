@@ -9,7 +9,7 @@ homepage.workspace = true
 description = "GUI application for nameback - visual file renaming with dual-pane interface"
 keywords = ["gui", "rename", "metadata"]
 categories = ["gui"]
-include = ["src/**/*", "assets/**/*", "../assets/**/*", "Cargo.toml", "build.rs"]
+include = ["src/**/*", "assets/**/*", "Cargo.toml", "build.rs"]
 
 [[bin]]
 name = "nameback-gui"

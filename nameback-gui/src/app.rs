@@ -766,7 +766,7 @@ impl NamebackApp {
 
             // Load Security Ronin logo if not already loaded
             if self.security_ronin_logo.is_none() {
-                let logo_bytes = include_bytes!("../../assets/branding/security-ronin-logo.png");
+                let logo_bytes = include_bytes!("../assets/security-ronin-logo.png");
                 if let Ok(image) = image::load_from_memory(logo_bytes) {
                     let size = [image.width() as usize, image.height() as usize];
                     let image_buffer = image.to_rgba8();
