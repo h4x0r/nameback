@@ -28,10 +28,10 @@ override_dh_auto_install:
 	# Install desktop entry for GUI
 	install -D -m 644 debian/nameback.desktop $(CURDIR)/debian/nameback/usr/share/applications/nameback.desktop
 
-	# Install icon (if exists)
-	if [ -f assets/icon.png ]; then \
-		install -D -m 644 assets/icon.png $(CURDIR)/debian/nameback/usr/share/pixmaps/nameback.png; \
-	fi
+	# Install application icon for GUI
+	# Install to both pixmaps (legacy) and icons (freedesktop.org standard)
+	install -D -m 644 nameback-gui/assets/nameback.png $(CURDIR)/debian/nameback/usr/share/pixmaps/nameback.png
+	install -D -m 644 nameback-gui/assets/nameback.png $(CURDIR)/debian/nameback/usr/share/icons/hicolor/512x512/apps/nameback.png
 
 override_dh_auto_test:
 	# Run tests during build
