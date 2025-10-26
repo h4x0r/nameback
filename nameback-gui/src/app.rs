@@ -628,6 +628,27 @@ impl NamebackApp {
             if ui.button(format!("{} About", regular::INFO)).clicked() {
                 self.show_about_dialog = true;
             }
+
+            ui.separator();
+
+            // Theme toggle button
+            let theme_icon = if self.dark_mode {
+                regular::SUN // Show sun icon when in dark mode (click to go light)
+            } else {
+                regular::MOON // Show moon icon when in light mode (click to go dark)
+            };
+
+            if ui.button(format!("{}", theme_icon))
+                .on_hover_text(if self.dark_mode { "Switch to light theme" } else { "Switch to dark theme" })
+                .clicked()
+            {
+                self.dark_mode = !self.dark_mode;
+                ui.ctx().set_visuals(if self.dark_mode {
+                    egui::Visuals::dark()
+                } else {
+                    Self::create_light_theme()
+                });
+            }
         });
     }
 
@@ -644,7 +665,7 @@ impl NamebackApp {
                     // Header row
                     ui.label("");
                     ui.strong("Original Filename");
-                    ui.label("->");
+                    ui.label(format!("{}", regular::ARROW_RIGHT));
                     ui.strong("New Filename");
                     ui.end_row();
 
@@ -683,7 +704,7 @@ impl NamebackApp {
                         }
 
                         // Arrow
-                        ui.label("->");
+                        ui.label(format!("{}", regular::ARROW_RIGHT));
 
                         // New filename with color coding
                         // Use theme-aware blue color - darker blue for light mode, lighter for dark mode
@@ -840,31 +861,6 @@ impl eframe::App for NamebackApp {
             self.check_install_complete();
             ctx.request_repaint(); // Keep refreshing during installation
         }
-
-        // Top panel with theme toggle
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("nameback");
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Theme toggle button
-                    let theme_icon = if self.dark_mode {
-                        regular::SUN // Show sun icon when in dark mode (click to go light)
-                    } else {
-                        regular::MOON // Show moon icon when in light mode (click to go dark)
-                    };
-
-                    if ui.button(format!("{}", theme_icon)).clicked() {
-                        self.dark_mode = !self.dark_mode;
-                        ctx.set_visuals(if self.dark_mode {
-                            egui::Visuals::dark()
-                        } else {
-                            Self::create_light_theme()
-                        });
-                    }
-                });
-            });
-        });
 
         // Handle Ctrl+F hotkey
         if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command) {
