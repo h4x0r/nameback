@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       tag:
@@ -28,10 +31,16 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for changelog generation
 
-      - name: Get version from input
+      - name: Get version from tag or input
         id: get_version
         run: |
-          VERSION="${{ github.event.inputs.tag }}"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Triggered by tag push: extract version from ref
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            # Triggered manually: use input
+            VERSION="${{ github.event.inputs.tag }}"
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
 
