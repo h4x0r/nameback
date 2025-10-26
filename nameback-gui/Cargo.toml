@@ -36,5 +36,6 @@ lto = true          # Link-time optimization
 codegen-units = 1   # Better optimization
 strip = true        # Strip symbols
 
-# Windows-specific: Hide console window
+# Windows-specific: Hide console window and embed icon
 [target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
