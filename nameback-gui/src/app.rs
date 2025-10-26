@@ -844,7 +844,7 @@ impl eframe::App for NamebackApp {
         // Top panel with theme toggle
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading(format!("nameback v{}", env!("CARGO_PKG_VERSION")));
+                ui.heading("nameback");
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Theme toggle button
