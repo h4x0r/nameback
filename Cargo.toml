@@ -27,6 +27,7 @@ log = "0.4"
 walkdir = "2.4"
 chrono = "0.4"
 infer = "0.16"
+rayon = "1.10"
 
 # File format handling
 pdf-extract = "0.7"

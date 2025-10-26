@@ -127,47 +127,59 @@ impl RenameEngine {
             }
         }
 
-        // Analyze each file
-        for file_path in files {
-            match self.analyze_file(&file_path, &mut existing_names) {
-                Ok(mut analysis) => {
-                    // Check if this file is part of a series
-                    if let Some(series) = file_series_map.get(&file_path) {
-                        // Apply series naming if we have a proposed name
-                        if let Some(proposed_name) = &analysis.proposed_name {
-                            // Extract just the base name without extension
-                            let base_name = if let Some(pos) = proposed_name.rfind('.') {
-                                &proposed_name[..pos]
-                            } else {
-                                proposed_name
-                            };
+        // Analyze each file in parallel using rayon
+        use rayon::prelude::*;
+        use std::sync::Mutex;
 
-                            // Apply series naming pattern
-                            if let Some(series_name) = series_detector::apply_series_naming(
-                                series,
-                                &file_path,
-                                base_name,
-                            ) {
-                                analysis.proposed_name = Some(series_name);
+        // Wrap existing_names in a Mutex for thread-safe access
+        let existing_names = Mutex::new(existing_names);
+
+        // Process files in parallel
+        analyses = files
+            .par_iter()
+            .filter_map(|file_path| {
+                match self.analyze_file_parallel(file_path, &existing_names) {
+                    Ok(mut analysis) => {
+                        // Check if this file is part of a series
+                        if let Some(series) = file_series_map.get(file_path) {
+                            // Apply series naming if we have a proposed name
+                            if let Some(proposed_name) = &analysis.proposed_name {
+                                // Extract just the base name without extension
+                                let base_name = if let Some(pos) = proposed_name.rfind('.') {
+                                    &proposed_name[..pos]
+                                } else {
+                                    proposed_name
+                                };
+
+                                // Apply series naming pattern
+                                if let Some(series_name) = series_detector::apply_series_naming(
+                                    series,
+                                    file_path,
+                                    base_name,
+                                ) {
+                                    analysis.proposed_name = Some(series_name);
+                                }
                             }
                         }
-                    }
-                    analyses.push(analysis);
-                },
-                Err(e) => {
-                    log::warn!("Failed to analyze {}: {}", file_path.display(), e);
-                    // Still add to results but with no proposed name
-                    if let Some(name) = file_path.file_name().and_then(|n| n.to_str()) {
-                        analyses.push(FileAnalysis {
-                            original_path: file_path.clone(),
-                            original_name: name.to_string(),
-                            proposed_name: None,
-                            file_category: FileCategory::Unknown,
-                        });
+                        Some(analysis)
+                    },
+                    Err(e) => {
+                        log::warn!("Failed to analyze {}: {}", file_path.display(), e);
+                        // Still add to results but with no proposed name
+                        if let Some(name) = file_path.file_name().and_then(|n| n.to_str()) {
+                            Some(FileAnalysis {
+                                original_path: file_path.clone(),
+                                original_name: name.to_string(),
+                                proposed_name: None,
+                                file_category: FileCategory::Unknown,
+                            })
+                        } else {
+                            None
+                        }
                     }
                 }
-            }
-        }
+            })
+            .collect();
 
         Ok(analyses)
     }
@@ -288,6 +300,62 @@ impl RenameEngine {
         let proposed_name = candidate_name.map(|name| {
             let extension = file_path.extension();
             generator::generate_filename_with_metadata(&name, extension, existing_names, Some(&metadata))
+        });
+
+        Ok(FileAnalysis {
+            original_path: file_path.to_path_buf(),
+            original_name,
+            proposed_name,
+            file_category,
+        })
+    }
+
+    /// Parallel version of analyze_file that uses Mutex-protected existing_names
+    fn analyze_file_parallel(
+        &self,
+        file_path: &Path,
+        existing_names: &std::sync::Mutex<HashSet<String>>,
+    ) -> Result<FileAnalysis> {
+        // Detect file type
+        let file_category = detector::detect_file_type(file_path)?;
+
+        let original_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        // Skip unknown file types
+        if file_category == FileCategory::Unknown {
+            return Ok(FileAnalysis {
+                original_path: file_path.to_path_buf(),
+                original_name,
+                proposed_name: None,
+                file_category,
+            });
+        }
+
+        // Extract metadata with configuration
+        let metadata = match extractor::extract_metadata(file_path, &self.config) {
+            Ok(m) => m,
+            Err(_) => {
+                return Ok(FileAnalysis {
+                    original_path: file_path.to_path_buf(),
+                    original_name,
+                    proposed_name: None,
+                    file_category,
+                });
+            }
+        };
+
+        // Extract candidate name
+        let candidate_name = metadata.extract_name(&file_category, file_path);
+
+        let proposed_name = candidate_name.map(|name| {
+            let extension = file_path.extension();
+            // Lock the mutex to access existing_names
+            let mut names = existing_names.lock().unwrap();
+            generator::generate_filename_with_metadata(&name, extension, &mut names, Some(&metadata))
         });
 
         Ok(FileAnalysis {
