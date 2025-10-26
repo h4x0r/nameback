@@ -39,6 +39,12 @@ pub struct NamebackApp {
     search_query: String,
     search_results: Vec<usize>, // Indices of matching entries
     current_search_index: usize,
+    scroll_to_index: Option<usize>, // Request to scroll to specific index
+
+    // Pattern selection dialog
+    show_pattern_dialog: bool,
+    pattern_query: String,
+    pattern_error: Option<String>,
 
     // Dependency check dialog
     show_deps_dialog: bool,
@@ -110,6 +116,10 @@ impl NamebackApp {
             search_query: String::new(),
             search_results: Vec::new(),
             current_search_index: 0,
+            scroll_to_index: None,
+            show_pattern_dialog: false,
+            pattern_query: String::new(),
+            pattern_error: None,
             show_deps_dialog: false,
             pending_directory: None,
             missing_deps: None,
@@ -380,6 +390,47 @@ impl NamebackApp {
         }
     }
 
+    fn invert_selection(&mut self) {
+        for entry in &mut self.file_entries {
+            // Only invert if the entry has a proposed name (can be selected)
+            if entry.analysis.proposed_name.is_some() {
+                entry.selected = !entry.selected;
+            }
+        }
+    }
+
+    fn select_by_pattern(&mut self) {
+        use regex::Regex;
+
+        // Clear any previous error
+        self.pattern_error = None;
+
+        // Try to compile the regex
+        let re = match Regex::new(&self.pattern_query) {
+            Ok(r) => r,
+            Err(e) => {
+                self.pattern_error = Some(format!("Invalid regex: {}", e));
+                return;
+            }
+        };
+
+        // Select files matching the pattern
+        for entry in &mut self.file_entries {
+            if entry.analysis.proposed_name.is_some() {
+                // Test against original filename
+                if re.is_match(&entry.analysis.original_name) {
+                    entry.selected = true;
+                }
+                // Also test against proposed filename
+                else if let Some(proposed) = &entry.analysis.proposed_name {
+                    if re.is_match(proposed) {
+                        entry.selected = true;
+                    }
+                }
+            }
+        }
+    }
+
     fn install_dependencies(&mut self) {
         self.installing_deps = true;
 
@@ -443,11 +494,20 @@ impl NamebackApp {
                 }
             }
         }
+
+        // Scroll to first result if any found
+        if !self.search_results.is_empty() {
+            self.scroll_to_index = Some(self.search_results[0]);
+        }
     }
 
     fn find_next(&mut self) {
         if !self.search_results.is_empty() {
             self.current_search_index = (self.current_search_index + 1) % self.search_results.len();
+            // Request scroll to current match
+            if let Some(&index) = self.search_results.get(self.current_search_index) {
+                self.scroll_to_index = Some(index);
+            }
         }
     }
 
@@ -457,6 +517,10 @@ impl NamebackApp {
                 self.current_search_index = self.search_results.len() - 1;
             } else {
                 self.current_search_index -= 1;
+            }
+            // Request scroll to current match
+            if let Some(&index) = self.search_results.get(self.current_search_index) {
+                self.scroll_to_index = Some(index);
             }
         }
     }
@@ -525,6 +589,12 @@ impl NamebackApp {
             if ui.button(format!("{} Deselect All", regular::SQUARE)).clicked() {
                 self.deselect_all();
             }
+            if ui.button(format!("{} Invert Selection", regular::SWAP)).clicked() {
+                self.invert_selection();
+            }
+            if ui.button(format!("{} Select by Pattern", regular::FUNNEL)).clicked() {
+                self.show_pattern_dialog = true;
+            }
 
             ui.separator();
 
@@ -556,7 +626,10 @@ impl NamebackApp {
     }
 
     fn render_dual_panes(&mut self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical().show(ui, |ui| {
+        let scroll_to_index = self.scroll_to_index.take(); // Take the scroll request
+
+        let scroll_area = egui::ScrollArea::vertical();
+        scroll_area.show(ui, |ui| {
             egui::Grid::new("file_grid")
                 .num_columns(4)
                 .spacing([10.0, 4.0])
@@ -578,7 +651,12 @@ impl NamebackApp {
 
                         // Checkbox
                         let has_proposed_name = entry.analysis.proposed_name.is_some();
-                        ui.add_enabled(has_proposed_name, egui::Checkbox::new(&mut entry.selected, ""));
+                        let checkbox_response = ui.add_enabled(has_proposed_name, egui::Checkbox::new(&mut entry.selected, ""));
+
+                        // Scroll to this row if requested
+                        if scroll_to_index == Some(index) {
+                            checkbox_response.scroll_to_me(Some(egui::Align::Center));
+                        }
 
                         // Original filename with search highlighting using scope
                         if is_current_match || is_match {
@@ -780,6 +858,32 @@ impl eframe::App for NamebackApp {
             self.show_search = !self.show_search;
         }
 
+        // Handle search navigation when search is active
+        if self.show_search {
+            // Escape to close search
+            if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.show_search = false;
+                self.search_query.clear();
+                self.search_results.clear();
+            }
+
+            // Enter or F3 for next match
+            if ctx.input(|i| {
+                (i.key_pressed(egui::Key::Enter) && !i.modifiers.shift)
+                    || (i.key_pressed(egui::Key::F3) && !i.modifiers.shift)
+            }) {
+                self.find_next();
+            }
+
+            // Shift+Enter or Shift+F3 for previous match
+            if ctx.input(|i| {
+                (i.key_pressed(egui::Key::Enter) && i.modifiers.shift)
+                    || (i.key_pressed(egui::Key::F3) && i.modifiers.shift)
+            }) {
+                self.find_previous();
+            }
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             // Control buttons
             self.render_controls(ui);
@@ -897,6 +1001,47 @@ impl eframe::App for NamebackApp {
                             });
                         }
                     }
+                });
+        }
+
+        // Pattern selection dialog
+        if self.show_pattern_dialog {
+            egui::Window::new("Select by Pattern")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label("Enter a regex pattern to select matching files:");
+                    ui.add_space(10.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label("Pattern:");
+                        ui.text_edit_singleline(&mut self.pattern_query);
+                    });
+
+                    if let Some(error) = &self.pattern_error {
+                        ui.colored_label(egui::Color32::RED, error);
+                    }
+
+                    ui.add_space(10.0);
+                    ui.label("Examples:");
+                    ui.label("  .*\\.jpg$  - Match all .jpg files");
+                    ui.label("  ^IMG.*  - Match files starting with IMG");
+                    ui.label("  .*20(23|24).*  - Match files containing 2023 or 2024");
+
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Select Matching").clicked() {
+                            self.select_by_pattern();
+                            if self.pattern_error.is_none() {
+                                self.show_pattern_dialog = false;
+                            }
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.show_pattern_dialog = false;
+                            self.pattern_error = None;
+                        }
+                    });
                 });
         }
 

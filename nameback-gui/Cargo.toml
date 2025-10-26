@@ -27,6 +27,7 @@ log.workspace = true
 env_logger.workspace = true
 image.workspace = true
 walkdir.workspace = true
+regex.workspace = true
 
 [profile.release]
 overflow-checks = true
