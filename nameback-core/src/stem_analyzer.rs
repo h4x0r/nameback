@@ -95,6 +95,21 @@ fn is_meaningful_part(part: &str) -> bool {
         return false;
     }
 
+    // Platform identifiers (Windows, macOS, Linux, x86_64, etc.)
+    if is_platform_identifier(part) {
+        return false;
+    }
+
+    // Software vendor names (Adobe, Microsoft, Google, etc.)
+    if is_software_vendor(part) {
+        return false;
+    }
+
+    // Decimal version numbers (1.2, 17.4, etc.)
+    if is_decimal_version(part) {
+        return false;
+    }
+
     // Must have some alphabetic characters
     part.chars().any(|c| c.is_alphabetic())
 }
@@ -161,6 +176,50 @@ fn is_version_pattern(s: &str) -> bool {
     }
 
     false
+}
+
+/// Detects platform identifiers
+fn is_platform_identifier(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    let clean = lower.trim_matches(|c: char| !c.is_alphanumeric());
+
+    let platforms = [
+        "windows", "win32", "win64", "macos", "osx", "darwin",
+        "linux", "ubuntu", "debian", "redhat", "centos", "fedora",
+        "x86", "x64", "x86_64", "amd64", "i386", "i686",
+        "arm", "arm64", "aarch64", "armv7", "armv8",
+        "32bit", "64bit", "universal",
+    ];
+
+    // Only use exact match to avoid false positives (e.g., "darwinian" matching "darwin")
+    platforms.iter().any(|p| clean == *p)
+}
+
+/// Detects software vendor names
+fn is_software_vendor(s: &str) -> bool {
+    let lower = s.to_lowercase();
+
+    let vendors = [
+        "adobe", "microsoft", "google", "apple", "oracle",
+        "ibm", "intel", "amd", "nvidia", "autodesk",
+        "corel", "symantec", "mcafee", "norton",
+    ];
+
+    vendors.iter().any(|v| lower == *v)
+}
+
+/// Detects decimal version numbers (1.2, 17.4, etc.)
+fn is_decimal_version(s: &str) -> bool {
+    // Check if string is in format: digits.digits (optionally .digits)
+    let parts: Vec<&str> = s.split('.').collect();
+
+    // Must have 2 or 3 parts (e.g., "1.2" or "1.2.3")
+    if parts.len() < 2 || parts.len() > 3 {
+        return false;
+    }
+
+    // All parts must be numeric
+    parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_numeric()))
 }
 
 #[cfg(test)]
@@ -275,5 +334,63 @@ mod tests {
         let path = PathBuf::from("/test/IMG_12.jpg");
         // Only "12" which is numeric - should return None
         assert_eq!(extract_meaningful_stem(&path), None);
+    }
+
+    #[test]
+    fn test_is_platform_identifier() {
+        assert!(is_platform_identifier("Windows"));
+        assert!(is_platform_identifier("(Windows)"));
+        assert!(is_platform_identifier("windows"));
+        assert!(is_platform_identifier("macOS"));
+        assert!(is_platform_identifier("Linux"));
+        assert!(is_platform_identifier("x86_64"));
+        assert!(is_platform_identifier("amd64"));
+        assert!(is_platform_identifier("ARM64"));
+        assert!(is_platform_identifier("64bit"));
+
+        assert!(!is_platform_identifier("Project"));
+        assert!(!is_platform_identifier("Report"));
+    }
+
+    #[test]
+    fn test_is_software_vendor() {
+        assert!(is_software_vendor("Adobe"));
+        assert!(is_software_vendor("adobe"));
+        assert!(is_software_vendor("Microsoft"));
+        assert!(is_software_vendor("Google"));
+
+        assert!(!is_software_vendor("Project"));
+        assert!(!is_software_vendor("InDesign"));
+    }
+
+    #[test]
+    fn test_is_decimal_version() {
+        assert!(is_decimal_version("17.4"));
+        assert!(is_decimal_version("1.2"));
+        assert!(is_decimal_version("2.1.3"));
+        assert!(is_decimal_version("10.15.7"));
+
+        assert!(!is_decimal_version("v1.2"));
+        assert!(!is_decimal_version("1"));
+        assert!(!is_decimal_version("Project"));
+        assert!(!is_decimal_version("1.2.3.4")); // too many parts
+    }
+
+    #[test]
+    fn test_extract_adobe_installer_pattern() {
+        let path = PathBuf::from("/test/Adobe_InDesign_17.4_(Windows)_2022-12-08_7.pdf");
+        // Should filter out: Adobe, 17.4, (Windows), 2022, 12, 08, 7
+        // Should keep: InDesign (if anything)
+        let result = extract_meaningful_stem(&path);
+        // InDesign is single part, less than 5 chars requirement (7 chars), so should pass
+        assert_eq!(result, Some("InDesign".to_string()));
+    }
+
+    #[test]
+    fn test_extract_filters_platform_and_version() {
+        let path = PathBuf::from("/test/MyApp_3.2_Linux_x86_64.zip");
+        // Should filter out: 3.2 (decimal version), Linux, x86, 64 (numeric)
+        // Should keep: MyApp
+        assert_eq!(extract_meaningful_stem(&path), Some("MyApp".to_string()));
     }
 }

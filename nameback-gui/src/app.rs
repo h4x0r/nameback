@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug, Clone, PartialEq)]
 enum FileStatus {
     Pending,
+    Processing(String), // Contains operation message like "Extracting metadata..."
     Renamed,
     Error(String),
 }
@@ -33,6 +34,12 @@ pub struct NamebackApp {
     dark_mode: bool,
     security_ronin_logo: Option<egui::TextureHandle>,
 
+    // Search state
+    show_search: bool,
+    search_query: String,
+    search_results: Vec<usize>, // Indices of matching entries
+    current_search_index: usize,
+
     // Dependency check dialog
     show_deps_dialog: bool,
     pending_directory: Option<PathBuf>,
@@ -51,6 +58,35 @@ pub struct NamebackApp {
 }
 
 impl NamebackApp {
+    /// Creates a high-contrast light theme with better readability
+    fn create_light_theme() -> egui::Visuals {
+        let mut visuals = egui::Visuals::light();
+
+        // Higher contrast text colors
+        visuals.override_text_color = Some(egui::Color32::from_gray(20)); // Almost black text
+        visuals.widgets.noninteractive.fg_stroke.color = egui::Color32::from_gray(20);
+
+        // Better contrast for widgets
+        visuals.widgets.inactive.weak_bg_fill = egui::Color32::from_gray(240);
+        visuals.widgets.inactive.bg_fill = egui::Color32::from_gray(235);
+        visuals.widgets.hovered.weak_bg_fill = egui::Color32::from_gray(220);
+        visuals.widgets.hovered.bg_fill = egui::Color32::from_gray(210);
+        visuals.widgets.active.weak_bg_fill = egui::Color32::from_gray(200);
+        visuals.widgets.active.bg_fill = egui::Color32::from_gray(190);
+
+        // Stronger borders for better definition
+        visuals.widgets.inactive.bg_stroke.color = egui::Color32::from_gray(180);
+        visuals.widgets.hovered.bg_stroke.color = egui::Color32::from_gray(140);
+        visuals.widgets.active.bg_stroke.color = egui::Color32::from_gray(100);
+
+        // Panel backgrounds with better contrast
+        visuals.panel_fill = egui::Color32::from_gray(250); // Slightly off-white
+        visuals.window_fill = egui::Color32::from_gray(248);
+        visuals.faint_bg_color = egui::Color32::from_gray(240);
+
+        visuals
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Use system theme preference by default
         // egui automatically detects system dark/light mode on supported platforms
@@ -58,7 +94,7 @@ impl NamebackApp {
         if dark_mode {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
         } else {
-            cc.egui_ctx.set_visuals(egui::Visuals::light());
+            cc.egui_ctx.set_visuals(Self::create_light_theme());
         }
 
         Self {
@@ -70,6 +106,10 @@ impl NamebackApp {
             show_about_dialog: false,
             dark_mode,
             security_ronin_logo: None,
+            show_search: false,
+            search_query: String::new(),
+            search_results: Vec::new(),
+            current_search_index: 0,
             show_deps_dialog: false,
             pending_directory: None,
             missing_deps: None,
@@ -176,6 +216,14 @@ impl NamebackApp {
             }
             drop(entries_lock);
 
+            // Set all files to Processing status
+            {
+                let mut entries_lock = file_entries_clone.lock().unwrap();
+                for entry in entries_lock.iter_mut() {
+                    entry.status = FileStatus::Processing("Analyzing...".to_string());
+                }
+            }
+
             // Now analyze each file and update progressively
             let engine = RenameEngine::new(config);
             for analysis in engine.analyze_directory(&path).map_err(|e| e.to_string())? {
@@ -185,7 +233,15 @@ impl NamebackApp {
                     .iter_mut()
                     .find(|e| e.analysis.original_path == analysis.original_path)
                 {
-                    entry.analysis = analysis;
+                    // Update analysis result
+                    entry.analysis = analysis.clone();
+
+                    // Update status based on whether we got a proposed name
+                    if analysis.proposed_name.is_some() {
+                        entry.status = FileStatus::Pending; // Ready for rename
+                    } else {
+                        entry.status = FileStatus::Error("No suitable metadata found".to_string());
+                    }
                 }
             }
 
@@ -363,6 +419,87 @@ impl NamebackApp {
         }
     }
 
+    fn perform_search(&mut self) {
+        self.search_results.clear();
+        self.current_search_index = 0;
+
+        if self.search_query.is_empty() {
+            return;
+        }
+
+        let query_lower = self.search_query.to_lowercase();
+
+        for (index, entry) in self.file_entries.iter().enumerate() {
+            // Search in original filename
+            if entry.analysis.original_name.to_lowercase().contains(&query_lower) {
+                self.search_results.push(index);
+                continue;
+            }
+
+            // Search in proposed filename
+            if let Some(proposed) = &entry.analysis.proposed_name {
+                if proposed.to_lowercase().contains(&query_lower) {
+                    self.search_results.push(index);
+                }
+            }
+        }
+    }
+
+    fn find_next(&mut self) {
+        if !self.search_results.is_empty() {
+            self.current_search_index = (self.current_search_index + 1) % self.search_results.len();
+        }
+    }
+
+    fn find_previous(&mut self) {
+        if !self.search_results.is_empty() {
+            if self.current_search_index == 0 {
+                self.current_search_index = self.search_results.len() - 1;
+            } else {
+                self.current_search_index -= 1;
+            }
+        }
+    }
+
+    fn render_search_bar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(format!("{} Search:", regular::MAGNIFYING_GLASS));
+
+            let response = ui.text_edit_singleline(&mut self.search_query);
+            if response.changed() {
+                self.perform_search();
+            }
+
+            // Up arrow - previous result
+            if ui.button(format!("{}", regular::CARET_UP)).clicked() {
+                self.find_previous();
+            }
+
+            // Down arrow - next result
+            if ui.button(format!("{}", regular::CARET_DOWN)).clicked() {
+                self.find_next();
+            }
+
+            // Show match count
+            if !self.search_results.is_empty() {
+                ui.label(format!(
+                    "{}/{} matches",
+                    self.current_search_index + 1,
+                    self.search_results.len()
+                ));
+            } else if !self.search_query.is_empty() {
+                ui.colored_label(egui::Color32::GRAY, "No matches");
+            }
+
+            // Close search button
+            if ui.button(format!("{}", regular::X)).clicked() {
+                self.show_search = false;
+                self.search_query.clear();
+                self.search_results.clear();
+            }
+        });
+    }
+
     fn render_controls(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             // Directory selection
@@ -433,32 +570,61 @@ impl NamebackApp {
                     ui.end_row();
 
                     // File rows
-                    for entry in self.file_entries.iter_mut() {
+                    for (index, entry) in self.file_entries.iter_mut().enumerate() {
+                        // Highlight if this is a search result
+                        let is_current_match = !self.search_results.is_empty()
+                            && self.search_results.get(self.current_search_index) == Some(&index);
+                        let is_match = self.search_results.contains(&index);
+
                         // Checkbox
                         let has_proposed_name = entry.analysis.proposed_name.is_some();
                         ui.add_enabled(has_proposed_name, egui::Checkbox::new(&mut entry.selected, ""));
 
-                        // Original filename
-                        ui.label(&entry.analysis.original_name);
+                        // Original filename with search highlighting using scope
+                        if is_current_match || is_match {
+                            let bg_color = if is_current_match {
+                                egui::Color32::from_rgb(100, 150, 255)
+                            } else {
+                                egui::Color32::from_rgb(150, 180, 255)
+                            };
+
+                            egui::Frame::none()
+                                .fill(bg_color)
+                                .inner_margin(2.0)
+                                .show(ui, |ui| {
+                                    ui.strong(&entry.analysis.original_name);
+                                });
+                        } else {
+                            ui.label(&entry.analysis.original_name);
+                        }
 
                         // Arrow
                         ui.label("→");
 
                         // New filename with color coding
-                        if let Some(new_name) = &entry.analysis.proposed_name {
-                            let (text, color) = match &entry.status {
-                                FileStatus::Pending => (new_name.as_str(), egui::Color32::LIGHT_BLUE),
-                                FileStatus::Renamed => ("✓ Renamed", egui::Color32::GREEN),
-                                FileStatus::Error(e) => {
-                                    (e.as_str(), egui::Color32::RED)
+                        match &entry.status {
+                            FileStatus::Pending => {
+                                if let Some(new_name) = &entry.analysis.proposed_name {
+                                    ui.colored_label(egui::Color32::LIGHT_BLUE, new_name.as_str());
+                                } else {
+                                    ui.colored_label(
+                                        egui::Color32::GRAY,
+                                        "(analyzing...)"
+                                    );
                                 }
-                            };
-                            ui.colored_label(color, text);
-                        } else {
-                            ui.colored_label(
-                                egui::Color32::GRAY,
-                                "(no suitable metadata)"
-                            );
+                            }
+                            FileStatus::Processing(msg) => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.colored_label(egui::Color32::LIGHT_BLUE, msg.as_str());
+                                });
+                            }
+                            FileStatus::Renamed => {
+                                ui.colored_label(egui::Color32::GREEN, "✓ Renamed");
+                            }
+                            FileStatus::Error(e) => {
+                                ui.colored_label(egui::Color32::RED, e.as_str());
+                            }
                         }
 
                         ui.end_row();
@@ -509,6 +675,64 @@ impl NamebackApp {
             }
         });
     }
+
+    fn render_about_content(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        ui.vertical_centered(|ui| {
+            ui.add_space(10.0);
+
+            // Load Security Ronin logo if not already loaded
+            if self.security_ronin_logo.is_none() {
+                let logo_bytes = include_bytes!("../../assets/branding/security-ronin-logo.png");
+                if let Ok(image) = image::load_from_memory(logo_bytes) {
+                    let size = [image.width() as usize, image.height() as usize];
+                    let image_buffer = image.to_rgba8();
+                    let pixels = image_buffer.as_flat_samples();
+                    let color_image = egui::ColorImage::from_rgba_unmultiplied(
+                        size,
+                        pixels.as_slice(),
+                    );
+                    self.security_ronin_logo = Some(ctx.load_texture(
+                        "security_ronin_logo",
+                        color_image,
+                        egui::TextureOptions::LINEAR,
+                    ));
+                }
+            }
+
+            // Display Security Ronin logo
+            if let Some(logo) = &self.security_ronin_logo {
+                ui.add(egui::Image::new(logo).max_width(200.0));
+                ui.add_space(15.0);
+            }
+
+            ui.heading(format!("nameback v{}", env!("CARGO_PKG_VERSION")));
+            ui.add_space(20.0);
+
+            ui.label("Copyright (c) 2025 Albert Hui");
+            ui.hyperlink_to("albert@securityronin.com", "mailto:albert@securityronin.com");
+            ui.add_space(10.0);
+
+            ui.label("License: MIT");
+            ui.hyperlink_to(
+                "https://github.com/h4x0r/nameback",
+                "https://github.com/h4x0r/nameback"
+            );
+            ui.add_space(20.0);
+
+            // Security Ronin branding
+            ui.label("A Security Ronin production");
+            ui.hyperlink_to(
+                "https://securityronin.com",
+                "https://securityronin.com"
+            );
+            ui.add_space(20.0);
+
+            if ui.button("Close").clicked() {
+                self.show_about_dialog = false;
+            }
+            ui.add_space(10.0);
+        });
+    }
 }
 
 impl eframe::App for NamebackApp {
@@ -544,17 +768,28 @@ impl eframe::App for NamebackApp {
                         ctx.set_visuals(if self.dark_mode {
                             egui::Visuals::dark()
                         } else {
-                            egui::Visuals::light()
+                            Self::create_light_theme()
                         });
                     }
                 });
             });
         });
 
+        // Handle Ctrl+F hotkey
+        if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.command) {
+            self.show_search = !self.show_search;
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             // Control buttons
             self.render_controls(ui);
             ui.add_space(10.0);
+
+            // Search bar
+            if self.show_search {
+                self.render_search_bar(ui);
+                ui.add_space(10.0);
+            }
 
             // Error message
             if let Some(error) = &self.error_message {
@@ -672,61 +907,17 @@ impl eframe::App for NamebackApp {
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(10.0);
-
-                        // Load Security Ronin logo if not already loaded
-                        if self.security_ronin_logo.is_none() {
-                            let logo_bytes = include_bytes!("../../docs/Security Ronin Logo.png");
-                            if let Ok(image) = image::load_from_memory(logo_bytes) {
-                                let size = [image.width() as usize, image.height() as usize];
-                                let image_buffer = image.to_rgba8();
-                                let pixels = image_buffer.as_flat_samples();
-                                let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                                    size,
-                                    pixels.as_slice(),
-                                );
-                                self.security_ronin_logo = Some(ctx.load_texture(
-                                    "security_ronin_logo",
-                                    color_image,
-                                    egui::TextureOptions::LINEAR,
-                                ));
-                            }
-                        }
-
-                        // Display Security Ronin logo
-                        if let Some(logo) = &self.security_ronin_logo {
-                            ui.add(egui::Image::new(logo).max_width(200.0));
-                            ui.add_space(15.0);
-                        }
-
-                        ui.heading(format!("nameback v{}", env!("CARGO_PKG_VERSION")));
-                        ui.add_space(20.0);
-
-                        ui.label("Copyright (c) 2025 Albert Hui");
-                        ui.hyperlink_to("albert@securityronin.com", "mailto:albert@securityronin.com");
-                        ui.add_space(10.0);
-
-                        ui.label("License: MIT");
-                        ui.hyperlink_to(
-                            "https://github.com/h4x0r/nameback",
-                            "https://github.com/h4x0r/nameback"
-                        );
-                        ui.add_space(20.0);
-
-                        // Security Ronin branding
-                        ui.label("A Security Ronin production");
-                        ui.hyperlink_to(
-                            "https://securityronin.com",
-                            "https://securityronin.com"
-                        );
-                        ui.add_space(20.0);
-
-                        if ui.button("Close").clicked() {
-                            self.show_about_dialog = false;
-                        }
-                        ui.add_space(10.0);
-                    });
+                    // Add gray background in dark mode for better logo contrast
+                    if self.dark_mode {
+                        egui::Frame::none()
+                            .fill(egui::Color32::from_gray(60))
+                            .inner_margin(15.0)
+                            .show(ui, |ui| {
+                                self.render_about_content(ui, ctx);
+                            });
+                    } else {
+                        self.render_about_content(ui, ctx);
+                    }
                 });
         }
     }

@@ -114,6 +114,11 @@ fn apply_penalties(name: &str, base_score: f32) -> f32 {
         score *= 0.3;
     }
 
+    // Software installer pattern penalty
+    if looks_like_installer(name) {
+        score *= 0.2;
+    }
+
     // Mostly numeric penalty
     let alpha_count = name.chars().filter(|c| c.is_alphabetic()).count();
     let numeric_ratio = name.chars().filter(|c| c.is_numeric()).count() as f32 / name.len() as f32;
@@ -152,6 +157,75 @@ fn looks_like_technical_id(s: &str) -> bool {
     }
 
     false
+}
+
+/// Helper to detect if string contains a recent year (20XX)
+fn contains_recent_year(s: &str) -> bool {
+    // Match 4-digit years from 2010-2030 (reasonable installer date range)
+    for year in 2010..=2030 {
+        if s.contains(&year.to_string()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Checks if name looks like a software installer/package filename
+fn looks_like_installer(name: &str) -> bool {
+    let lower = name.to_lowercase();
+
+    // Count indicators of installer patterns
+    let mut indicator_count = 0;
+
+    // Platform identifiers
+    let platforms = [
+        "windows", "win32", "win64", "macos", "osx", "darwin",
+        "linux", "ubuntu", "debian", "x86", "x64", "amd64", "arm64",
+    ];
+    if platforms.iter().any(|p| lower.contains(p)) {
+        indicator_count += 1;
+    }
+
+    // Version number patterns (decimal versions like 17.4, 2.1.3)
+    if lower.chars().filter(|c| *c == '.').count() >= 1 {
+        // Check if there are numeric sequences around dots
+        let parts: Vec<&str> = lower.split(&[' ', '_', '-'][..]).collect();
+        for part in parts {
+            if is_decimal_version_pattern(part) {
+                indicator_count += 1;
+                break;
+            }
+        }
+    }
+
+    // Common software vendors
+    let vendors = ["adobe", "microsoft", "google", "apple", "oracle"];
+    if vendors.iter().any(|v| lower.contains(v)) {
+        indicator_count += 1;
+    }
+
+    // Date patterns with recent years
+    if contains_recent_year(&lower) {
+        indicator_count += 1;
+    }
+
+    // Installer-specific keywords
+    let installer_keywords = ["setup", "install", "installer", "package", "release"];
+    if installer_keywords.iter().any(|k| lower.contains(k)) {
+        indicator_count += 1;
+    }
+
+    // If we have 3 or more indicators, this is likely an installer filename
+    indicator_count >= 3
+}
+
+/// Helper to detect decimal version pattern (1.2, 17.4, etc.)
+fn is_decimal_version_pattern(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('.').collect();
+    if parts.len() < 2 || parts.len() > 4 {
+        return false;
+    }
+    parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_numeric()))
 }
 
 /// Selects the best candidate from a list based on scores
@@ -281,5 +355,49 @@ mod tests {
         let diverse = NameCandidate::new("Meeting".to_string(), NameSource::OcrImage);
 
         assert!(diverse.score > repetitive.score);
+    }
+
+    #[test]
+    fn test_installer_pattern_adobe() {
+        let candidate = NameCandidate::new(
+            "Adobe_InDesign_17.4_(Windows)_2022-12-08".to_string(),
+            NameSource::FilenameAnalysis,
+        );
+        // Should have heavy penalty due to installer pattern
+        assert!(candidate.score < 2.0, "Installer pattern should score < 2.0, got {}", candidate.score);
+        assert!(!candidate.is_acceptable());
+    }
+
+    #[test]
+    fn test_installer_pattern_generic() {
+        let candidate = NameCandidate::new(
+            "MyApp_3.2_Linux_x86_64_Setup".to_string(),
+            NameSource::FilenameAnalysis,
+        );
+        // Should have heavy penalty
+        assert!(candidate.score < 2.0);
+        assert!(!candidate.is_acceptable());
+    }
+
+    #[test]
+    fn test_not_installer_regular_doc() {
+        let candidate = NameCandidate::new(
+            "Project Proposal Draft".to_string(),
+            NameSource::Metadata,
+        );
+        // Should NOT be penalized as installer
+        assert!(candidate.score > 5.0);
+        assert!(candidate.is_high_quality());
+    }
+
+    #[test]
+    fn test_is_decimal_version_pattern() {
+        assert!(is_decimal_version_pattern("17.4"));
+        assert!(is_decimal_version_pattern("1.2.3"));
+        assert!(is_decimal_version_pattern("10.15.7"));
+
+        assert!(!is_decimal_version_pattern("v1.2"));
+        assert!(!is_decimal_version_pattern("Project"));
+        assert!(!is_decimal_version_pattern("1"));
     }
 }
