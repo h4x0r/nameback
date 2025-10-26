@@ -62,6 +62,8 @@ fn main() -> Result<()> {
         include_timestamp: !args.no_timestamp, // Inverted: timestamp is default, no_timestamp opts out
         multiframe_video: !args.fast_video, // Inverted: multiframe is default, fast_video opts out
         geocode: !args.no_geocode, // Inverted: geocoding is default, no_geocode opts out
+        enable_cache: true, // Metadata caching enabled by default
+        cache_path: None, // Use default cache location
     };
 
     let engine = RenameEngine::new(config);

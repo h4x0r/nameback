@@ -15,6 +15,7 @@ mod geocoding;
 mod image_ocr;
 mod key_phrases;
 mod location_timestamp;
+mod metadata_cache;
 mod pdf_content;
 mod renamer;
 mod scorer;
@@ -41,6 +42,10 @@ pub struct RenameConfig {
     /// Use geocoding to convert GPS coordinates to city names (defaults to true)
     /// When false, shows coordinates like "47.6N_122.3W" instead of "Seattle_WA"
     pub geocode: bool,
+    /// Enable metadata caching to speed up re-analysis
+    pub enable_cache: bool,
+    /// Cache file path (None = use default location)
+    pub cache_path: Option<PathBuf>,
 }
 
 impl Default for RenameConfig {
@@ -51,6 +56,8 @@ impl Default for RenameConfig {
             include_timestamp: true, // Include timestamps by default
             multiframe_video: true, // Multi-frame video analysis is now the default
             geocode: true, // Geocoding is enabled by default
+            enable_cache: true, // Metadata caching enabled by default
+            cache_path: None, // Use default cache location
         }
     }
 }
@@ -105,6 +112,25 @@ impl RenameEngine {
         // Scan files
         let files = self.scan_files(directory)?;
 
+        // Load or create metadata cache
+        let cache_path = self.config.cache_path.clone().unwrap_or_else(|| {
+            directory.join(".nameback_cache.json")
+        });
+
+        let mut cache = if self.config.enable_cache {
+            metadata_cache::MetadataCache::load(cache_path.clone()).unwrap_or_else(|_| {
+                log::debug!("Failed to load cache, creating new one");
+                metadata_cache::MetadataCache::new(cache_path.clone())
+            })
+        } else {
+            metadata_cache::MetadataCache::new(cache_path.clone())
+        };
+
+        // Clean up stale cache entries
+        if self.config.enable_cache {
+            cache.cleanup_stale_entries(&files);
+        }
+
         // Detect file series (e.g., IMG_001.jpg, IMG_002.jpg, etc.)
         let series_list = series_detector::detect_series(&files);
         log::info!("Detected {} file series", series_list.len());
@@ -131,13 +157,50 @@ impl RenameEngine {
         use rayon::prelude::*;
         use std::sync::Mutex;
 
-        // Wrap existing_names in a Mutex for thread-safe access
+        // Wrap existing_names and cache in Mutex for thread-safe access
         let existing_names = Mutex::new(existing_names);
+        let cache = Mutex::new(cache);
 
         // Process files in parallel
         analyses = files
             .par_iter()
             .filter_map(|file_path| {
+                // Check cache first if enabled
+                if self.config.enable_cache {
+                    let cache_guard = cache.lock().unwrap();
+                    if let Ok(true) = cache_guard.has_valid_entry(file_path) {
+                        if let Some(entry) = cache_guard.get(file_path) {
+                            log::debug!("Cache hit for {}", file_path.display());
+                            let category = match entry.category.as_str() {
+                                "Image" => FileCategory::Image,
+                                "Document" => FileCategory::Document,
+                                "Audio" => FileCategory::Audio,
+                                "Video" => FileCategory::Video,
+                                "Email" => FileCategory::Email,
+                                "Web" => FileCategory::Web,
+                                "Archive" => FileCategory::Archive,
+                                "SourceCode" => FileCategory::SourceCode,
+                                _ => FileCategory::Unknown,
+                            };
+
+                            let original_name = file_path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+
+                            return Some(FileAnalysis {
+                                original_path: file_path.clone(),
+                                original_name,
+                                proposed_name: entry.proposed_name.clone(),
+                                file_category: category,
+                            });
+                        }
+                    }
+                    drop(cache_guard); // Release lock before analysis
+                }
+
+                // Cache miss or caching disabled - analyze the file
                 match self.analyze_file_parallel(file_path, &existing_names) {
                     Ok(mut analysis) => {
                         // Check if this file is part of a series
@@ -161,6 +224,31 @@ impl RenameEngine {
                                 }
                             }
                         }
+
+                        // Update cache if enabled
+                        if self.config.enable_cache {
+                            let mut cache_guard = cache.lock().unwrap();
+                            let category_str = match analysis.file_category {
+                                FileCategory::Image => "Image",
+                                FileCategory::Document => "Document",
+                                FileCategory::Audio => "Audio",
+                                FileCategory::Video => "Video",
+                                FileCategory::Email => "Email",
+                                FileCategory::Web => "Web",
+                                FileCategory::Archive => "Archive",
+                                FileCategory::SourceCode => "SourceCode",
+                                FileCategory::Unknown => "Unknown",
+                            };
+
+                            if let Err(e) = cache_guard.insert(
+                                file_path,
+                                analysis.proposed_name.clone(),
+                                category_str,
+                            ) {
+                                log::warn!("Failed to cache entry for {}: {}", file_path.display(), e);
+                            }
+                        }
+
                         Some(analysis)
                     },
                     Err(e) => {
@@ -180,6 +268,21 @@ impl RenameEngine {
                 }
             })
             .collect();
+
+        // Save cache to disk if enabled
+        if self.config.enable_cache {
+            let cache_guard = cache.lock().unwrap();
+            if let Err(e) = cache_guard.save() {
+                log::warn!("Failed to save cache: {}", e);
+            } else {
+                let stats = cache_guard.stats();
+                log::info!(
+                    "Cached {} entries ({} bytes)",
+                    stats.total_entries,
+                    stats.cache_size_bytes
+                );
+            }
+        }
 
         Ok(analyses)
     }
