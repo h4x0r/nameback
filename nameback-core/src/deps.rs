@@ -127,8 +127,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         // Check if Scoop is installed
         let scoop_check = Command::new("powershell")
             .arg("-NoProfile")
-            .arg("-WindowStyle")
-            .arg("Hidden")
             .arg("-Command")
             .arg("Get-Command scoop -ErrorAction SilentlyContinue")
             .output();
@@ -144,8 +142,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             // Scoop installs to user directory, no admin/UAC needed
             let scoop_install = Command::new("powershell")
                 .arg("-NoProfile")
-                .arg("-WindowStyle")
-                .arg("Hidden")
                 .arg("-ExecutionPolicy")
                 .arg("Bypass")
                 .arg("-Command")
@@ -166,8 +162,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing exiftool (required)...", 40);
         let exiftool_result = Command::new("powershell")
             .arg("-NoProfile")
-            .arg("-WindowStyle")
-            .arg("Hidden")
             .arg("-Command")
             .arg(format!("& '{}' install exiftool", scoop_path))
             .output()
@@ -185,8 +179,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing tesseract (optional OCR support)...", 60);
         let tesseract_result = Command::new("powershell")
             .arg("-NoProfile")
-            .arg("-WindowStyle")
-            .arg("Hidden")
             .arg("-Command")
             .arg(format!("& '{}' install tesseract", scoop_path))
             .output();
@@ -207,8 +199,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing ffmpeg (optional video support)...", 80);
         let ffmpeg_result = Command::new("powershell")
             .arg("-NoProfile")
-            .arg("-WindowStyle")
-            .arg("Hidden")
             .arg("-Command")
             .arg(format!("& '{}' install ffmpeg", scoop_path))
             .output();
@@ -229,8 +219,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
         let imagemagick_result = Command::new("powershell")
             .arg("-NoProfile")
-            .arg("-WindowStyle")
-            .arg("Hidden")
             .arg("-Command")
             .arg(format!("& '{}' install imagemagick", scoop_path))
             .output();
