@@ -656,18 +656,29 @@ impl NamebackApp {
     fn render_dual_panes(&mut self, ui: &mut egui::Ui) {
         let scroll_to_index = self.scroll_to_index.take(); // Take the scroll request
 
+        // Calculate responsive column widths
+        let available_width = ui.available_width();
+        let checkbox_width = 30.0; // Fixed width for checkbox
+        let arrow_width = 30.0;     // Fixed width for arrow
+        let spacing = 10.0;
+
+        // Remaining space divided between original and new filename columns
+        let remaining_width = available_width - checkbox_width - arrow_width - (spacing * 3.0);
+        let filename_width = remaining_width / 2.0;
+
         let scroll_area = egui::ScrollArea::vertical();
         scroll_area.show(ui, |ui| {
             egui::Grid::new("file_grid")
                 .num_columns(4)
-                .spacing([10.0, 4.0])
+                .spacing([spacing, 4.0])
                 .striped(true)
+                .min_col_width(0.0) // Allow columns to size dynamically
                 .show(ui, |ui| {
-                    // Header row
-                    ui.label("");
-                    ui.strong("Original Filename");
-                    ui.label(format!("{}", regular::ARROW_RIGHT));
-                    ui.strong("New Filename");
+                    // Header row with fixed widths
+                    ui.allocate_space(egui::vec2(checkbox_width, 0.0));
+                    ui.add_sized([filename_width, 0.0], egui::Label::new(egui::RichText::new("Original Filename").strong()));
+                    ui.allocate_space(egui::vec2(arrow_width, 0.0));
+                    ui.add_sized([filename_width, 0.0], egui::Label::new(egui::RichText::new("New Filename").strong()));
                     ui.end_row();
 
                     // File rows
@@ -677,37 +688,38 @@ impl NamebackApp {
                             && self.search_results.get(self.current_search_index) == Some(&index);
                         let is_match = self.search_results.contains(&index);
 
-                        // Checkbox
+                        // Checkbox column (fixed width)
                         let has_proposed_name = entry.analysis.proposed_name.is_some();
-                        let checkbox_response = ui.add_enabled(has_proposed_name, egui::Checkbox::new(&mut entry.selected, ""));
+                        let mut checkbox_response = ui.add_sized(
+                            [checkbox_width, 0.0],
+                            egui::Checkbox::without_text(&mut entry.selected)
+                        );
+
+                        // Add hover text
+                        checkbox_response = checkbox_response.on_hover_text(if has_proposed_name {
+                            "Select for renaming"
+                        } else {
+                            "No rename available"
+                        });
 
                         // Scroll to this row if requested
                         if scroll_to_index == Some(index) {
                             checkbox_response.scroll_to_me(Some(egui::Align::Center));
                         }
 
-                        // Original filename with search highlighting using scope
-                        if is_current_match || is_match {
-                            let bg_color = if is_current_match {
-                                egui::Color32::from_rgb(100, 150, 255)
-                            } else {
-                                egui::Color32::from_rgb(150, 180, 255)
-                            };
-
-                            egui::Frame::none()
-                                .fill(bg_color)
-                                .inner_margin(2.0)
-                                .show(ui, |ui| {
-                                    ui.strong(&entry.analysis.original_name);
-                                });
+                        // Original filename column (responsive width)
+                        let original_label = if is_current_match || is_match {
+                            egui::Label::new(egui::RichText::new(&entry.analysis.original_name).strong())
+                                .wrap()
                         } else {
-                            ui.label(&entry.analysis.original_name);
-                        }
+                            egui::Label::new(&entry.analysis.original_name).wrap()
+                        };
+                        ui.add_sized([filename_width, 0.0], original_label);
 
-                        // Arrow
-                        ui.label(format!("{}", regular::ARROW_RIGHT));
+                        // Arrow column (fixed width)
+                        ui.add_sized([arrow_width, 0.0], egui::Label::new(format!("{}", regular::ARROW_RIGHT)));
 
-                        // New filename with color coding
+                        // New filename column (responsive width)
                         // Use theme-aware blue color - darker blue for light mode, lighter for dark mode
                         let blue_color = if self.dark_mode {
                             egui::Color32::LIGHT_BLUE // Light blue works well in dark mode
@@ -715,30 +727,31 @@ impl NamebackApp {
                             egui::Color32::from_rgb(0, 90, 181) // Darker blue for light mode (WCAG AA compliant)
                         };
 
-                        match &entry.status {
-                            FileStatus::Pending => {
-                                if let Some(new_name) = &entry.analysis.proposed_name {
-                                    ui.colored_label(blue_color, new_name.as_str());
-                                } else {
-                                    ui.colored_label(
-                                        egui::Color32::GRAY,
-                                        "(analyzing...)"
-                                    );
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(filename_width, 0.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                match &entry.status {
+                                    FileStatus::Pending => {
+                                        if let Some(new_name) = &entry.analysis.proposed_name {
+                                            ui.add(egui::Label::new(egui::RichText::new(new_name.as_str()).color(blue_color)).wrap());
+                                        } else {
+                                            ui.colored_label(egui::Color32::GRAY, "(analyzing...)");
+                                        }
+                                    }
+                                    FileStatus::Processing(msg) => {
+                                        ui.spinner();
+                                        ui.add(egui::Label::new(egui::RichText::new(msg.as_str()).color(blue_color)).wrap());
+                                    }
+                                    FileStatus::Renamed => {
+                                        ui.colored_label(egui::Color32::GREEN, "✓ Renamed");
+                                    }
+                                    FileStatus::Error(e) => {
+                                        ui.add(egui::Label::new(egui::RichText::new(e.as_str()).color(egui::Color32::RED)).wrap());
+                                    }
                                 }
                             }
-                            FileStatus::Processing(msg) => {
-                                ui.horizontal(|ui| {
-                                    ui.spinner();
-                                    ui.colored_label(blue_color, msg.as_str());
-                                });
-                            }
-                            FileStatus::Renamed => {
-                                ui.colored_label(egui::Color32::GREEN, "✓ Renamed");
-                            }
-                            FileStatus::Error(e) => {
-                                ui.colored_label(egui::Color32::RED, e.as_str());
-                            }
-                        }
+                        );
 
                         ui.end_row();
                     }
