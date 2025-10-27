@@ -102,6 +102,9 @@
     <!-- UI configuration -->
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
+    <!-- Progress text for dependency installation -->
+    <ProgressText Action="InstallDependencies">Installing dependencies (exiftool, tesseract, ffmpeg, imagemagick)... This may take a few minutes.</ProgressText>
+
     <!-- Add/Remove Programs metadata -->
     <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
     <Property Id="ARPHELPLINK" Value="https://github.com/h4x0r/nameback" />
@@ -114,7 +117,7 @@
                   ExeCommand="[INSTALLFOLDER]nameback.exe --install-deps"
                   Execute="deferred"
                   Impersonate="no"
-                  Return="ignore" />
+                  Return="check" />
 
     <!-- Schedule the custom action after files are installed -->
     <InstallExecuteSequence>
