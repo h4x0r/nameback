@@ -359,14 +359,19 @@ impl RenameEngine {
             .follow_links(false)
             .into_iter()
             .filter_entry(|e| {
-                if self.config.skip_hidden {
-                    !e.file_name()
-                        .to_str()
-                        .map(|s| s.starts_with('.'))
-                        .unwrap_or(false)
-                } else {
-                    true
+                let filename = e.file_name().to_str().unwrap_or("");
+
+                // Always skip cache file
+                if filename == ".nameback_cache.json" {
+                    return false;
                 }
+
+                // Skip hidden files if configured
+                if self.config.skip_hidden && filename.starts_with('.') {
+                    return false;
+                }
+
+                true
             })
         {
             match entry {

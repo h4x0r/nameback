@@ -69,9 +69,32 @@ fn main() -> eframe::Result<()> {
         "nameback",
         native_options,
         Box::new(|cc| {
-            // Load Phosphor icon font
+            // Load fonts with Unicode support (including Hebrew, Arabic, CJK)
             let mut fonts = egui::FontDefinitions::default();
+
+            // Add Phosphor icons
             egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+
+            // Enable emoji/Unicode font fallback for Hebrew, Arabic, CJK, etc.
+            // egui's "emoji-icon-font" includes comprehensive Unicode coverage
+            fonts.families.insert(
+                egui::FontFamily::Proportional,
+                vec![
+                    "Hack".to_owned(),           // Default proportional font
+                    "phosphor".to_owned(),       // Phosphor icons
+                    "emoji-icon-font".to_owned(), // Unicode fallback (Hebrew, Arabic, CJK, etc.)
+                ],
+            );
+
+            fonts.families.insert(
+                egui::FontFamily::Monospace,
+                vec![
+                    "Hack".to_owned(),           // Default monospace font
+                    "phosphor".to_owned(),       // Icons
+                    "emoji-icon-font".to_owned(), // Unicode fallback
+                ],
+            );
+
             cc.egui_ctx.set_fonts(fonts);
 
             Ok(Box::new(NamebackApp::new(cc)))
