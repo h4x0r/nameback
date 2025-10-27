@@ -109,9 +109,10 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
+    <!-- Using cmd /k to keep window open on error, /c to close on success -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="[INSTALLFOLDER]nameback.exe --install-deps"
+                  ExeCommand="cmd.exe /c &quot;echo Installing dependencies (exiftool, tesseract, ffmpeg, imagemagick)... &amp;&amp; &quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps &amp;&amp; echo. &amp;&amp; echo Installation complete! Window will close in 3 seconds... &amp;&amp; timeout /t 3 /nobreak || (echo. &amp;&amp; echo Installation FAILED! Press any key to close... &amp;&amp; pause &gt;nul)&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="check" />
