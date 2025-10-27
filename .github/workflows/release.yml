@@ -289,9 +289,10 @@ jobs:
           # Create symlink to /Applications for easy installation
           ln -s /Applications dmg-temp/Applications
 
-          # Copy nameback logo as DMG background
-          if [ -f "docs/nameback.png" ]; then
-            cp "docs/nameback.png" "dmg-temp/.background.png"
+          # Create .background directory and copy DMG background image
+          mkdir -p dmg-temp/.background
+          if [ -f "installer/dmg-assets/dmg-background.png" ]; then
+            cp "installer/dmg-assets/dmg-background.png" "dmg-temp/.background/background.png"
           fi
 
           # Create DMG with custom appearance using AppleScript
@@ -313,6 +314,7 @@ jobs:
                 set viewOptions to the icon view options of container window
                 set arrangement of viewOptions to not arranged
                 set icon size of viewOptions to 128
+                set background picture of viewOptions to file ".background:background.png"
                 set position of item "Nameback.app" of container window to {150, 200}
                 set position of item "Applications" of container window to {450, 200}
                 close
