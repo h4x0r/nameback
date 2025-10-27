@@ -340,6 +340,13 @@ jobs:
           done
           # Force detach if still mounted
           hdiutil detach ${device} -force || true
+
+          # Wait for filesystem to release the temp.dmg file
+          sleep 3
+
+          # Remove existing output DMG if it exists
+          rm -f nameback-${{ matrix.target }}.dmg
+
           hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o nameback-${{ matrix.target }}.dmg
           rm -f temp.dmg
 
