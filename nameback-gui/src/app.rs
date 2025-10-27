@@ -662,9 +662,19 @@ impl NamebackApp {
         let arrow_width = 30.0;     // Fixed width for arrow
         let spacing = 10.0;
 
-        // Remaining space divided between original and new filename columns
-        let remaining_width = available_width - checkbox_width - arrow_width - (spacing * 3.0);
-        let filename_width = remaining_width / 2.0;
+        // Calculate original filename column width based on longest original filename
+        let original_width = self.file_entries.iter()
+            .map(|e| {
+                let text = &e.analysis.original_name;
+                // Estimate width: ~7 pixels per character (approximate)
+                (text.len() as f32 * 7.0).min(400.0) // Cap at 400px max
+            })
+            .fold(150.0_f32, f32::max) // Minimum 150px
+            .max(200.0); // Ensure at least 200px
+
+        // New filename column takes all remaining space
+        let new_filename_width = available_width - checkbox_width - arrow_width - original_width - (spacing * 3.0);
+        let new_filename_width = new_filename_width.max(200.0); // Ensure minimum width
 
         let scroll_area = egui::ScrollArea::vertical();
         scroll_area.show(ui, |ui| {
@@ -676,9 +686,9 @@ impl NamebackApp {
                 .show(ui, |ui| {
                     // Header row with fixed widths
                     ui.allocate_space(egui::vec2(checkbox_width, 0.0));
-                    ui.add_sized([filename_width, 0.0], egui::Label::new(egui::RichText::new("Original Filename").strong()));
+                    ui.add_sized([original_width, 0.0], egui::Label::new(egui::RichText::new("Original Filename").strong()));
                     ui.allocate_space(egui::vec2(arrow_width, 0.0));
-                    ui.add_sized([filename_width, 0.0], egui::Label::new(egui::RichText::new("New Filename").strong()));
+                    ui.add_sized([new_filename_width, 0.0], egui::Label::new(egui::RichText::new("New Filename").strong()));
                     ui.end_row();
 
                     // File rows
@@ -707,14 +717,14 @@ impl NamebackApp {
                             checkbox_response.scroll_to_me(Some(egui::Align::Center));
                         }
 
-                        // Original filename column (responsive width)
+                        // Original filename column (fixed width based on content)
                         let original_label = if is_current_match || is_match {
                             egui::Label::new(egui::RichText::new(&entry.analysis.original_name).strong())
                                 .wrap()
                         } else {
                             egui::Label::new(&entry.analysis.original_name).wrap()
                         };
-                        ui.add_sized([filename_width, 0.0], original_label);
+                        ui.add_sized([original_width, 0.0], original_label);
 
                         // Arrow column (fixed width)
                         ui.add_sized([arrow_width, 0.0], egui::Label::new(format!("{}", regular::ARROW_RIGHT)));
@@ -740,7 +750,7 @@ impl NamebackApp {
                         };
 
                         ui.allocate_ui_with_layout(
-                            egui::vec2(filename_width, 0.0),
+                            egui::vec2(new_filename_width, 0.0),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
                                 match &entry.status {
