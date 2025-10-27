@@ -138,7 +138,7 @@ jobs:
           # Windows
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive: zip
+            archive: msi
 
           # macOS Intel
           - target: x86_64-apple-darwin
@@ -474,27 +474,6 @@ jobs:
           tag_name: ${{ needs.create-release.outputs.version }}
           files: |
             nameback_*_amd64.deb
-
-      - name: Create archive with CLI and GUI (Windows)
-        if: matrix.archive == 'zip'
-        shell: pwsh
-        run: |
-          cd target/${{ matrix.target }}/release
-          Compress-Archive -Path nameback.exe,nameback-gui.exe -DestinationPath ../../../nameback-${{ matrix.target }}.zip
-          cd ../../..
-
-      - name: Generate ZIP checksum (Windows)
-        if: matrix.archive == 'zip'
-        shell: pwsh
-        run: |
-          $hash = (Get-FileHash -Algorithm SHA256 nameback-${{ matrix.target }}.zip).Hash.ToLower()
-          "$hash  nameback-${{ matrix.target }}.zip" | Out-File -Encoding ASCII checksums-windows.txt
-
-      - name: Attest ZIP archive (Windows only)
-        if: matrix.archive == 'zip'
-        uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
-        with:
-          subject-path: nameback-${{ matrix.target }}.zip
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8

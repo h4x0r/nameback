@@ -15,6 +15,11 @@ Use this template when creating GitHub releases. Keep it simple and user-focused
 Download `nameback-x86_64-pc-windows-msvc.msi` below and run it. Everything installs automatically.
 
 ### macOS
+**GUI users (recommended):** Download the DMG installer below for your chip:
+- Apple Silicon (M1/M2/M3): `nameback-aarch64-apple-darwin.dmg`
+- Intel: `nameback-x86_64-apple-darwin.dmg`
+
+**Command line:**
 ```bash
 brew install --cask nameback
 ```
@@ -48,6 +53,11 @@ That's it! Run `nameback` (command line) or `nameback-gui` (visual app).
 Download `nameback-x86_64-pc-windows-msvc.msi` below and run it. Everything installs automatically.
 
 ### macOS
+**GUI users (recommended):** Download the DMG installer below for your chip:
+- Apple Silicon (M1/M2/M3): `nameback-aarch64-apple-darwin.dmg`
+- Intel: `nameback-x86_64-apple-darwin.dmg`
+
+**Command line:**
 ```bash
 brew install --cask nameback
 ```
