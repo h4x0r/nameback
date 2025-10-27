@@ -187,15 +187,46 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
     #[cfg(target_os = "macos")]
     {
-        report_progress("Installing macOS dependencies...", 25);
-        let status = Command::new("bash")
-            .arg("install-deps-macos.sh")
-            .status()
-            .map_err(|e| format!("Failed to run installer: {}", e))?;
+        report_progress("Checking Homebrew installation...", 10);
 
-        if !status.success() {
-            return Err("Installer script failed".to_string());
+        // Check if Homebrew is installed
+        let brew_check = Command::new("brew")
+            .arg("--version")
+            .output();
+
+        let brew_installed = brew_check
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if !brew_installed {
+            return Err("Homebrew is not installed. Please install from https://brew.sh".to_string());
         }
+
+        report_progress("Installing exiftool (required)...", 30);
+        let exiftool_status = Command::new("brew")
+            .args(&["install", "exiftool"])
+            .status()
+            .map_err(|e| format!("Failed to install exiftool: {}", e))?;
+
+        if !exiftool_status.success() {
+            return Err("Failed to install exiftool".to_string());
+        }
+
+        report_progress("Installing tesseract (optional OCR support)...", 50);
+        let _ = Command::new("brew")
+            .args(&["install", "tesseract", "tesseract-lang"])
+            .status();
+
+        report_progress("Installing ffmpeg (optional video support)...", 70);
+        let _ = Command::new("brew")
+            .args(&["install", "ffmpeg"])
+            .status();
+
+        report_progress("Installing imagemagick (optional HEIC support)...", 90);
+        let _ = Command::new("brew")
+            .args(&["install", "imagemagick"])
+            .status();
+
         report_progress("macOS dependencies installed", 100);
     }
 
