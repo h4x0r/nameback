@@ -117,18 +117,71 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
     #[cfg(target_os = "windows")]
     {
-        report_progress("Installing Windows dependencies...", 25);
-        let status = Command::new("powershell")
-            .arg("-ExecutionPolicy")
-            .arg("Bypass")
-            .arg("-File")
-            .arg("install-deps-windows.ps1")
-            .status()
-            .map_err(|e| format!("Failed to run installer: {}", e))?;
+        report_progress("Checking Scoop installation...", 10);
 
-        if !status.success() {
-            return Err("Installer script failed".to_string());
+        // Check if Scoop is installed
+        let scoop_check = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg("Get-Command scoop -ErrorAction SilentlyContinue")
+            .output();
+
+        let scoop_installed = scoop_check
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if !scoop_installed {
+            report_progress("Installing Scoop package manager (no admin required)...", 20);
+
+            // Install Scoop using the official installation command
+            // Scoop installs to user directory, no admin/UAC needed
+            let scoop_install = Command::new("powershell")
+                .arg("-NoProfile")
+                .arg("-ExecutionPolicy")
+                .arg("Bypass")
+                .arg("-Command")
+                .arg("iex (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')")
+                .status()
+                .map_err(|e| format!("Failed to install Scoop: {}", e))?;
+
+            if !scoop_install.success() {
+                return Err("Failed to install Scoop. Please install it manually from https://scoop.sh".to_string());
+            }
         }
+
+        report_progress("Installing exiftool (required)...", 40);
+        let exiftool_status = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg("scoop install exiftool")
+            .status()
+            .map_err(|e| format!("Failed to install exiftool: {}", e))?;
+
+        if !exiftool_status.success() {
+            return Err("Failed to install exiftool".to_string());
+        }
+
+        report_progress("Installing tesseract (optional OCR support)...", 60);
+        let _ = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg("scoop install tesseract")
+            .status();
+
+        report_progress("Installing ffmpeg (optional video support)...", 80);
+        let _ = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg("scoop install ffmpeg")
+            .status();
+
+        report_progress("Installing imagemagick (optional HEIC support)...", 90);
+        let _ = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg("scoop install imagemagick")
+            .status();
+
         report_progress("Windows dependencies installed", 100);
     }
 
