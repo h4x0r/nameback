@@ -162,25 +162,34 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
 
         report_progress("Installing tesseract (optional OCR support)...", 60);
-        let _ = Command::new("powershell")
+        if let Err(e) = Command::new("powershell")
             .arg("-NoProfile")
             .arg("-Command")
             .arg("scoop install tesseract")
-            .status();
+            .status()
+        {
+            log::warn!("Failed to install tesseract: {}", e);
+        }
 
         report_progress("Installing ffmpeg (optional video support)...", 80);
-        let _ = Command::new("powershell")
+        if let Err(e) = Command::new("powershell")
             .arg("-NoProfile")
             .arg("-Command")
             .arg("scoop install ffmpeg")
-            .status();
+            .status()
+        {
+            log::warn!("Failed to install ffmpeg: {}", e);
+        }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        let _ = Command::new("powershell")
+        if let Err(e) = Command::new("powershell")
             .arg("-NoProfile")
             .arg("-Command")
             .arg("scoop install imagemagick")
-            .status();
+            .status()
+        {
+            log::warn!("Failed to install imagemagick: {}", e);
+        }
 
         report_progress("Windows dependencies installed", 100);
     }
@@ -213,34 +222,124 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
 
         report_progress("Installing tesseract (optional OCR support)...", 50);
-        let _ = Command::new("brew")
+        if let Err(e) = Command::new("brew")
             .args(&["install", "tesseract", "tesseract-lang"])
-            .status();
+            .status()
+        {
+            log::warn!("Failed to install tesseract: {}", e);
+        }
 
         report_progress("Installing ffmpeg (optional video support)...", 70);
-        let _ = Command::new("brew")
+        if let Err(e) = Command::new("brew")
             .args(&["install", "ffmpeg"])
-            .status();
+            .status()
+        {
+            log::warn!("Failed to install ffmpeg: {}", e);
+        }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        let _ = Command::new("brew")
+        if let Err(e) = Command::new("brew")
             .args(&["install", "imagemagick"])
-            .status();
+            .status()
+        {
+            log::warn!("Failed to install imagemagick: {}", e);
+        }
 
         report_progress("macOS dependencies installed", 100);
     }
 
     #[cfg(target_os = "linux")]
     {
-        report_progress("Installing Linux dependencies...", 25);
-        let status = Command::new("bash")
-            .arg("install-deps-linux.sh")
-            .status()
-            .map_err(|e| format!("Failed to run installer: {}", e))?;
+        report_progress("Detecting package manager...", 10);
 
-        if !status.success() {
-            return Err("Installer script failed".to_string());
+        // Detect which package manager is available
+        let (pkg_manager, install_cmd) = if Command::new("apt-get").arg("--version").output().is_ok() {
+            ("apt-get", vec!["install", "-y"])
+        } else if Command::new("dnf").arg("--version").output().is_ok() {
+            ("dnf", vec!["install", "-y"])
+        } else if Command::new("yum").arg("--version").output().is_ok() {
+            ("yum", vec!["install", "-y"])
+        } else if Command::new("pacman").arg("--version").output().is_ok() {
+            ("pacman", vec!["-S", "--noconfirm"])
+        } else {
+            return Err("No supported package manager found (apt-get, dnf, yum, or pacman required)".to_string());
+        };
+
+        report_progress(&format!("Using {} package manager...", pkg_manager), 20);
+
+        // Check if running with sudo/root
+        let needs_sudo = std::env::var("USER").unwrap_or_default() != "root";
+
+        report_progress("Installing exiftool (required)...", 30);
+        let mut exiftool_cmd = if needs_sudo {
+            let mut cmd = Command::new("sudo");
+            cmd.arg(pkg_manager);
+            cmd
+        } else {
+            Command::new(pkg_manager)
+        };
+
+        for arg in &install_cmd {
+            exiftool_cmd.arg(arg);
         }
+        exiftool_cmd.arg(if pkg_manager == "pacman" { "perl-image-exiftool" } else { "libimage-exiftool-perl" });
+
+        let exiftool_status = exiftool_cmd
+            .status()
+            .map_err(|e| format!("Failed to install exiftool: {}", e))?;
+
+        if !exiftool_status.success() {
+            return Err("Failed to install exiftool. You may need to run with sudo.".to_string());
+        }
+
+        report_progress("Installing tesseract (optional OCR support)...", 50);
+        let mut tesseract_cmd = if needs_sudo {
+            let mut cmd = Command::new("sudo");
+            cmd.arg(pkg_manager);
+            cmd
+        } else {
+            Command::new(pkg_manager)
+        };
+        for arg in &install_cmd {
+            tesseract_cmd.arg(arg);
+        }
+        tesseract_cmd.arg("tesseract-ocr");
+        if let Err(e) = tesseract_cmd.status() {
+            log::warn!("Failed to install tesseract: {}", e);
+        }
+
+        report_progress("Installing ffmpeg (optional video support)...", 70);
+        let mut ffmpeg_cmd = if needs_sudo {
+            let mut cmd = Command::new("sudo");
+            cmd.arg(pkg_manager);
+            cmd
+        } else {
+            Command::new(pkg_manager)
+        };
+        for arg in &install_cmd {
+            ffmpeg_cmd.arg(arg);
+        }
+        ffmpeg_cmd.arg("ffmpeg");
+        if let Err(e) = ffmpeg_cmd.status() {
+            log::warn!("Failed to install ffmpeg: {}", e);
+        }
+
+        report_progress("Installing imagemagick (optional HEIC support)...", 90);
+        let mut imagemagick_cmd = if needs_sudo {
+            let mut cmd = Command::new("sudo");
+            cmd.arg(pkg_manager);
+            cmd
+        } else {
+            Command::new(pkg_manager)
+        };
+        for arg in &install_cmd {
+            imagemagick_cmd.arg(arg);
+        }
+        imagemagick_cmd.arg("imagemagick");
+        if let Err(e) = imagemagick_cmd.status() {
+            log::warn!("Failed to install imagemagick: {}", e);
+        }
+
         report_progress("Linux dependencies installed", 100);
     }
 
