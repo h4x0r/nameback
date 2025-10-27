@@ -122,7 +122,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         // Get USERPROFILE path for Scoop installation location
         let user_profile = std::env::var("USERPROFILE")
             .map_err(|_| "USERPROFILE environment variable not set".to_string())?;
-        let scoop_path = format!("{}\\scoop\\shims\\scoop.cmd", user_profile);
 
         // Check if Scoop is installed
         let scoop_check = Command::new("powershell")
@@ -158,12 +157,15 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             log::info!("Scoop installed successfully to {}", user_profile);
         }
 
-        // Use full path to scoop after installation
+        // After Scoop installation, use the scoop command via PowerShell
+        // The scoop command is now available in the PowerShell session after installation
         report_progress("Installing exiftool (required)...", 40);
         let exiftool_result = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
             .arg("-Command")
-            .arg(format!("& '{}' install exiftool", scoop_path))
+            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install exiftool", user_profile))
             .output()
             .map_err(|e| format!("Failed to run scoop install exiftool: {}", e))?;
 
@@ -179,8 +181,10 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing tesseract (optional OCR support)...", 60);
         let tesseract_result = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
             .arg("-Command")
-            .arg(format!("& '{}' install tesseract", scoop_path))
+            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install tesseract", user_profile))
             .output();
 
         match tesseract_result {
@@ -199,8 +203,10 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing ffmpeg (optional video support)...", 80);
         let ffmpeg_result = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
             .arg("-Command")
-            .arg(format!("& '{}' install ffmpeg", scoop_path))
+            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install ffmpeg", user_profile))
             .output();
 
         match ffmpeg_result {
@@ -219,8 +225,10 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
         let imagemagick_result = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
             .arg("-Command")
-            .arg(format!("& '{}' install imagemagick", scoop_path))
+            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install imagemagick", user_profile))
             .output();
 
         match imagemagick_result {
