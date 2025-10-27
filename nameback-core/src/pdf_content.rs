@@ -11,7 +11,40 @@ pub fn extract_pdf_content(path: &Path) -> Result<Option<String>> {
         Ok(text) => {
             let cleaned = clean_text(&text);
             if cleaned.len() > 10 {
-                // Use key phrase extraction for longer text to get better names
+                // For PDFs, prioritize the beginning where titles typically appear
+                // Try first line first, then first two lines if needed
+                let lines: Vec<&str> = cleaned
+                    .lines()
+                    .filter(|line| !line.trim().is_empty() && line.len() > 3)
+                    .take(2)  // Get first 2 non-empty lines
+                    .collect();
+
+                // Try just the first line if it's meaningful enough
+                if !lines.is_empty() {
+                    let first_line = lines[0];
+                    if first_line.len() >= 10 && first_line.len() <= 60 {
+                        debug!("Using first line as title: {}", first_line);
+                        return Ok(Some(first_line.to_string()));
+                    }
+
+                    // First line too short or long, try first two lines
+                    if lines.len() >= 2 {
+                        let two_lines = format!("{} {}", lines[0], lines[1]);
+                        if two_lines.len() >= 10 && two_lines.len() <= 80 {
+                            debug!("Using first two lines as title: {}", two_lines);
+                            return Ok(Some(two_lines));
+                        }
+
+                        // Two lines too long, truncate
+                        if two_lines.len() > 80 {
+                            let truncated = &two_lines[..80];
+                            debug!("Using truncated title from start: {}", truncated);
+                            return Ok(Some(truncated.to_string()));
+                        }
+                    }
+                }
+
+                // Fallback: Use key phrase extraction for longer text
                 if cleaned.len() > 150 {
                     debug!("Extracting key phrases from PDF text ({} chars)", cleaned.len());
                     let phrases = crate::key_phrases::extract_key_phrases(&cleaned, 3);
@@ -22,7 +55,7 @@ pub fn extract_pdf_content(path: &Path) -> Result<Option<String>> {
                     }
                 }
 
-                // For shorter text or if key phrase extraction failed, truncate
+                // Final fallback: truncate from beginning
                 let truncated = if cleaned.len() > 80 {
                     &cleaned[..80]
                 } else {
