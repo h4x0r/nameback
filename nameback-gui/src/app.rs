@@ -629,26 +629,27 @@ impl NamebackApp {
                 self.show_about_dialog = true;
             }
 
-            ui.separator();
-
-            // Theme toggle button
-            let theme_icon = if self.dark_mode {
-                regular::SUN // Show sun icon when in dark mode (click to go light)
-            } else {
-                regular::MOON // Show moon icon when in light mode (click to go dark)
-            };
-
-            if ui.button(format!("{}", theme_icon))
-                .on_hover_text(if self.dark_mode { "Switch to light theme" } else { "Switch to dark theme" })
-                .clicked()
-            {
-                self.dark_mode = !self.dark_mode;
-                ui.ctx().set_visuals(if self.dark_mode {
-                    egui::Visuals::dark()
+            // Add expanding space to push theme toggle to the right
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Theme toggle button (right-aligned)
+                let theme_icon = if self.dark_mode {
+                    regular::SUN // Show sun icon when in dark mode (click to go light)
                 } else {
-                    Self::create_light_theme()
-                });
-            }
+                    regular::MOON // Show moon icon when in light mode (click to go dark)
+                };
+
+                if ui.button(format!("{}", theme_icon))
+                    .on_hover_text(if self.dark_mode { "Switch to light theme" } else { "Switch to dark theme" })
+                    .clicked()
+                {
+                    self.dark_mode = !self.dark_mode;
+                    ui.ctx().set_visuals(if self.dark_mode {
+                        egui::Visuals::dark()
+                    } else {
+                        Self::create_light_theme()
+                    });
+                }
+            });
         });
     }
 
