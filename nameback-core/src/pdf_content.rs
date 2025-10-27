@@ -18,39 +18,34 @@ pub fn extract_pdf_content(path: &Path) -> Result<Option<String>> {
                 .take(4)  // Get first 4 non-empty lines
                 .collect();
 
-            // Try just the first line if it's meaningful enough (10-60 chars)
+            // Combine first few lines to build a comprehensive title
             if !raw_lines.is_empty() {
-                let first_line = raw_lines[0];
-                if first_line.len() >= 10 && first_line.len() <= 60 {
-                    debug!("Using first line as title: {}", first_line);
-                    return Ok(Some(first_line.to_string()));
-                }
-
-                // First line too short or long, try combining first few lines
-                if raw_lines.len() >= 2 {
-                    // Try combining lines until we get 10-80 chars
-                    let mut combined = String::new();
-                    for line in &raw_lines {
-                        if combined.is_empty() {
-                            combined = line.to_string();
-                        } else {
-                            let test = format!("{} {}", combined, line);
-                            if test.len() <= 80 {
-                                combined = test;
-                            } else {
-                                break;
-                            }
-                        }
-                        // If we have enough, stop
-                        if combined.len() >= 20 {
+                // Try combining short, meaningful lines (skip overly long subtitle lines)
+                let mut combined = String::new();
+                for line in &raw_lines {
+                    // Skip lines that are too long (likely subtitles/taglines)
+                    // unless they're the first line
+                    if combined.is_empty() {
+                        combined = line.to_string();
+                    } else if line.len() <= 30 {
+                        // Only add short lines to avoid subtitle clutter
+                        let test = format!("{} {}", combined, line);
+                        // Stop if we'd exceed 80 chars
+                        if test.len() > 80 {
                             break;
                         }
+                        combined = test;
                     }
+                    // If we have a good length (30+ chars), we have enough context
+                    if combined.len() >= 30 {
+                        break;
+                    }
+                }
 
-                    if combined.len() >= 10 {
-                        debug!("Using combined title from start: {}", combined);
-                        return Ok(Some(combined));
-                    }
+                // Accept the combined title if it's at least 10 chars
+                if combined.len() >= 10 {
+                    debug!("Using combined title from document start: {}", combined);
+                    return Ok(Some(combined));
                 }
             }
 
