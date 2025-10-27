@@ -326,7 +326,18 @@ jobs:
           # Finalize DMG
           chmod -Rf go-w /Volumes/Nameback
           sync
-          hdiutil detach ${device}
+          # Wait for Finder to release the volume
+          sleep 5
+          # Try to detach with retries (handles "Resource busy" race condition)
+          for i in {1..5}; do
+            if hdiutil detach ${device} 2>/dev/null; then
+              break
+            fi
+            echo "Detach attempt $i failed, retrying..."
+            sleep 2
+          done
+          # Force detach if still mounted
+          hdiutil detach ${device} -force || true
           hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o nameback-${{ matrix.target }}.dmg
           rm -f temp.dmg
 
