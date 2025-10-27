@@ -119,9 +119,16 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
     {
         report_progress("Checking Scoop installation...", 10);
 
+        // Get USERPROFILE path for Scoop installation location
+        let user_profile = std::env::var("USERPROFILE")
+            .map_err(|_| "USERPROFILE environment variable not set".to_string())?;
+        let scoop_path = format!("{}\\scoop\\shims\\scoop.cmd", user_profile);
+
         // Check if Scoop is installed
         let scoop_check = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-WindowStyle")
+            .arg("Hidden")
             .arg("-Command")
             .arg("Get-Command scoop -ErrorAction SilentlyContinue")
             .output();
@@ -137,58 +144,108 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             // Scoop installs to user directory, no admin/UAC needed
             let scoop_install = Command::new("powershell")
                 .arg("-NoProfile")
+                .arg("-WindowStyle")
+                .arg("Hidden")
                 .arg("-ExecutionPolicy")
                 .arg("Bypass")
                 .arg("-Command")
                 .arg("iex (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')")
-                .status()
+                .output()
                 .map_err(|e| format!("Failed to install Scoop: {}", e))?;
 
-            if !scoop_install.success() {
-                return Err("Failed to install Scoop. Please install it manually from https://scoop.sh".to_string());
+            if !scoop_install.status.success() {
+                let stderr = String::from_utf8_lossy(&scoop_install.stderr);
+                log::error!("Scoop installation failed: {}", stderr);
+                return Err(format!("Failed to install Scoop: {}. Please install it manually from https://scoop.sh", stderr));
+            }
+
+            log::info!("Scoop installed successfully to {}", user_profile);
+        }
+
+        // Use full path to scoop after installation
+        report_progress("Installing exiftool (required)...", 40);
+        let exiftool_result = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-WindowStyle")
+            .arg("Hidden")
+            .arg("-Command")
+            .arg(format!("& '{}' install exiftool", scoop_path))
+            .output()
+            .map_err(|e| format!("Failed to run scoop install exiftool: {}", e))?;
+
+        if !exiftool_result.status.success() {
+            let stderr = String::from_utf8_lossy(&exiftool_result.stderr);
+            let stdout = String::from_utf8_lossy(&exiftool_result.stdout);
+            log::error!("exiftool installation failed. stdout: {}, stderr: {}", stdout, stderr);
+            return Err(format!("Failed to install exiftool: {}", stderr));
+        }
+
+        log::info!("exiftool installed successfully");
+
+        report_progress("Installing tesseract (optional OCR support)...", 60);
+        let tesseract_result = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-WindowStyle")
+            .arg("Hidden")
+            .arg("-Command")
+            .arg(format!("& '{}' install tesseract", scoop_path))
+            .output();
+
+        match tesseract_result {
+            Ok(output) if output.status.success() => {
+                log::info!("tesseract installed successfully");
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                log::warn!("Failed to install tesseract: {}", stderr);
+            }
+            Err(e) => {
+                log::warn!("Failed to run scoop install tesseract: {}", e);
             }
         }
 
-        report_progress("Installing exiftool (required)...", 40);
-        let exiftool_status = Command::new("powershell")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg("scoop install exiftool")
-            .status()
-            .map_err(|e| format!("Failed to install exiftool: {}", e))?;
-
-        if !exiftool_status.success() {
-            return Err("Failed to install exiftool".to_string());
-        }
-
-        report_progress("Installing tesseract (optional OCR support)...", 60);
-        if let Err(e) = Command::new("powershell")
-            .arg("-NoProfile")
-            .arg("-Command")
-            .arg("scoop install tesseract")
-            .status()
-        {
-            log::warn!("Failed to install tesseract: {}", e);
-        }
-
         report_progress("Installing ffmpeg (optional video support)...", 80);
-        if let Err(e) = Command::new("powershell")
+        let ffmpeg_result = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-WindowStyle")
+            .arg("Hidden")
             .arg("-Command")
-            .arg("scoop install ffmpeg")
-            .status()
-        {
-            log::warn!("Failed to install ffmpeg: {}", e);
+            .arg(format!("& '{}' install ffmpeg", scoop_path))
+            .output();
+
+        match ffmpeg_result {
+            Ok(output) if output.status.success() => {
+                log::info!("ffmpeg installed successfully");
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                log::warn!("Failed to install ffmpeg: {}", stderr);
+            }
+            Err(e) => {
+                log::warn!("Failed to run scoop install ffmpeg: {}", e);
+            }
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        if let Err(e) = Command::new("powershell")
+        let imagemagick_result = Command::new("powershell")
             .arg("-NoProfile")
+            .arg("-WindowStyle")
+            .arg("Hidden")
             .arg("-Command")
-            .arg("scoop install imagemagick")
-            .status()
-        {
-            log::warn!("Failed to install imagemagick: {}", e);
+            .arg(format!("& '{}' install imagemagick", scoop_path))
+            .output();
+
+        match imagemagick_result {
+            Ok(output) if output.status.success() => {
+                log::info!("imagemagick installed successfully");
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                log::warn!("Failed to install imagemagick: {}", stderr);
+            }
+            Err(e) => {
+                log::warn!("Failed to run scoop install imagemagick: {}", e);
+            }
         }
 
         report_progress("Windows dependencies installed", 100);

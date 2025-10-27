@@ -53,6 +53,7 @@ pub struct NamebackApp {
     installing_deps: bool,
     install_progress: Arc<Mutex<String>>,
     install_complete: Arc<Mutex<bool>>,
+    install_error: Arc<Mutex<Option<String>>>,
 
     // Configuration
     config: RenameConfig,
@@ -130,6 +131,7 @@ impl NamebackApp {
             installing_deps: false,
             install_progress: Arc::new(Mutex::new(String::new())),
             install_complete: Arc::new(Mutex::new(false)),
+            install_error: Arc::new(Mutex::new(None)),
             config: RenameConfig::default(),
             rename_history: None,
             show_history_dialog: false,
@@ -442,6 +444,7 @@ impl NamebackApp {
 
         let progress = Arc::clone(&self.install_progress);
         let complete = Arc::clone(&self.install_complete);
+        let error = Arc::clone(&self.install_error);
 
         std::thread::spawn(move || {
             let result = nameback_core::install_dependencies_with_progress(Some(Box::new(
@@ -451,8 +454,16 @@ impl NamebackApp {
                 },
             )));
 
-            let mut comp = complete.lock().unwrap();
-            *comp = result.is_ok();
+            match result {
+                Ok(()) => {
+                    let mut comp = complete.lock().unwrap();
+                    *comp = true;
+                }
+                Err(err) => {
+                    let mut err_msg = error.lock().unwrap();
+                    *err_msg = Some(err.to_string());
+                }
+            }
         });
     }
 
@@ -1030,11 +1041,34 @@ impl eframe::App for NamebackApp {
 
                         if self.installing_deps {
                             ui.add_space(10.0);
-                            ui.horizontal(|ui| {
-                                ui.spinner();
-                                let progress = self.install_progress.lock().unwrap();
-                                ui.label(progress.as_str());
-                            });
+
+                            // Check for errors
+                            let error = self.install_error.lock().unwrap().clone();
+                            if let Some(err_msg) = error {
+                                ui.colored_label(egui::Color32::from_rgb(200, 50, 50), format!("❌ Installation Failed"));
+                                ui.add_space(5.0);
+                                ui.label(egui::RichText::new(&err_msg).color(egui::Color32::from_rgb(180, 50, 50)));
+                                ui.add_space(10.0);
+
+                                // Show retry button
+                                if ui.button(format!("{} Retry", regular::ARROW_CLOCKWISE)).clicked() {
+                                    // Reset error and try again
+                                    *self.install_error.lock().unwrap() = None;
+                                    self.install_dependencies();
+                                }
+
+                                if ui.button(format!("{} Cancel", regular::X)).clicked() {
+                                    self.installing_deps = false;
+                                    *self.install_error.lock().unwrap() = None;
+                                }
+                            } else {
+                                // No error, show progress
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    let progress = self.install_progress.lock().unwrap();
+                                    ui.label(progress.as_str());
+                                });
+                            }
                             ui.add_space(10.0);
                         } else {
                             ui.add_space(10.0);
