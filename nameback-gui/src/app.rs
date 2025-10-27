@@ -720,11 +720,23 @@ impl NamebackApp {
                         ui.add_sized([arrow_width, 0.0], egui::Label::new(format!("{}", regular::ARROW_RIGHT)));
 
                         // New filename column (responsive width)
-                        // Use theme-aware blue color - darker blue for light mode, lighter for dark mode
+                        // Use theme-aware colors - darker colors for light mode, lighter for dark mode
                         let blue_color = if self.dark_mode {
                             egui::Color32::LIGHT_BLUE // Light blue works well in dark mode
                         } else {
                             egui::Color32::from_rgb(0, 90, 181) // Darker blue for light mode (WCAG AA compliant)
+                        };
+
+                        let green_color = if self.dark_mode {
+                            egui::Color32::LIGHT_GREEN // Light green works well in dark mode
+                        } else {
+                            egui::Color32::from_rgb(0, 128, 0) // Darker green for light mode (WCAG AA compliant, 4.5:1 contrast)
+                        };
+
+                        let red_color = if self.dark_mode {
+                            egui::Color32::from_rgb(255, 100, 100) // Light red for dark mode
+                        } else {
+                            egui::Color32::from_rgb(180, 0, 0) // Dark red for light mode (WCAG AA compliant)
                         };
 
                         ui.allocate_ui_with_layout(
@@ -744,10 +756,10 @@ impl NamebackApp {
                                         ui.add(egui::Label::new(egui::RichText::new(msg.as_str()).color(blue_color)).wrap());
                                     }
                                     FileStatus::Renamed => {
-                                        ui.colored_label(egui::Color32::GREEN, "✓ Renamed");
+                                        ui.colored_label(green_color, "✓ Renamed");
                                     }
                                     FileStatus::Error(e) => {
-                                        ui.add(egui::Label::new(egui::RichText::new(e.as_str()).color(egui::Color32::RED)).wrap());
+                                        ui.add(egui::Label::new(egui::RichText::new(e.as_str()).color(red_color)).wrap());
                                     }
                                 }
                             }
@@ -918,16 +930,29 @@ impl eframe::App for NamebackApp {
                 ui.add_space(10.0);
             }
 
+            // Theme-aware colors for messages
+            let green_color = if self.dark_mode {
+                egui::Color32::LIGHT_GREEN
+            } else {
+                egui::Color32::from_rgb(0, 128, 0) // Darker green for light mode (WCAG AA compliant)
+            };
+
+            let red_color = if self.dark_mode {
+                egui::Color32::from_rgb(255, 100, 100)
+            } else {
+                egui::Color32::from_rgb(180, 0, 0) // Dark red for light mode (WCAG AA compliant)
+            };
+
             // Error message
             if let Some(error) = &self.error_message {
-                ui.colored_label(egui::Color32::RED, format!("{} {}", regular::X_CIRCLE, error));
+                ui.colored_label(red_color, format!("{} {}", regular::X_CIRCLE, error));
                 ui.add_space(10.0);
             }
 
             // Status message
             if let Some(status) = &self.status_message {
                 if !self.is_processing {
-                    ui.colored_label(egui::Color32::GREEN, format!("{} {}", regular::INFO, status));
+                    ui.colored_label(green_color, format!("{} {}", regular::INFO, status));
                     ui.add_space(10.0);
                 }
             }
