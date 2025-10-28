@@ -138,13 +138,14 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             report_progress("Installing Scoop package manager (no admin required)...", 20);
 
             // Install Scoop using the official installation command
+            // Use irm (Invoke-RestMethod) + iex (Invoke-Expression) which works better in restricted environments
             // Scoop installs to user directory, no admin/UAC needed
             let scoop_install = Command::new("powershell")
                 .arg("-NoProfile")
                 .arg("-ExecutionPolicy")
                 .arg("Bypass")
                 .arg("-Command")
-                .arg("iex (New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')")
+                .arg("& ([ScriptBlock]::Create((New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')))")
                 .output()
                 .map_err(|e| format!("Failed to install Scoop: {}", e))?;
 
