@@ -157,15 +157,15 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             log::info!("Scoop installed successfully to {}", user_profile);
         }
 
-        // After Scoop installation, use the scoop command via PowerShell
-        // The scoop command is now available in the PowerShell session after installation
+        // After Scoop installation, use the PowerShell script directly
+        // The scoop.ps1 script is created during installation
         report_progress("Installing exiftool (required)...", 40);
         let exiftool_result = Command::new("powershell")
             .arg("-NoProfile")
             .arg("-ExecutionPolicy")
             .arg("Bypass")
             .arg("-Command")
-            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install exiftool", user_profile))
+            .arg(format!("& '{0}\\scoop\\apps\\scoop\\current\\bin\\scoop.ps1' install exiftool", user_profile))
             .output()
             .map_err(|e| format!("Failed to run scoop install exiftool: {}", e))?;
 
@@ -184,7 +184,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .arg("-ExecutionPolicy")
             .arg("Bypass")
             .arg("-Command")
-            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install tesseract", user_profile))
+            .arg(format!("& '{0}\\scoop\\apps\\scoop\\current\\bin\\scoop.ps1' install tesseract", user_profile))
             .output();
 
         match tesseract_result {
@@ -206,7 +206,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .arg("-ExecutionPolicy")
             .arg("Bypass")
             .arg("-Command")
-            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install ffmpeg", user_profile))
+            .arg(format!("& '{0}\\scoop\\apps\\scoop\\current\\bin\\scoop.ps1' install ffmpeg", user_profile))
             .output();
 
         match ffmpeg_result {
@@ -228,7 +228,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .arg("-ExecutionPolicy")
             .arg("Bypass")
             .arg("-Command")
-            .arg(format!("$env:PATH = \"{0}\\scoop\\shims;$env:PATH\"; scoop install imagemagick", user_profile))
+            .arg(format!("& '{0}\\scoop\\apps\\scoop\\current\\bin\\scoop.ps1' install imagemagick", user_profile))
             .output();
 
         match imagemagick_result {
