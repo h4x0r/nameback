@@ -162,7 +162,13 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         // Note: .cmd files must be executed via cmd.exe on Windows
         report_progress("Installing exiftool (required)...", 40);
         let scoop_cmd = format!("{}\\scoop\\shims\\scoop.cmd", user_profile);
-        let exiftool_result = Command::new("cmd")
+
+        // Use full path to cmd.exe - the installer may not have cmd in PATH
+        let cmd_exe = std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
+        log::info!("Using cmd.exe at: {}", cmd_exe);
+        log::info!("Executing: {} /c \"{}\" install exiftool", cmd_exe, scoop_cmd);
+
+        let exiftool_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
             .arg("install")
@@ -180,7 +186,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         log::info!("exiftool installed successfully");
 
         report_progress("Installing tesseract (optional OCR support)...", 60);
-        let tesseract_result = Command::new("cmd")
+        let tesseract_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
             .arg("install")
@@ -201,7 +207,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
 
         report_progress("Installing ffmpeg (optional video support)...", 80);
-        let ffmpeg_result = Command::new("cmd")
+        let ffmpeg_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
             .arg("install")
@@ -222,7 +228,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        let imagemagick_result = Command::new("cmd")
+        let imagemagick_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
             .arg("install")
