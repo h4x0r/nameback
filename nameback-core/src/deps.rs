@@ -160,9 +160,10 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         // After Scoop installation, use the scoop.cmd shim from shims directory
         // The scoop.cmd file is created immediately during Scoop installation
         report_progress("Installing exiftool (required)...", 40);
-        let exiftool_result = Command::new("cmd")
-            .arg("/c")
-            .arg(format!("{0}\\scoop\\shims\\scoop.cmd install exiftool", user_profile))
+        let scoop_cmd = format!("{}\\scoop\\shims\\scoop.cmd", user_profile);
+        let exiftool_result = Command::new(&scoop_cmd)
+            .arg("install")
+            .arg("exiftool")
             .output()
             .map_err(|e| format!("Failed to run scoop install exiftool: {}", e))?;
 
@@ -176,9 +177,9 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         log::info!("exiftool installed successfully");
 
         report_progress("Installing tesseract (optional OCR support)...", 60);
-        let tesseract_result = Command::new("cmd")
-            .arg("/c")
-            .arg(format!("{0}\\scoop\\shims\\scoop.cmd install tesseract", user_profile))
+        let tesseract_result = Command::new(&scoop_cmd)
+            .arg("install")
+            .arg("tesseract")
             .output();
 
         match tesseract_result {
@@ -195,9 +196,9 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
 
         report_progress("Installing ffmpeg (optional video support)...", 80);
-        let ffmpeg_result = Command::new("cmd")
-            .arg("/c")
-            .arg(format!("{0}\\scoop\\shims\\scoop.cmd install ffmpeg", user_profile))
+        let ffmpeg_result = Command::new(&scoop_cmd)
+            .arg("install")
+            .arg("ffmpeg")
             .output();
 
         match ffmpeg_result {
@@ -214,9 +215,9 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        let imagemagick_result = Command::new("cmd")
-            .arg("/c")
-            .arg(format!("{0}\\scoop\\shims\\scoop.cmd install imagemagick", user_profile))
+        let imagemagick_result = Command::new(&scoop_cmd)
+            .arg("install")
+            .arg("imagemagick")
             .output();
 
         match imagemagick_result {
