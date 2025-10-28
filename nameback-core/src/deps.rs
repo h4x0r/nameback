@@ -123,35 +123,70 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         let user_profile = std::env::var("USERPROFILE")
             .map_err(|_| "USERPROFILE environment variable not set".to_string())?;
 
+        log::info!("=== DEBUG: Environment Information ===");
+        log::info!("USERPROFILE: {}", user_profile);
+        log::info!("COMSPEC: {}", std::env::var("COMSPEC").unwrap_or_else(|_| "<not set>".to_string()));
+        log::info!("PATH: {}", std::env::var("PATH").unwrap_or_else(|_| "<not set>".to_string()));
+
         // Check if Scoop is installed
+        log::info!("=== DEBUG: Checking Scoop Installation ===");
+        log::info!("Command: powershell -NoProfile -Command \"Get-Command scoop -ErrorAction SilentlyContinue\"");
+
         let scoop_check = Command::new("powershell")
             .arg("-NoProfile")
             .arg("-Command")
             .arg("Get-Command scoop -ErrorAction SilentlyContinue")
             .output();
 
+        match &scoop_check {
+            Ok(output) => {
+                log::info!("Scoop check exit code: {:?}", output.status.code());
+                log::info!("Scoop check stdout: {}", String::from_utf8_lossy(&output.stdout));
+                log::info!("Scoop check stderr: {}", String::from_utf8_lossy(&output.stderr));
+            }
+            Err(e) => {
+                log::error!("Failed to run scoop check command: {}", e);
+            }
+        }
+
         let scoop_installed = scoop_check
             .map(|o| o.status.success())
             .unwrap_or(false);
 
+        log::info!("Scoop installed: {}", scoop_installed);
+
         if !scoop_installed {
             report_progress("Installing Scoop package manager (no admin required)...", 20);
 
-            // Install Scoop using the official installation command
-            // Use irm (Invoke-RestMethod) + iex (Invoke-Expression) which works better in restricted environments
+            let scoop_install_cmd = "& ([ScriptBlock]::Create((New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')))";
+
+            log::info!("=== DEBUG: Installing Scoop ===");
+            log::info!("Command: powershell -NoProfile -ExecutionPolicy Bypass -Command \"{}\"", scoop_install_cmd);
+
+            // Install Scoop using ScriptBlock::Create to avoid PowerShell Security module
             // Scoop installs to user directory, no admin/UAC needed
             let scoop_install = Command::new("powershell")
                 .arg("-NoProfile")
                 .arg("-ExecutionPolicy")
                 .arg("Bypass")
                 .arg("-Command")
-                .arg("& ([ScriptBlock]::Create((New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')))")
+                .arg(scoop_install_cmd)
                 .output()
-                .map_err(|e| format!("Failed to install Scoop: {}", e))?;
+                .map_err(|e| {
+                    log::error!("Failed to execute Scoop install command: {}", e);
+                    format!("Failed to install Scoop: {}", e)
+                })?;
+
+            log::info!("Scoop install exit code: {:?}", scoop_install.status.code());
+            log::info!("Scoop install stdout: {}", String::from_utf8_lossy(&scoop_install.stdout));
+            log::info!("Scoop install stderr: {}", String::from_utf8_lossy(&scoop_install.stderr));
 
             if !scoop_install.status.success() {
                 let stderr = String::from_utf8_lossy(&scoop_install.stderr);
-                log::error!("Scoop installation failed: {}", stderr);
+                let stdout = String::from_utf8_lossy(&scoop_install.stdout);
+                log::error!("Scoop installation failed!");
+                log::error!("  stdout: {}", stdout);
+                log::error!("  stderr: {}", stderr);
                 return Err(format!("Failed to install Scoop: {}. Please install it manually from https://scoop.sh", stderr));
             }
 
@@ -166,8 +201,11 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
         // Use full path to cmd.exe - the installer may not have cmd in PATH
         let cmd_exe = std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
-        log::info!("Using cmd.exe at: {}", cmd_exe);
-        log::info!("Executing: {} /c \"{}\" install exiftool", cmd_exe, scoop_cmd);
+
+        log::info!("=== DEBUG: Installing exiftool ===");
+        log::info!("cmd.exe location: {}", cmd_exe);
+        log::info!("scoop.cmd location: {}", scoop_cmd);
+        log::info!("Full command: {} /c \"{}\" install exiftool", cmd_exe, scoop_cmd);
 
         let exiftool_result = Command::new(&cmd_exe)
             .arg("/c")
@@ -175,18 +213,30 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .arg("install")
             .arg("exiftool")
             .output()
-            .map_err(|e| format!("Failed to run scoop install exiftool: {}", e))?;
+            .map_err(|e| {
+                log::error!("Failed to execute exiftool install command: {}", e);
+                format!("Failed to run scoop install exiftool: {}", e)
+            })?;
+
+        log::info!("exiftool install exit code: {:?}", exiftool_result.status.code());
+        log::info!("exiftool install stdout: {}", String::from_utf8_lossy(&exiftool_result.stdout));
+        log::info!("exiftool install stderr: {}", String::from_utf8_lossy(&exiftool_result.stderr));
 
         if !exiftool_result.status.success() {
             let stderr = String::from_utf8_lossy(&exiftool_result.stderr);
             let stdout = String::from_utf8_lossy(&exiftool_result.stdout);
-            log::error!("exiftool installation failed. stdout: {}, stderr: {}", stdout, stderr);
+            log::error!("exiftool installation failed!");
+            log::error!("  stdout: {}", stdout);
+            log::error!("  stderr: {}", stderr);
             return Err(format!("Failed to install exiftool: {}", stderr));
         }
 
         log::info!("exiftool installed successfully");
 
         report_progress("Installing tesseract (optional OCR support)...", 60);
+        log::info!("=== DEBUG: Installing tesseract (optional) ===");
+        log::info!("Full command: {} /c \"{}\" install tesseract", cmd_exe, scoop_cmd);
+
         let tesseract_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
@@ -195,19 +245,25 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .output();
 
         match tesseract_result {
-            Ok(output) if output.status.success() => {
-                log::info!("tesseract installed successfully");
-            }
             Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!("Failed to install tesseract: {}", stderr);
+                log::info!("tesseract install exit code: {:?}", output.status.code());
+                log::info!("tesseract install stdout: {}", String::from_utf8_lossy(&output.stdout));
+                log::info!("tesseract install stderr: {}", String::from_utf8_lossy(&output.stderr));
+                if output.status.success() {
+                    log::info!("tesseract installed successfully");
+                } else {
+                    log::warn!("tesseract installation failed (optional)");
+                }
             }
             Err(e) => {
-                log::warn!("Failed to run scoop install tesseract: {}", e);
+                log::warn!("Failed to execute tesseract install command: {}", e);
             }
         }
 
         report_progress("Installing ffmpeg (optional video support)...", 80);
+        log::info!("=== DEBUG: Installing ffmpeg (optional) ===");
+        log::info!("Full command: {} /c \"{}\" install ffmpeg", cmd_exe, scoop_cmd);
+
         let ffmpeg_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
@@ -216,19 +272,25 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .output();
 
         match ffmpeg_result {
-            Ok(output) if output.status.success() => {
-                log::info!("ffmpeg installed successfully");
-            }
             Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!("Failed to install ffmpeg: {}", stderr);
+                log::info!("ffmpeg install exit code: {:?}", output.status.code());
+                log::info!("ffmpeg install stdout: {}", String::from_utf8_lossy(&output.stdout));
+                log::info!("ffmpeg install stderr: {}", String::from_utf8_lossy(&output.stderr));
+                if output.status.success() {
+                    log::info!("ffmpeg installed successfully");
+                } else {
+                    log::warn!("ffmpeg installation failed (optional)");
+                }
             }
             Err(e) => {
-                log::warn!("Failed to run scoop install ffmpeg: {}", e);
+                log::warn!("Failed to execute ffmpeg install command: {}", e);
             }
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
+        log::info!("=== DEBUG: Installing imagemagick (optional) ===");
+        log::info!("Full command: {} /c \"{}\" install imagemagick", cmd_exe, scoop_cmd);
+
         let imagemagick_result = Command::new(&cmd_exe)
             .arg("/c")
             .arg(&scoop_cmd)
@@ -237,15 +299,18 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .output();
 
         match imagemagick_result {
-            Ok(output) if output.status.success() => {
-                log::info!("imagemagick installed successfully");
-            }
             Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!("Failed to install imagemagick: {}", stderr);
+                log::info!("imagemagick install exit code: {:?}", output.status.code());
+                log::info!("imagemagick install stdout: {}", String::from_utf8_lossy(&output.stdout));
+                log::info!("imagemagick install stderr: {}", String::from_utf8_lossy(&output.stderr));
+                if output.status.success() {
+                    log::info!("imagemagick installed successfully");
+                } else {
+                    log::warn!("imagemagick installation failed (optional)");
+                }
             }
             Err(e) => {
-                log::warn!("Failed to run scoop install imagemagick: {}", e);
+                log::warn!("Failed to execute imagemagick install command: {}", e);
             }
         }
 
