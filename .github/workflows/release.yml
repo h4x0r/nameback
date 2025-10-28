@@ -328,26 +328,52 @@ jobs:
           # Finalize DMG
           chmod -Rf go-w /Volumes/Nameback
           sync
-          # Wait for Finder to release the volume
-          sleep 5
-          # Try to detach with retries (handles "Resource busy" race condition)
-          for i in {1..5}; do
+
+          # Robust unmount with multiple strategies
+          echo "Attempting to unmount ${device}..."
+
+          # Strategy 1: Try gentle unmount with retries
+          for i in {1..3}; do
             if hdiutil detach ${device} 2>/dev/null; then
+              echo "Successfully detached on attempt $i"
               break
             fi
-            echo "Detach attempt $i failed, retrying..."
-            sleep 2
+            echo "Detach attempt $i failed, waiting..."
+            sleep 3
           done
-          # Force detach if still mounted
-          hdiutil detach ${device} -force || true
 
-          # Wait for filesystem to release the temp.dmg file
-          sleep 3
+          # Strategy 2: Check if still mounted and use diskutil
+          if diskutil info ${device} >/dev/null 2>&1; then
+            echo "Device still mounted, using diskutil unmount force..."
+            diskutil unmountDisk force ${device} || true
+            sleep 2
+          fi
+
+          # Strategy 3: Final force detach
+          if diskutil info ${device} >/dev/null 2>&1; then
+            echo "Device STILL mounted, using hdiutil detach -force..."
+            hdiutil detach ${device} -force || true
+            sleep 3
+          fi
+
+          # Verify device is unmounted
+          if diskutil info ${device} >/dev/null 2>&1; then
+            echo "WARNING: Device may still be mounted, checking for blocking processes..."
+            lsof | grep ${device} || true
+          fi
+
+          # Extra sync and wait for filesystem
+          sync
+          sleep 5
 
           # Remove existing output DMG if it exists
           rm -f nameback-${{ matrix.target }}.dmg
 
+          # Convert to compressed DMG
+          echo "Converting temp.dmg to final DMG..."
           hdiutil convert temp.dmg -format UDZO -imagekey zlib-level=9 -o nameback-${{ matrix.target }}.dmg
+
+          # Clean up temp files
           rm -f temp.dmg
 
           # Clean up
