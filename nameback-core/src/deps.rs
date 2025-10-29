@@ -3,8 +3,11 @@ use std::process::Command;
 // Windows MSI progress reporting
 #[cfg(windows)]
 mod msi_progress {
-    use windows::Win32::System::ApplicationInstallationAndServicing::{MsiProcessMessage, INSTALLMESSAGE, INSTALLMESSAGE_ACTIONSTART, INSTALLMESSAGE_ACTIONDATA};
-    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::ApplicationInstallationAndServicing::{
+        MsiProcessMessage, MsiCreateRecord, MsiRecordSetStringW, MsiCloseHandle,
+        INSTALLMESSAGE, INSTALLMESSAGE_ACTIONSTART, INSTALLMESSAGE_ACTIONDATA, MSIHANDLE
+    };
+    use windows::core::PCWSTR;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
 
@@ -28,13 +31,22 @@ mod msi_progress {
         // Get the install handle from the MSIHANDLE environment variable
         // This is set by the MSI installer when running custom actions
         if let Ok(handle_str) = std::env::var("MSIHANDLE") {
-            if let Ok(handle) = handle_str.parse::<i32>() {
+            if let Ok(handle_value) = handle_str.parse::<u32>() {
                 unsafe {
-                    MsiProcessMessage(
-                        HANDLE(handle as isize),
-                        message_type,
-                        wide_text.as_ptr(),
-                    );
+                    let install_handle = MSIHANDLE(handle_value);
+
+                    // Create a record with 1 field for the message
+                    let record = MsiCreateRecord(1);
+                    if record.0 != 0 {
+                        // Set the message text in field 0 (the template field)
+                        MsiRecordSetStringW(record, 0, PCWSTR(wide_text.as_ptr()));
+
+                        // Send the message to the installer UI
+                        MsiProcessMessage(install_handle, message_type, record);
+
+                        // Clean up the record
+                        MsiCloseHandle(record);
+                    }
                 }
             }
         }
