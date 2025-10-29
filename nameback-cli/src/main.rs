@@ -13,7 +13,7 @@ fn hide_console_if_msi() {
 
         unsafe {
             let console_window = GetConsoleWindow();
-            if console_window.0 != 0 {
+            if !console_window.0.is_null() {
                 ShowWindow(console_window, SW_HIDE);
             }
         }
