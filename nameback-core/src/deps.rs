@@ -156,25 +156,60 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         println!("Scoop installed: {}", scoop_installed);
 
         if !scoop_installed {
-            report_progress("Installing Scoop package manager (no admin required)...", 20);
+            report_progress("Installing Scoop package manager (using admin rights)...", 20);
 
-            let scoop_install_cmd = "& ([ScriptBlock]::Create((New-Object System.Net.WebClient).DownloadString('https://get.scoop.sh')))";
+            // Use a temp file approach to avoid the Security module issue
+            // Download installer to temp, execute with -RunAsAdmin (we have UAC already)
+            let temp_dir = std::env::var("TEMP").unwrap_or_else(|_| format!("{}\\AppData\\Local\\Temp", user_profile));
+            let installer_path = format!("{}\\install-scoop.ps1", temp_dir);
 
             println!("=== DEBUG: Installing Scoop ===");
-            println!("Command: powershell -NoProfile -ExecutionPolicy Bypass -Command \"{}\"", scoop_install_cmd);
+            println!("Temp installer path: {}", installer_path);
 
-            // Install Scoop using ScriptBlock::Create to avoid PowerShell Security module
-            // Scoop installs to user directory, no admin/UAC needed
+            // Download the Scoop installer to a temp file
+            let download_cmd = format!(
+                "Invoke-WebRequest -Uri 'https://get.scoop.sh' -OutFile '{}' -UseBasicParsing",
+                installer_path
+            );
+
+            println!("Download command: powershell -NoProfile -Command \"{}\"", download_cmd);
+
+            let download_result = Command::new("powershell")
+                .arg("-NoProfile")
+                .arg("-Command")
+                .arg(&download_cmd)
+                .output()
+                .map_err(|e| {
+                    eprintln!("Failed to download Scoop installer: {}", e);
+                    format!("Failed to download Scoop installer: {}", e)
+                })?;
+
+            println!("Download exit code: {:?}", download_result.status.code());
+            println!("Download stdout: {}", String::from_utf8_lossy(&download_result.stdout));
+            println!("Download stderr: {}", String::from_utf8_lossy(&download_result.stderr));
+
+            if !download_result.status.success() {
+                let stderr = String::from_utf8_lossy(&download_result.stderr);
+                eprintln!("Failed to download Scoop installer!");
+                eprintln!("  stderr: {}", stderr);
+                return Err(format!("Failed to download Scoop installer: {}", stderr));
+            }
+
+            // Execute the installer with -RunAsAdmin flag (we already have UAC permission)
+            let install_cmd = format!("& '{}' -RunAsAdmin; Remove-Item '{}'", installer_path, installer_path);
+
+            println!("Install command: powershell -NoProfile -ExecutionPolicy Bypass -Command \"{}\"", install_cmd);
+
             let scoop_install = Command::new("powershell")
                 .arg("-NoProfile")
                 .arg("-ExecutionPolicy")
                 .arg("Bypass")
                 .arg("-Command")
-                .arg(scoop_install_cmd)
+                .arg(&install_cmd)
                 .output()
                 .map_err(|e| {
-                    eprintln!("Failed to execute Scoop install command: {}", e);
-                    format!("Failed to install Scoop: {}", e)
+                    eprintln!("Failed to execute Scoop installer: {}", e);
+                    format!("Failed to execute Scoop installer: {}", e)
                 })?;
 
             println!("Scoop install exit code: {:?}", scoop_install.status.code());
