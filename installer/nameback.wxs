@@ -31,6 +31,9 @@
               Source="target\x86_64-pc-windows-msvc\release\nameback.exe"
               KeyPath="yes"
               Checksum="yes" />
+        <File Id="InstallDepsScript"
+              Source="installer\install-deps-silent.ps1"
+              Checksum="yes" />
         <Environment Id="PATH"
                      Name="PATH"
                      Value="[INSTALLFOLDER]"
@@ -109,10 +112,10 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Calls nameback.exe directly - progress shown in MSI UI -->
+    <!-- Uses PowerShell wrapper to hide console window -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="[INSTALLFOLDER]nameback.exe --install-deps"
+                  ExeCommand="powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File &quot;[INSTALLFOLDER]install-deps-silent.ps1&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="check" />
