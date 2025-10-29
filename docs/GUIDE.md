@@ -53,6 +53,13 @@ Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https
 
 The MSI installer automatically installs all required dependencies during setup. No manual configuration needed!
 
+**Silent Installation:**
+```powershell
+msiexec /i nameback-x86_64-pc-windows-msvc.msi /quiet
+```
+
+The installer uses custom actions for dependency checking and installation. Console windows are automatically hidden during silent installation for a clean user experience.
+
 ### Linux
 
 #### CLI Tool via Cargo (Recommended)

@@ -25,6 +25,31 @@ This workspace architecture enables code reuse between CLI and GUI while maintai
 - nameback-cli/src/ - CLI binary code (main.rs, cli.rs)
 - nameback-gui/src/ - GUI application code
 
+### CLI Implementation (nameback-cli/src/)
+
+The command-line interface at /Users/4n6h4x0r/src/nameback/nameback-cli/src/:
+
+- **main.rs** - CLI entry point and orchestration
+  - Argument parsing and validation
+  - Logger initialization
+  - Dependency checking and installation coordination
+  - Windows MSI console hiding (lines 6-30)
+    - Detects MSIHANDLE environment variable for MSI context
+    - Validates handle as u32 for safety
+    - Uses unsafe Windows API calls (GetConsoleWindow, ShowWindow)
+    - Comprehensive SAFETY documentation explaining why unsafe is safe
+    - Prevents console flash during silent installation
+  - Root execution prevention on Unix (security measure)
+  - Directory processing coordination
+
+- **cli.rs** - CLI argument definitions using clap derive macros
+
+**Platform-specific dependencies:**
+- Windows only: windows crate v0.58
+  - Win32_System_Console feature for GetConsoleWindow
+  - Win32_UI_WindowsAndMessaging feature for ShowWindow
+  - Conditional compilation with #[cfg(windows)]
+
 ### Core Modules (nameback-core/src/)
 
 All core functionality lives in the `nameback-core` library at /Users/4n6h4x0r/src/nameback/nameback-core/src/:
@@ -103,6 +128,10 @@ All core functionality lives in the `nameback-core` library at /Users/4n6h4x0r/s
   - Platform-specific package manager detection
   - Interactive dependency installation
   - Homebrew (macOS), apt/dnf (Linux), Chocolatey (Windows)
+  - Windows MSI progress reporting (msi_progress module)
+    - Uses MSIHANDLE environment variable for installer context
+    - Reports installation progress via MsiProcessMessage API
+    - Displays action start/data messages in MSI UI
 
 - **deps_check.rs** - Dependency verification
   - Detects which external tools are needed
@@ -163,6 +192,9 @@ Workspace-level dependencies defined in /Users/4n6h4x0r/src/nameback/Cargo.toml:
 **CLI (nameback-cli):**
 - clap 4.5 - CLI argument parsing with derive macros
 - env_logger 0.11 - Logger implementation
+- windows 0.58 - Windows API bindings (Windows only)
+  - Win32_System_Console - Console window management
+  - Win32_UI_WindowsAndMessaging - Window manipulation
 
 **GUI (nameback-gui):**
 - eframe 0.29 - egui framework
@@ -208,6 +240,13 @@ Recent bug fixes have added important safety mechanisms:
 - File overwrite protection checks if destination already exists
 - Permission validation before attempting renames
 - Dry-run mode for safe preview before making changes
+- Root execution blocked on Unix to prevent accidental system directory modification
+
+**Windows MSI Safety:**
+- Console window hiding validated with proper MSIHANDLE checking
+- Unsafe Windows API calls documented with comprehensive SAFETY comments
+- Environment variable validation (u32 parsing) before API usage
+- No memory allocation/deallocation in unsafe blocks
 
 ### Usage Examples
 
@@ -296,6 +335,10 @@ cargo-release automatically:
 **Windows:**
 - MSI installer built via WiX Toolset (see /Users/4n6h4x0r/src/nameback/installer/nameback.wxs)
 - Auto-installs all dependencies via Chocolatey
+- CLI includes console hiding functionality for silent MSI custom actions
+  - Detects MSIHANDLE environment variable (set by Windows Installer)
+  - Uses Windows API (GetConsoleWindow, ShowWindow) to hide console
+  - Prevents console flash during installation dependency checks
 
 **Linux:**
 - Debian package built via GitHub Actions (see /Users/4n6h4x0r/src/nameback/.github/workflows/release.yml)

@@ -42,6 +42,8 @@ Download and install `nameback-x86_64-pc-windows-msvc.msi` from [releases](https
 
 No manual setup required - everything works out of the box!
 
+**Silent installation:** `msiexec /i nameback-x86_64-pc-windows-msvc.msi /quiet`
+
 ### Linux
 
 #### CLI Tool (Command-line)
