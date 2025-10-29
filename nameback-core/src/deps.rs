@@ -1,5 +1,55 @@
 use std::process::Command;
 
+// Windows MSI progress reporting
+#[cfg(windows)]
+mod msi_progress {
+    use windows::Win32::System::ApplicationInstallationAndServicing::{MsiProcessMessage, INSTALLMESSAGE, INSTALLMESSAGE_ACTIONSTART, INSTALLMESSAGE_ACTIONDATA};
+    use windows::Win32::Foundation::HANDLE;
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    /// Send an action start message to the MSI installer UI
+    pub fn report_action_start(action_name: &str) {
+        let _ = send_message(INSTALLMESSAGE_ACTIONSTART, action_name);
+    }
+
+    /// Send action data (progress message) to the MSI installer UI
+    pub fn report_action_data(message: &str) {
+        let _ = send_message(INSTALLMESSAGE_ACTIONDATA, message);
+    }
+
+    fn send_message(message_type: INSTALLMESSAGE, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        // Convert Rust string to wide string for Windows API
+        let wide_text: Vec<u16> = OsStr::new(text)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        // Get the install handle from the MSIHANDLE environment variable
+        // This is set by the MSI installer when running custom actions
+        if let Ok(handle_str) = std::env::var("MSIHANDLE") {
+            if let Ok(handle) = handle_str.parse::<i32>() {
+                unsafe {
+                    MsiProcessMessage(
+                        HANDLE(handle as isize),
+                        message_type,
+                        wide_text.as_ptr(),
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+// Stub for non-Windows platforms
+#[cfg(not(windows))]
+mod msi_progress {
+    pub fn report_action_start(_action_name: &str) {}
+    pub fn report_action_data(_message: &str) {}
+}
+
 /// Represents a dependency and its installation status
 #[derive(Debug, Clone, Copy)]
 pub struct Dependency {
@@ -101,6 +151,10 @@ pub fn run_installer() -> Result<(), String> {
 /// Callback receives: (status_message, percentage)
 pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result<(), String> {
     let report_progress = |msg: &str, pct: u8| {
+        // Send to MSI installer UI (Windows only)
+        msi_progress::report_action_data(msg);
+
+        // Also send to callback or stdout
         if let Some(ref cb) = progress {
             cb(msg, pct);
         } else {
@@ -113,6 +167,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         }
     };
 
+    msi_progress::report_action_start("Installing nameback dependencies");
     report_progress("Starting installation...", 0);
 
     #[cfg(target_os = "windows")]

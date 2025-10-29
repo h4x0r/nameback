@@ -109,10 +109,10 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Uses cmd /k to keep window open, logs to temp file for troubleshooting -->
+    <!-- Calls nameback.exe directly - progress shown in MSI UI -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd.exe /k &quot;echo ============================================ &amp;&amp; echo  NAMEBACK DEPENDENCY INSTALLER &amp;&amp; echo ============================================ &amp;&amp; echo. &amp;&amp; echo Installing: exiftool, tesseract, ffmpeg, imagemagick &amp;&amp; echo This may take several minutes... &amp;&amp; echo. &amp;&amp; echo Log file: %TEMP%\nameback-install.log &amp;&amp; echo. &amp;&amp; &quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps &gt; &quot;%TEMP%\nameback-install.log&quot; 2&gt;&amp;1 &amp;&amp; (type &quot;%TEMP%\nameback-install.log&quot; &amp;&amp; echo. &amp;&amp; echo ============================================ &amp;&amp; echo SUCCESS! All dependencies installed. &amp;&amp; echo ============================================ &amp;&amp; echo. &amp;&amp; echo This window will close in 8 seconds... &amp;&amp; timeout /t 8 /nobreak &gt;nul &amp;&amp; exit) || (type &quot;%TEMP%\nameback-install.log&quot; &amp;&amp; echo. &amp;&amp; echo ============================================ &amp;&amp; echo INSTALLATION FAILED! &amp;&amp; echo ============================================ &amp;&amp; echo. &amp;&amp; echo Log saved to: %TEMP%\nameback-install.log &amp;&amp; echo. &amp;&amp; echo Press any key to close this window... &amp;&amp; pause &gt;nul &amp;&amp; exit /b 1)&quot;"
+                  ExeCommand="[INSTALLFOLDER]nameback.exe --install-deps"
                   Execute="deferred"
                   Impersonate="no"
                   Return="check" />
