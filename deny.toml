@@ -31,6 +31,8 @@ allow = [
     "MPL-2.0",
     "Zlib",
     "BSL-1.0",
+    "OFL-1.1",  # SIL Open Font License (for embedded fonts in egui)
+    "LicenseRef-UFL-1.0",  # Ubuntu Font License (for embedded fonts in egui)
 ]
 confidence-threshold = 0.8
 
