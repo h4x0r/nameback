@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.6.43"
+           Version="0.6.44"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -104,6 +104,9 @@
 
     <!-- UI configuration -->
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <!-- Use WixUI_Minimal for basic progress display -->
+    <ui:WixUI Id="WixUI_Minimal" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" />
 
     <!-- Add/Remove Programs metadata -->
     <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
