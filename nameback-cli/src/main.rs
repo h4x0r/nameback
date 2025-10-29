@@ -3,7 +3,28 @@ use nameback_core::{RenameConfig, RenameEngine};
 
 mod cli;
 
+// Hide console window when running from MSI installer
+#[cfg(windows)]
+fn hide_console_if_msi() {
+    // Check if we're running from an MSI installer via MSIHANDLE environment variable
+    if std::env::var("MSIHANDLE").is_ok() {
+        use windows::Win32::System::Console::GetConsoleWindow;
+        use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+
+        unsafe {
+            let console_window = GetConsoleWindow();
+            if console_window.0 != 0 {
+                ShowWindow(console_window, SW_HIDE);
+            }
+        }
+    }
+}
+
 fn main() -> Result<()> {
+    // Hide console window if running from MSI installer
+    #[cfg(windows)]
+    hide_console_if_msi();
+
     // Refuse to run as root for security
     #[cfg(unix)]
     {
