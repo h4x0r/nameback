@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "nameback"
-version = "0.6.40"
+version = "0.6.41"
 dependencies = [
  "anyhow",
  "clap",
@@ -2649,7 +2649,7 @@ dependencies = [
 
 [[package]]
 name = "nameback-core"
-version = "0.6.40"
+version = "0.6.41"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2667,11 +2667,12 @@ dependencies = [
  "tempfile",
  "tesseract",
  "walkdir",
+ "windows 0.58.0",
 ]
 
 [[package]]
 name = "nameback-gui"
-version = "0.6.40"
+version = "0.6.41"
 dependencies = [
  "anyhow",
  "eframe",
