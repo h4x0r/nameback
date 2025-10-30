@@ -7,7 +7,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.6.46"
+version = "0.6.47"
 edition = "2021"
 authors = ["Albert Hui"]
 license = "MIT"
@@ -16,7 +16,7 @@ homepage = "https://github.com/h4x0r/nameback"
 
 [workspace.dependencies]
 # Workspace member (for internal dependencies)
-nameback-core = { version = "0.6.46", path = "nameback-core" }
+nameback-core = { version = "0.6.47", path = "nameback-core" }
 
 # Core dependencies
 anyhow = "1.0"
