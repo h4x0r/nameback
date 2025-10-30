@@ -107,7 +107,7 @@
 
     <!-- Basic UI for progress display -->
     <UI>
-      <ProgressText Action="InstallDependencies">Installing dependencies...</ProgressText>
+      <ProgressText Action="InstallDependencies" Template="Installing dependencies..." />
     </UI>
 
     <!-- Add/Remove Programs metadata -->
