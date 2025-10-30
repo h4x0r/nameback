@@ -105,8 +105,10 @@
     <!-- UI configuration -->
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
-    <!-- Use WixUI_Minimal for basic progress display -->
-    <ui:WixUI Id="WixUI_Minimal" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" />
+    <!-- Basic UI for progress display -->
+    <UI>
+      <ProgressText Action="InstallDependencies">Installing dependencies...</ProgressText>
+    </UI>
 
     <!-- Add/Remove Programs metadata -->
     <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
