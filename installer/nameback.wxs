@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.6.44"
+           Version="0.6.45"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -30,9 +30,6 @@
         <File Id="namebackCLI"
               Source="target\x86_64-pc-windows-msvc\release\nameback.exe"
               KeyPath="yes"
-              Checksum="yes" />
-        <File Id="InstallDepsScript"
-              Source="installer\install-deps-silent.ps1"
               Checksum="yes" />
         <Environment Id="PATH"
                      Name="PATH"
@@ -105,9 +102,12 @@
     <!-- UI configuration -->
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
-    <!-- Basic UI for progress display -->
+    <!-- WixUI_ProgressOnly for progress display with action text -->
+    <ui:WixUI Id="WixUI_ProgressOnly" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" />
+
+    <!-- Action text for progress display -->
     <UI>
-      <ProgressText Action="InstallDependencies" Template="Installing dependencies..." />
+      <ProgressText Action="InstallDependencies">Installing dependencies (exiftool, tesseract, ffmpeg, imagemagick)...</ProgressText>
     </UI>
 
     <!-- Add/Remove Programs metadata -->
@@ -117,13 +117,13 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Uses PowerShell wrapper to hide console window -->
+    <!-- Direct execution with visible console for debugging -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File &quot;[INSTALLFOLDER]install-deps-silent.ps1&quot;"
+                  ExeCommand="&quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps"
                   Execute="deferred"
                   Impersonate="no"
-                  Return="check" />
+                  Return="ignore" />
 
     <!-- Schedule the custom action after files are installed -->
     <InstallExecuteSequence>
