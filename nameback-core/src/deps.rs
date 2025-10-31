@@ -478,52 +478,112 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                         stdout.contains("could not be resolved");
 
         if has_error {
-            msi_progress::report_action_data("ERROR: exiftool installation failed");
-            eprintln!("exiftool installation failed!");
+            msi_progress::report_action_data("Scoop failed, trying Chocolatey fallback...");
+            eprintln!("exiftool installation via Scoop failed!");
             eprintln!("  stdout: {}", stdout);
             eprintln!("  stderr: {}", stderr);
+            eprintln!("Attempting fallback to Chocolatey...");
 
-            // Check for network-related errors in both stdout and stderr
-            let is_network_error = stdout.contains("could not be resolved") ||
-                                   stdout.contains("Unable to connect") ||
-                                   stdout.contains("network") ||
-                                   stdout.contains("connection") ||
-                                   stdout.contains("Authentication failed") ||
-                                   stdout.contains("is not valid") ||
-                                   stderr.contains("could not be resolved") ||
-                                   stderr.contains("Unable to connect") ||
-                                   stderr.contains("network") ||
-                                   stderr.contains("connection");
+            // Try Chocolatey as fallback
+            println!("=== DEBUG: Installing exiftool via Chocolatey (fallback) ===");
 
-            if is_network_error {
-                msi_progress::report_action_data("NETWORK ERROR: Cannot download exiftool");
-                return Err(format!(
-                    "\n╔══════════════════════════════════════════════════════════════════╗\n\
-                     ║  PACKAGE INSTALLATION FAILED - NETWORK ERROR                     ║\n\
-                     ╚══════════════════════════════════════════════════════════════════╝\n\n\
-                     Failed to install exiftool due to network issues.\n\n\
-                     Error details:\n{}\n\n\
-                     This is likely caused by:\n\
-                     • DNS resolution problems\n\
-                     • Network connectivity issues\n\
-                     • Firewall blocking package downloads\n\
-                     • TLS/SSL certificate issues\n\n\
-                     Please fix your network connection and try again, or install manually:\n\
-                     • Download from: https://exiftool.org/\n\
-                     • Or use Scoop after fixing network: scoop install exiftool\n", stdout
-                ));
+            // Check if Chocolatey is installed
+            let choco_check = Command::new("powershell")
+                .arg("-NoProfile")
+                .arg("-Command")
+                .arg("Get-Command choco -ErrorAction SilentlyContinue")
+                .output();
+
+            let choco_installed = choco_check
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            if !choco_installed {
+                println!("Chocolatey not found, installing...");
+                msi_progress::report_action_data("Installing Chocolatey package manager...");
+
+                // Install Chocolatey
+                let choco_install = Command::new("powershell")
+                    .arg("-NoProfile")
+                    .arg("-ExecutionPolicy")
+                    .arg("Bypass")
+                    .arg("-Command")
+                    .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
+                    .output();
+
+                match choco_install {
+                    Ok(output) if output.status.success() => {
+                        println!("Chocolatey installed successfully");
+                        msi_progress::report_action_data("Chocolatey installed");
+                    }
+                    _ => {
+                        msi_progress::report_action_data("ERROR: Both Scoop and Chocolatey failed");
+                        return Err(format!(
+                            "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                             ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
+                             ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                             ExifTool is required for Nameback to function.\n\n\
+                             Both Scoop and Chocolatey installation attempts failed.\n\n\
+                             Scoop error:\n{}\n\n\
+                             Please install manually:\n\
+                             • Download from: https://exiftool.org/\n\
+                             • Or run: choco install exiftool -y\n", stdout
+                        ));
+                    }
+                }
             }
 
-            return Err(format!(
-                "\n╔══════════════════════════════════════════════════════════════════╗\n\
-                 ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
-                 ╚══════════════════════════════════════════════════════════════════╝\n\n\
-                 ExifTool is required for Nameback to function.\n\n\
-                 Error details:\n{}\n\n\
-                 Manual installation:\n\
-                 • Download from: https://exiftool.org/\n\
-                 • Or try: scoop install exiftool\n", stdout
-            ));
+            // Try installing exiftool via Chocolatey
+            println!("Installing exiftool via Chocolatey...");
+            msi_progress::report_action_data("Installing exiftool via Chocolatey...");
+
+            let choco_exiftool = Command::new("powershell")
+                .arg("-NoProfile")
+                .arg("-ExecutionPolicy")
+                .arg("Bypass")
+                .arg("-Command")
+                .arg("choco install exiftool -y --no-progress")
+                .output();
+
+            match choco_exiftool {
+                Ok(output) => {
+                    let choco_stdout = String::from_utf8_lossy(&output.stdout);
+                    let choco_stderr = String::from_utf8_lossy(&output.stderr);
+                    println!("Chocolatey exiftool stdout: {}", choco_stdout);
+                    println!("Chocolatey exiftool stderr: {}", choco_stderr);
+
+                    if output.status.success() && !choco_stdout.contains("ERROR") {
+                        println!("exiftool installed successfully via Chocolatey");
+                        msi_progress::report_action_data("exiftool installed via Chocolatey");
+                    } else {
+                        msi_progress::report_action_data("ERROR: Chocolatey installation also failed");
+                        return Err(format!(
+                            "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                             ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
+                             ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                             ExifTool is required for Nameback to function.\n\n\
+                             Both Scoop and Chocolatey failed to install exiftool.\n\n\
+                             Scoop error:\n{}\n\n\
+                             Chocolatey error:\n{}\n\n\
+                             Please install manually:\n\
+                             • Download from: https://exiftool.org/\n", stdout, choco_stdout
+                        ));
+                    }
+                }
+                Err(e) => {
+                    msi_progress::report_action_data("ERROR: Failed to execute Chocolatey");
+                    return Err(format!(
+                        "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                         ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
+                         ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                         ExifTool is required for Nameback to function.\n\n\
+                         Scoop failed and Chocolatey could not be executed.\n\n\
+                         Error: {}\n\n\
+                         Please install manually:\n\
+                         • Download from: https://exiftool.org/\n", e
+                    ));
+                }
+            }
         }
 
         msi_progress::report_action_data("exiftool installed successfully");
