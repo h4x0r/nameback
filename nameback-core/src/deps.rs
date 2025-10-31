@@ -247,8 +247,21 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                 .arg(&download_cmd)
                 .output()
                 .map_err(|e| {
-                    eprintln!("Failed to download Scoop installer: {}", e);
-                    format!("Failed to download Scoop installer: {}", e)
+                    eprintln!("Failed to execute PowerShell command to download Scoop installer: {}", e);
+                    format!(
+                        "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                         ║  POWERSHELL EXECUTION ERROR                                      ║\n\
+                         ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                         Unable to execute PowerShell to download Scoop installer.\n\n\
+                         Error: {}\n\n\
+                         This may indicate:\n\
+                         • PowerShell is not available or not in PATH\n\
+                         • Execution policies are too restrictive\n\
+                         • System resource limitations\n\n\
+                         Please try installing dependencies manually:\n\
+                         • Visit https://scoop.sh for Scoop installation\n\
+                         • Or download tools directly from their websites\n", e
+                    )
                 })?;
 
             println!("Download exit code: {:?}", download_result.status.code());
@@ -259,6 +272,46 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                 let stderr = String::from_utf8_lossy(&download_result.stderr);
                 eprintln!("Failed to download Scoop installer!");
                 eprintln!("  stderr: {}", stderr);
+
+                // Check if it's a DNS/network error
+                let is_dns_error = stderr.contains("could not be resolved") ||
+                                   stderr.contains("unable to resolve") ||
+                                   stderr.contains("DNS");
+                let is_network_error = stderr.contains("Unable to connect") ||
+                                       stderr.contains("connection") ||
+                                       stderr.contains("network");
+
+                if is_dns_error || is_network_error {
+                    let error_msg = format!(
+                        "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                         ║  NETWORK CONNECTION ERROR                                        ║\n\
+                         ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                         Unable to download Scoop installer due to network issues.\n\n\
+                         Possible causes:\n\
+                         • DNS resolution failure (cannot resolve 'get.scoop.sh')\n\
+                         • Network connectivity problems\n\
+                         • Firewall or proxy blocking the connection\n\
+                         • VPN interference\n\n\
+                         Troubleshooting steps:\n\
+                         1. Check your internet connection\n\
+                         2. Try accessing https://get.scoop.sh in a web browser\n\
+                         3. Check DNS settings (try 8.8.8.8 or 1.1.1.1)\n\
+                         4. Disable VPN temporarily and retry\n\
+                         5. Check firewall/antivirus settings\n\n\
+                         Manual installation option:\n\
+                         You can install dependencies manually:\n\
+                         • Visit https://scoop.sh for Scoop installation\n\
+                         • After Scoop is installed, run:\n\
+                           scoop install exiftool tesseract ffmpeg imagemagick\n\n\
+                         Or download dependencies directly:\n\
+                         • ExifTool: https://exiftool.org/\n\
+                         • Tesseract: https://github.com/UB-Mannheim/tesseract/wiki\n\
+                         • FFmpeg: https://ffmpeg.org/download.html\n\
+                         • ImageMagick: https://imagemagick.org/script/download.php\n"
+                    );
+                    return Err(error_msg);
+                }
+
                 return Err(format!("Failed to download Scoop installer: {}", stderr));
             }
 
@@ -289,7 +342,43 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                 eprintln!("Scoop installation failed!");
                 eprintln!("  stdout: {}", stdout);
                 eprintln!("  stderr: {}", stderr);
-                return Err(format!("Failed to install Scoop: {}. Please install it manually from https://scoop.sh", stderr));
+
+                // Check for common failure patterns
+                let is_network_related = stderr.contains("could not be resolved") ||
+                                         stderr.contains("Unable to connect") ||
+                                         stderr.contains("network") ||
+                                         stderr.contains("connection");
+
+                if is_network_related {
+                    return Err(format!(
+                        "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                         ║  SCOOP INSTALLATION FAILED - NETWORK ERROR                       ║\n\
+                         ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                         The Scoop installer encountered a network error.\n\n\
+                         Error details:\n{}\n\n\
+                         Please check your network connection and try again.\n\n\
+                         Manual installation:\n\
+                         1. Fix your network/DNS issues first\n\
+                         2. Visit https://scoop.sh and follow installation instructions\n\
+                         3. After Scoop is installed, run:\n\
+                            scoop install exiftool tesseract ffmpeg imagemagick\n", stderr
+                    ));
+                }
+
+                return Err(format!(
+                    "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                     ║  SCOOP INSTALLATION FAILED                                       ║\n\
+                     ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                     The Scoop package manager failed to install.\n\n\
+                     Error details:\n{}\n\n\
+                     Manual installation:\n\
+                     1. Visit https://scoop.sh for installation instructions\n\
+                     2. Open PowerShell and run:\n\
+                        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser\n\
+                        Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression\n\
+                     3. After Scoop is installed, run:\n\
+                        scoop install exiftool tesseract ffmpeg imagemagick\n", stderr
+                ));
             }
 
             println!("Scoop installed successfully to {}", user_profile);
@@ -330,7 +419,41 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             eprintln!("exiftool installation failed!");
             eprintln!("  stdout: {}", stdout);
             eprintln!("  stderr: {}", stderr);
-            return Err(format!("Failed to install exiftool: {}", stderr));
+
+            // Check for network-related errors
+            let is_network_error = stderr.contains("could not be resolved") ||
+                                   stderr.contains("Unable to connect") ||
+                                   stderr.contains("network") ||
+                                   stderr.contains("connection") ||
+                                   stderr.contains("download");
+
+            if is_network_error {
+                return Err(format!(
+                    "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                     ║  PACKAGE INSTALLATION FAILED - NETWORK ERROR                     ║\n\
+                     ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                     Failed to install exiftool due to network issues.\n\n\
+                     Error details:\n{}\n\n\
+                     This is likely caused by:\n\
+                     • DNS resolution problems\n\
+                     • Network connectivity issues\n\
+                     • Firewall blocking package downloads\n\n\
+                     Please fix your network connection and try again, or install manually:\n\
+                     • Download from: https://exiftool.org/\n\
+                     • Or use Scoop after fixing network: scoop install exiftool\n", stderr
+                ));
+            }
+
+            return Err(format!(
+                "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                 ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
+                 ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                 ExifTool is required for Nameback to function.\n\n\
+                 Error details:\n{}\n\n\
+                 Manual installation:\n\
+                 • Download from: https://exiftool.org/\n\
+                 • Or try: scoop install exiftool\n", stderr
+            ));
         }
 
         println!("exiftool installed successfully");
