@@ -488,10 +488,11 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             println!("=== DEBUG: Installing exiftool via Chocolatey (fallback) ===");
 
             // Check if Chocolatey is installed
+            // Refresh PATH first in case it was just installed by another process
             let choco_check = Command::new("powershell")
                 .arg("-NoProfile")
                 .arg("-Command")
-                .arg("Get-Command choco -ErrorAction SilentlyContinue")
+                .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
                 .output();
 
             let choco_installed = choco_check
@@ -537,12 +538,17 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             println!("Installing exiftool via Chocolatey...");
             msi_progress::report_action_data("Installing exiftool via Chocolatey...");
 
+            // Chocolatey is installed to C:\ProgramData\chocolatey by default
+            // After installation, we need to either:
+            // 1. Use the full path to choco.exe
+            // 2. Refresh the environment in PowerShell
+            // We'll use approach #2 with environment refresh
             let choco_exiftool = Command::new("powershell")
                 .arg("-NoProfile")
                 .arg("-ExecutionPolicy")
                 .arg("Bypass")
                 .arg("-Command")
-                .arg("choco install exiftool -y --no-progress")
+                .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install exiftool -y --no-progress")
                 .output();
 
             match choco_exiftool {
