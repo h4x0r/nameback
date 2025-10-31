@@ -387,12 +387,56 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         // After Scoop installation, use the scoop.cmd shim from shims directory
         // The scoop.cmd file is created immediately during Scoop installation
         // Note: .cmd files must be executed via cmd.exe on Windows
-        report_progress("Installing exiftool (required)...", 40);
-        let scoop_cmd = format!("{}\\scoop\\shims\\scoop.cmd", user_profile);
 
         // Use full path to cmd.exe - the installer may not have cmd in PATH
         let cmd_exe = std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
+        let scoop_cmd = format!("{}\\scoop\\shims\\scoop.cmd", user_profile);
 
+        // Install 7zip first - required for extracting other packages
+        report_progress("Installing 7zip (required for extracting packages)...", 30);
+        msi_progress::report_action_data("Downloading and installing 7zip...");
+        println!("=== DEBUG: Installing 7zip ===");
+        println!("Full command: {} /c \"{}\" install 7zip", cmd_exe, scoop_cmd);
+
+        let seven_zip_result = Command::new(&cmd_exe)
+            .arg("/c")
+            .arg(&scoop_cmd)
+            .arg("install")
+            .arg("7zip")
+            .output()
+            .map_err(|e| {
+                msi_progress::report_action_data("ERROR: Failed to execute 7zip install command");
+                eprintln!("Failed to execute 7zip install command: {}", e);
+                format!("Failed to run scoop install 7zip: {}", e)
+            })?;
+
+        println!("7zip install exit code: {:?}", seven_zip_result.status.code());
+        println!("7zip install stdout: {}", String::from_utf8_lossy(&seven_zip_result.stdout));
+        println!("7zip install stderr: {}", String::from_utf8_lossy(&seven_zip_result.stderr));
+
+        if !seven_zip_result.status.success() {
+            let stderr = String::from_utf8_lossy(&seven_zip_result.stderr);
+            let stdout = String::from_utf8_lossy(&seven_zip_result.stdout);
+            msi_progress::report_action_data("ERROR: 7zip installation failed");
+            eprintln!("7zip installation failed!");
+            eprintln!("  stdout: {}", stdout);
+            eprintln!("  stderr: {}", stderr);
+            return Err(format!(
+                "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                 ║  7ZIP INSTALLATION FAILED                                        ║\n\
+                 ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                 7zip is required to extract other packages.\n\n\
+                 Error details:\n{}\n\n\
+                 Please try installing manually:\n\
+                 • Run: scoop install 7zip\n", stderr
+            ));
+        }
+
+        msi_progress::report_action_data("7zip installed successfully");
+        println!("7zip installed successfully");
+
+        report_progress("Installing exiftool (required)...", 45);
+        msi_progress::report_action_data("Downloading and installing exiftool...");
         println!("=== DEBUG: Installing exiftool ===");
         println!("cmd.exe location: {}", cmd_exe);
         println!("scoop.cmd location: {}", scoop_cmd);
@@ -405,6 +449,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .arg("exiftool")
             .output()
             .map_err(|e| {
+                msi_progress::report_action_data("ERROR: Failed to execute exiftool install command");
                 eprintln!("Failed to execute exiftool install command: {}", e);
                 format!("Failed to run scoop install exiftool: {}", e)
             })?;
@@ -413,21 +458,39 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         println!("exiftool install stdout: {}", String::from_utf8_lossy(&exiftool_result.stdout));
         println!("exiftool install stderr: {}", String::from_utf8_lossy(&exiftool_result.stderr));
 
-        if !exiftool_result.status.success() {
-            let stderr = String::from_utf8_lossy(&exiftool_result.stderr);
-            let stdout = String::from_utf8_lossy(&exiftool_result.stdout);
+        let stdout = String::from_utf8_lossy(&exiftool_result.stdout);
+        let stderr = String::from_utf8_lossy(&exiftool_result.stderr);
+
+        // Scoop reports errors in stdout, not stderr, and still exits with code 0
+        // Check for common error patterns
+        let has_error = !exiftool_result.status.success() ||
+                        stdout.contains("is not valid") ||
+                        stdout.contains("ERROR") ||
+                        stdout.contains("Failed to") ||
+                        stdout.contains("Authentication failed") ||
+                        stdout.contains("Unable to connect") ||
+                        stdout.contains("could not be resolved");
+
+        if has_error {
+            msi_progress::report_action_data("ERROR: exiftool installation failed");
             eprintln!("exiftool installation failed!");
             eprintln!("  stdout: {}", stdout);
             eprintln!("  stderr: {}", stderr);
 
-            // Check for network-related errors
-            let is_network_error = stderr.contains("could not be resolved") ||
+            // Check for network-related errors in both stdout and stderr
+            let is_network_error = stdout.contains("could not be resolved") ||
+                                   stdout.contains("Unable to connect") ||
+                                   stdout.contains("network") ||
+                                   stdout.contains("connection") ||
+                                   stdout.contains("Authentication failed") ||
+                                   stdout.contains("is not valid") ||
+                                   stderr.contains("could not be resolved") ||
                                    stderr.contains("Unable to connect") ||
                                    stderr.contains("network") ||
-                                   stderr.contains("connection") ||
-                                   stderr.contains("download");
+                                   stderr.contains("connection");
 
             if is_network_error {
+                msi_progress::report_action_data("NETWORK ERROR: Cannot download exiftool");
                 return Err(format!(
                     "\n╔══════════════════════════════════════════════════════════════════╗\n\
                      ║  PACKAGE INSTALLATION FAILED - NETWORK ERROR                     ║\n\
@@ -437,10 +500,11 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                      This is likely caused by:\n\
                      • DNS resolution problems\n\
                      • Network connectivity issues\n\
-                     • Firewall blocking package downloads\n\n\
+                     • Firewall blocking package downloads\n\
+                     • TLS/SSL certificate issues\n\n\
                      Please fix your network connection and try again, or install manually:\n\
                      • Download from: https://exiftool.org/\n\
-                     • Or use Scoop after fixing network: scoop install exiftool\n", stderr
+                     • Or use Scoop after fixing network: scoop install exiftool\n", stdout
                 ));
             }
 
@@ -452,13 +516,15 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                  Error details:\n{}\n\n\
                  Manual installation:\n\
                  • Download from: https://exiftool.org/\n\
-                 • Or try: scoop install exiftool\n", stderr
+                 • Or try: scoop install exiftool\n", stdout
             ));
         }
 
+        msi_progress::report_action_data("exiftool installed successfully");
         println!("exiftool installed successfully");
 
         report_progress("Installing tesseract (optional OCR support)...", 60);
+        msi_progress::report_action_data("Downloading and installing tesseract (optional)...");
         println!("=== DEBUG: Installing tesseract (optional) ===");
         println!("Full command: {} /c \"{}\" install tesseract", cmd_exe, scoop_cmd);
 
@@ -472,20 +538,34 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         match tesseract_result {
             Ok(output) => {
                 println!("tesseract install exit code: {:?}", output.status.code());
-                println!("tesseract install stdout: {}", String::from_utf8_lossy(&output.stdout));
-                println!("tesseract install stderr: {}", String::from_utf8_lossy(&output.stderr));
-                if output.status.success() {
-                    println!("tesseract installed successfully");
-                } else {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                println!("tesseract install stdout: {}", stdout);
+                println!("tesseract install stderr: {}", stderr);
+
+                // Check for errors in stdout (Scoop reports errors there)
+                let has_error = !output.status.success() ||
+                                stdout.contains("Failed to extract") ||
+                                stdout.contains("is not valid") ||
+                                stdout.contains("ERROR");
+
+                if has_error {
+                    msi_progress::report_action_data("WARNING: tesseract installation failed (optional)");
                     println!("WARNING: tesseract installation failed (optional)");
+                    println!("  This may be due to missing 7zip or network issues");
+                } else {
+                    msi_progress::report_action_data("tesseract installed successfully");
+                    println!("tesseract installed successfully");
                 }
             }
             Err(e) => {
+                msi_progress::report_action_data("WARNING: tesseract install command failed");
                 println!("WARNING: Failed to execute tesseract install command: {}", e);
             }
         }
 
         report_progress("Installing ffmpeg (optional video support)...", 80);
+        msi_progress::report_action_data("Downloading and installing ffmpeg (optional)...");
         println!("=== DEBUG: Installing ffmpeg (optional) ===");
         println!("Full command: {} /c \"{}\" install ffmpeg", cmd_exe, scoop_cmd);
 
@@ -499,20 +579,34 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         match ffmpeg_result {
             Ok(output) => {
                 println!("ffmpeg install exit code: {:?}", output.status.code());
-                println!("ffmpeg install stdout: {}", String::from_utf8_lossy(&output.stdout));
-                println!("ffmpeg install stderr: {}", String::from_utf8_lossy(&output.stderr));
-                if output.status.success() {
-                    println!("ffmpeg installed successfully");
-                } else {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                println!("ffmpeg install stdout: {}", stdout);
+                println!("ffmpeg install stderr: {}", stderr);
+
+                // Check for errors in stdout (Scoop reports errors there)
+                let has_error = !output.status.success() ||
+                                stdout.contains("Failed to extract") ||
+                                stdout.contains("is not valid") ||
+                                stdout.contains("ERROR");
+
+                if has_error {
+                    msi_progress::report_action_data("WARNING: ffmpeg installation failed (optional)");
                     println!("WARNING: ffmpeg installation failed (optional)");
+                    println!("  This may be due to missing 7zip or network issues");
+                } else {
+                    msi_progress::report_action_data("ffmpeg installed successfully");
+                    println!("ffmpeg installed successfully");
                 }
             }
             Err(e) => {
+                msi_progress::report_action_data("WARNING: ffmpeg install command failed");
                 println!("WARNING: Failed to execute ffmpeg install command: {}", e);
             }
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
+        msi_progress::report_action_data("Downloading and installing imagemagick (optional)...");
         println!("=== DEBUG: Installing imagemagick (optional) ===");
         println!("Full command: {} /c \"{}\" install imagemagick", cmd_exe, scoop_cmd);
 
@@ -526,20 +620,34 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         match imagemagick_result {
             Ok(output) => {
                 println!("imagemagick install exit code: {:?}", output.status.code());
-                println!("imagemagick install stdout: {}", String::from_utf8_lossy(&output.stdout));
-                println!("imagemagick install stderr: {}", String::from_utf8_lossy(&output.stderr));
-                if output.status.success() {
-                    println!("imagemagick installed successfully");
-                } else {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                println!("imagemagick install stdout: {}", stdout);
+                println!("imagemagick install stderr: {}", stderr);
+
+                // Check for errors in stdout (Scoop reports errors there)
+                let has_error = !output.status.success() ||
+                                stdout.contains("Failed to extract") ||
+                                stdout.contains("is not valid") ||
+                                stdout.contains("ERROR");
+
+                if has_error {
+                    msi_progress::report_action_data("WARNING: imagemagick installation failed (optional)");
                     println!("WARNING: imagemagick installation failed (optional)");
+                    println!("  This may be due to missing 7zip or network issues");
+                } else {
+                    msi_progress::report_action_data("imagemagick installed successfully");
+                    println!("imagemagick installed successfully");
                 }
             }
             Err(e) => {
+                msi_progress::report_action_data("WARNING: imagemagick install command failed");
                 println!("WARNING: Failed to execute imagemagick install command: {}", e);
             }
         }
 
         report_progress("Windows dependencies installed", 100);
+        msi_progress::report_action_data("Dependency installation complete");
     }
 
     #[cfg(target_os = "macos")]
