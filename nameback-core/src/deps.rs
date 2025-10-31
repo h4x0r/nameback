@@ -184,7 +184,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
     // Print version information at the start
     println!("=== NAMEBACK DEPENDENCY INSTALLER ===");
     println!("Version: {}", env!("CARGO_PKG_VERSION"));
-    println!("Build: nameback-core v{}", env!("CARGO_PKG_VERSION"));
     println!("======================================\n");
 
     report_progress("Starting installation...", 0);
