@@ -1105,6 +1105,90 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
     #[cfg(target_os = "macos")]
     {
+        // Helper function to temporarily switch to public DNS on macOS
+        let try_with_public_dns_macos = || -> Result<(), String> {
+            println!("\n=== DNS FALLBACK (macOS): Attempting to use public DNS servers ===");
+
+            // Get list of active network services
+            let services_output = Command::new("networksetup")
+                .arg("-listallnetworkservices")
+                .output()
+                .map_err(|e| format!("Failed to list network services: {}", e))?;
+
+            if !services_output.status.success() {
+                return Err("Failed to list network services".to_string());
+            }
+
+            let services = String::from_utf8_lossy(&services_output.stdout);
+            let active_services: Vec<&str> = services
+                .lines()
+                .skip(1) // Skip the asterisk line
+                .filter(|line| !line.starts_with('*'))
+                .collect();
+
+            // Save original DNS settings for each service
+            let mut original_dns = Vec::new();
+            for service in &active_services {
+                if let Ok(output) = Command::new("networksetup")
+                    .args(&["-getdnsservers", service])
+                    .output()
+                {
+                    let dns = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    println!("Saved DNS for {}: {}", service, dns);
+                    original_dns.push((service.to_string(), dns));
+                }
+            }
+
+            // Store original DNS in environment variable for restoration
+            let dns_json = serde_json::to_string(&original_dns)
+                .map_err(|e| format!("Failed to serialize DNS settings: {}", e))?;
+            std::env::set_var("NAMEBACK_ORIGINAL_DNS_MACOS", &dns_json);
+
+            // Set public DNS for all services
+            for service in &active_services {
+                println!("Setting public DNS for {}...", service);
+                let _ = Command::new("networksetup")
+                    .args(&["-setdnsservers", service, "8.8.8.8", "8.8.4.4", "1.1.1.1"])
+                    .status();
+            }
+
+            println!("Switched to public DNS servers (Google 8.8.8.8, Cloudflare 1.1.1.1)");
+            Ok(())
+        };
+
+        // Helper function to restore original DNS settings on macOS
+        let restore_dns_macos = || {
+            if let Ok(dns_json) = std::env::var("NAMEBACK_ORIGINAL_DNS_MACOS") {
+                println!("\n=== DNS FALLBACK (macOS): Restoring original DNS settings ===");
+
+                if let Ok(original_dns) = serde_json::from_str::<Vec<(String, String)>>(&dns_json) {
+                    for (service, dns) in original_dns {
+                        println!("Restoring DNS for {}: {}", service, dns);
+                        if dns.contains("There aren't any DNS Servers") || dns.is_empty() {
+                            // Reset to DHCP
+                            let _ = Command::new("networksetup")
+                                .args(&["-setdnsservers", &service, "empty"])
+                                .status();
+                        } else {
+                            // Restore specific DNS servers
+                            let servers: Vec<&str> = dns.split('\n').collect();
+                            let mut cmd = Command::new("networksetup");
+                            cmd.arg("-setdnsservers").arg(&service);
+                            for server in servers {
+                                if !server.trim().is_empty() {
+                                    cmd.arg(server.trim());
+                                }
+                            }
+                            let _ = cmd.status();
+                        }
+                    }
+                }
+
+                println!("DNS settings restored");
+                std::env::remove_var("NAMEBACK_ORIGINAL_DNS_MACOS");
+            }
+        };
+
         report_progress("Checking Homebrew installation...", 10);
 
         // Check if Homebrew is installed
@@ -1117,137 +1201,399 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             .unwrap_or(false);
 
         if !brew_installed {
-            return Err("Homebrew is not installed. Please install from https://brew.sh".to_string());
+            println!("Homebrew not found. Checking for MacPorts as fallback...");
+
+            // Try MacPorts as fallback
+            let port_check = Command::new("port")
+                .arg("version")
+                .output();
+
+            let port_installed = port_check
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            if !port_installed {
+                return Err(
+                    "No package manager found. Please install Homebrew (https://brew.sh) or MacPorts (https://www.macports.org)".to_string()
+                );
+            }
+
+            println!("MacPorts found, using as fallback package manager");
+            // We'll use MacPorts below
         }
 
-        report_progress("Installing exiftool (required)...", 30);
-        let exiftool_status = Command::new("brew")
-            .args(&["install", "exiftool"])
-            .status()
-            .map_err(|e| format!("Failed to install exiftool: {}", e))?;
+        // Helper to install with Homebrew with DNS fallback
+        let install_with_brew = |package: &str| -> bool {
+            println!("Installing {} with Homebrew...", package);
+            let result = Command::new("brew")
+                .args(&["install", package])
+                .output();
 
-        if !exiftool_status.success() {
-            return Err("Failed to install exiftool".to_string());
+            match result {
+                Ok(output) if output.status.success() => {
+                    println!("{} installed successfully", package);
+                    true
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    println!("Homebrew installation failed for {}: {}", package, stderr);
+
+                    // Check for DNS/network errors
+                    if stderr.contains("Could not resolve") ||
+                       stderr.contains("Failed to connect") ||
+                       stderr.contains("curl") && stderr.contains("error") {
+                        println!("Detected network error, trying DNS fallback...");
+
+                        if try_with_public_dns_macos().is_ok() {
+                            println!("Retrying {} installation with public DNS...", package);
+                            let retry = Command::new("brew")
+                                .args(&["install", package])
+                                .output();
+
+                            restore_dns_macos();
+
+                            if let Ok(retry_output) = retry {
+                                if retry_output.status.success() {
+                                    println!("{} installed successfully with DNS fallback", package);
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    false
+                }
+                Err(e) => {
+                    println!("Failed to execute brew command: {}", e);
+                    false
+                }
+            }
+        };
+
+        // Helper to install with MacPorts as fallback
+        let install_with_port = |package: &str| -> bool {
+            println!("Trying MacPorts as fallback for {}...", package);
+            let result = Command::new("sudo")
+                .args(&["port", "install", package])
+                .status();
+
+            match result {
+                Ok(status) if status.success() => {
+                    println!("{} installed successfully via MacPorts", package);
+                    true
+                }
+                _ => {
+                    println!("MacPorts installation also failed for {}", package);
+                    false
+                }
+            }
+        };
+
+        report_progress("Installing exiftool (required)...", 30);
+
+        let exiftool_installed = if brew_installed {
+            install_with_brew("exiftool") || install_with_port("exiftool")
+        } else {
+            install_with_port("exiftool")
+        };
+
+        if !exiftool_installed {
+            restore_dns_macos();
+            return Err("Failed to install exiftool. Please install manually: brew install exiftool".to_string());
         }
 
         report_progress("Installing tesseract (optional OCR support)...", 50);
-        if let Err(e) = Command::new("brew")
-            .args(&["install", "tesseract", "tesseract-lang"])
-            .status()
-        {
-            log::warn!("Failed to install tesseract: {}", e);
+        let tesseract_installed = if brew_installed {
+            install_with_brew("tesseract") || install_with_brew("tesseract-lang")
+        } else {
+            install_with_port("tesseract")
+        };
+
+        if !tesseract_installed {
+            println!("WARNING: Tesseract (OCR) installation failed (optional)");
+            println!("  OCR support will be disabled");
+            println!("  Install manually: brew install tesseract tesseract-lang");
         }
 
         report_progress("Installing ffmpeg (optional video support)...", 70);
-        if let Err(e) = Command::new("brew")
-            .args(&["install", "ffmpeg"])
-            .status()
-        {
-            log::warn!("Failed to install ffmpeg: {}", e);
+        let ffmpeg_installed = if brew_installed {
+            install_with_brew("ffmpeg")
+        } else {
+            install_with_port("ffmpeg")
+        };
+
+        if !ffmpeg_installed {
+            println!("WARNING: FFmpeg installation failed (optional)");
+            println!("  Video frame extraction will be disabled");
+            println!("  Install manually: brew install ffmpeg");
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        if let Err(e) = Command::new("brew")
-            .args(&["install", "imagemagick"])
-            .status()
-        {
-            log::warn!("Failed to install imagemagick: {}", e);
+        let imagemagick_installed = if brew_installed {
+            install_with_brew("imagemagick")
+        } else {
+            install_with_port("ImageMagick")
+        };
+
+        if !imagemagick_installed {
+            println!("WARNING: ImageMagick installation failed (optional)");
+            println!("  HEIC/HEIF image support will be disabled");
+            println!("  Install manually: brew install imagemagick");
         }
+
+        // Ensure DNS is restored
+        restore_dns_macos();
 
         report_progress("macOS dependencies installed", 100);
     }
 
     #[cfg(target_os = "linux")]
     {
-        report_progress("Detecting package manager...", 10);
+        // Helper function to temporarily switch to public DNS on Linux
+        let try_with_public_dns_linux = || -> Result<(), String> {
+            println!("\n=== DNS FALLBACK (Linux): Attempting to use public DNS servers ===");
 
-        // Detect which package manager is available
-        let (pkg_manager, install_cmd) = if Command::new("apt-get").arg("--version").output().is_ok() {
-            ("apt-get", vec!["install", "-y"])
-        } else if Command::new("dnf").arg("--version").output().is_ok() {
-            ("dnf", vec!["install", "-y"])
-        } else if Command::new("yum").arg("--version").output().is_ok() {
-            ("yum", vec!["install", "-y"])
-        } else if Command::new("pacman").arg("--version").output().is_ok() {
-            ("pacman", vec!["-S", "--noconfirm"])
-        } else {
-            return Err("No supported package manager found (apt-get, dnf, yum, or pacman required)".to_string());
+            // Save original resolv.conf
+            let resolv_conf_path = "/etc/resolv.conf";
+            let original_resolv = std::fs::read_to_string(resolv_conf_path)
+                .unwrap_or_else(|_| String::new());
+
+            std::env::set_var("NAMEBACK_ORIGINAL_RESOLV_CONF", &original_resolv);
+
+            // Create temporary resolv.conf with public DNS
+            let new_resolv = "# Temporary public DNS for Nameback installation\nnameserver 8.8.8.8\nnameserver 8.8.4.4\nnameserver 1.1.1.1\n";
+
+            // Try to write new resolv.conf (requires root/sudo)
+            if let Err(e) = Command::new("sudo")
+                .arg("sh")
+                .arg("-c")
+                .arg(format!("echo '{}' > {}", new_resolv, resolv_conf_path))
+                .status()
+            {
+                return Err(format!("Failed to update DNS: {}", e));
+            }
+
+            println!("Switched to public DNS servers (Google 8.8.8.8, Cloudflare 1.1.1.1)");
+            Ok(())
         };
 
-        report_progress(&format!("Using {} package manager...", pkg_manager), 20);
+        // Helper function to restore original DNS settings on Linux
+        let restore_dns_linux = || {
+            if let Ok(original_resolv) = std::env::var("NAMEBACK_ORIGINAL_RESOLV_CONF") {
+                println!("\n=== DNS FALLBACK (Linux): Restoring original DNS settings ===");
+
+                if !original_resolv.is_empty() {
+                    // Restore original resolv.conf
+                    let _ = Command::new("sudo")
+                        .arg("sh")
+                        .arg("-c")
+                        .arg(format!("echo '{}' > /etc/resolv.conf", original_resolv))
+                        .status();
+                }
+
+                println!("DNS settings restored");
+                std::env::remove_var("NAMEBACK_ORIGINAL_RESOLV_CONF");
+            }
+        };
+
+        report_progress("Detecting package managers...", 10);
+
+        // Detect ALL available package managers for fallback
+        let mut available_managers = Vec::new();
+
+        if Command::new("apt-get").arg("--version").output().is_ok() {
+            available_managers.push(("apt-get", vec!["install", "-y"], "libimage-exiftool-perl"));
+        }
+        if Command::new("dnf").arg("--version").output().is_ok() {
+            available_managers.push(("dnf", vec!["install", "-y"], "perl-Image-ExifTool"));
+        }
+        if Command::new("yum").arg("--version").output().is_ok() {
+            available_managers.push(("yum", vec!["install", "-y"], "perl-Image-ExifTool"));
+        }
+        if Command::new("pacman").arg("--version").output().is_ok() {
+            available_managers.push(("pacman", vec!["-S", "--noconfirm"], "perl-image-exiftool"));
+        }
+        if Command::new("snap").arg("version").output().is_ok() {
+            available_managers.push(("snap", vec!["install"], "exiftool"));
+        }
+
+        if available_managers.is_empty() {
+            return Err("No supported package manager found (apt-get, dnf, yum, pacman, or snap required)".to_string());
+        }
+
+        println!("Found {} package manager(s): {}",
+                 available_managers.len(),
+                 available_managers.iter().map(|(name, _, _)| *name).collect::<Vec<_>>().join(", "));
 
         // Check if running with sudo/root
         let needs_sudo = std::env::var("USER").unwrap_or_default() != "root";
 
-        report_progress("Installing exiftool (required)...", 30);
-        let mut exiftool_cmd = if needs_sudo {
-            let mut cmd = Command::new("sudo");
-            cmd.arg(pkg_manager);
-            cmd
-        } else {
-            Command::new(pkg_manager)
+        // Helper function to try installing with all available package managers
+        let try_install_package = |display_name: &str, packages: &[(&str, &str)]| -> bool {
+            println!("Installing {}...", display_name);
+
+            // Try each available package manager
+            for (pkg_manager, install_cmd, _) in &available_managers {
+                // Find package name for this manager
+                let package = packages.iter()
+                    .find(|(manager, _)| manager == pkg_manager)
+                    .map(|(_, pkg)| *pkg);
+
+                if let Some(package) = package {
+                    println!("Trying {} with {}...", display_name, pkg_manager);
+
+                    let result = if *pkg_manager == "snap" {
+                        // snap doesn't need sudo prefix in command
+                        let mut cmd = Command::new("sudo");
+                        cmd.arg("snap");
+                        for arg in install_cmd {
+                            cmd.arg(arg);
+                        }
+                        cmd.arg(package).output()
+                    } else if needs_sudo {
+                        let mut cmd = Command::new("sudo");
+                        cmd.arg(pkg_manager);
+                        for arg in install_cmd {
+                            cmd.arg(arg);
+                        }
+                        cmd.arg(package).output()
+                    } else {
+                        let mut cmd = Command::new(pkg_manager);
+                        for arg in install_cmd {
+                            cmd.arg(arg);
+                        }
+                        cmd.arg(package).output()
+                    };
+
+                    match result {
+                        Ok(output) if output.status.success() => {
+                            println!("{} installed successfully with {}", display_name, pkg_manager);
+                            return true;
+                        }
+                        Ok(output) => {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            println!("{} failed with {}: {}", display_name, pkg_manager, stderr);
+
+                            // Check for DNS/network errors
+                            if stderr.contains("Could not resolve") ||
+                               stderr.contains("Temporary failure in name resolution") ||
+                               stderr.contains("Name or service not known") {
+                                println!("Detected DNS error, trying DNS fallback...");
+
+                                if try_with_public_dns_linux().is_ok() {
+                                    println!("Retrying {} with public DNS...", display_name);
+
+                                    let retry = if *pkg_manager == "snap" {
+                                        let mut cmd = Command::new("sudo");
+                                        cmd.arg("snap");
+                                        for arg in install_cmd {
+                                            cmd.arg(arg);
+                                        }
+                                        cmd.arg(package).output()
+                                    } else if needs_sudo {
+                                        let mut cmd = Command::new("sudo");
+                                        cmd.arg(pkg_manager);
+                                        for arg in install_cmd {
+                                            cmd.arg(arg);
+                                        }
+                                        cmd.arg(package).output()
+                                    } else {
+                                        let mut cmd = Command::new(pkg_manager);
+                                        for arg in install_cmd {
+                                            cmd.arg(arg);
+                                        }
+                                        cmd.arg(package).output()
+                                    };
+
+                                    restore_dns_linux();
+
+                                    if let Ok(retry_output) = retry {
+                                        if retry_output.status.success() {
+                                            println!("{} installed successfully with DNS fallback", display_name);
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Try next package manager
+                            continue;
+                        }
+                        Err(e) => {
+                            println!("Failed to execute {} command: {}", pkg_manager, e);
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            false
         };
 
-        for arg in &install_cmd {
-            exiftool_cmd.arg(arg);
-        }
-        exiftool_cmd.arg(if pkg_manager == "pacman" { "perl-image-exiftool" } else { "libimage-exiftool-perl" });
+        report_progress("Installing exiftool (required)...", 30);
 
-        let exiftool_status = exiftool_cmd
-            .status()
-            .map_err(|e| format!("Failed to install exiftool: {}", e))?;
+        let exiftool_packages = vec![
+            ("apt-get", "libimage-exiftool-perl"),
+            ("dnf", "perl-Image-ExifTool"),
+            ("yum", "perl-Image-ExifTool"),
+            ("pacman", "perl-image-exiftool"),
+            ("snap", "exiftool"),
+        ];
 
-        if !exiftool_status.success() {
-            return Err("Failed to install exiftool. You may need to run with sudo.".to_string());
+        if !try_install_package("exiftool", &exiftool_packages) {
+            restore_dns_linux();
+            return Err("Failed to install exiftool with all available package managers".to_string());
         }
 
         report_progress("Installing tesseract (optional OCR support)...", 50);
-        let mut tesseract_cmd = if needs_sudo {
-            let mut cmd = Command::new("sudo");
-            cmd.arg(pkg_manager);
-            cmd
-        } else {
-            Command::new(pkg_manager)
-        };
-        for arg in &install_cmd {
-            tesseract_cmd.arg(arg);
-        }
-        tesseract_cmd.arg("tesseract-ocr");
-        if let Err(e) = tesseract_cmd.status() {
-            log::warn!("Failed to install tesseract: {}", e);
+
+        let tesseract_packages = vec![
+            ("apt-get", "tesseract-ocr"),
+            ("dnf", "tesseract"),
+            ("yum", "tesseract"),
+            ("pacman", "tesseract"),
+            ("snap", "tesseract"),
+        ];
+
+        if !try_install_package("tesseract", &tesseract_packages) {
+            println!("WARNING: Tesseract (OCR) installation failed (optional)");
+            println!("  OCR support will be disabled");
+            println!("  Install manually with your package manager");
         }
 
         report_progress("Installing ffmpeg (optional video support)...", 70);
-        let mut ffmpeg_cmd = if needs_sudo {
-            let mut cmd = Command::new("sudo");
-            cmd.arg(pkg_manager);
-            cmd
-        } else {
-            Command::new(pkg_manager)
-        };
-        for arg in &install_cmd {
-            ffmpeg_cmd.arg(arg);
-        }
-        ffmpeg_cmd.arg("ffmpeg");
-        if let Err(e) = ffmpeg_cmd.status() {
-            log::warn!("Failed to install ffmpeg: {}", e);
+
+        let ffmpeg_packages = vec![
+            ("apt-get", "ffmpeg"),
+            ("dnf", "ffmpeg"),
+            ("yum", "ffmpeg"),
+            ("pacman", "ffmpeg"),
+            ("snap", "ffmpeg"),
+        ];
+
+        if !try_install_package("ffmpeg", &ffmpeg_packages) {
+            println!("WARNING: FFmpeg installation failed (optional)");
+            println!("  Video frame extraction will be disabled");
+            println!("  Install manually with your package manager");
         }
 
         report_progress("Installing imagemagick (optional HEIC support)...", 90);
-        let mut imagemagick_cmd = if needs_sudo {
-            let mut cmd = Command::new("sudo");
-            cmd.arg(pkg_manager);
-            cmd
-        } else {
-            Command::new(pkg_manager)
-        };
-        for arg in &install_cmd {
-            imagemagick_cmd.arg(arg);
+
+        let imagemagick_packages = vec![
+            ("apt-get", "imagemagick"),
+            ("dnf", "ImageMagick"),
+            ("yum", "ImageMagick"),
+            ("pacman", "imagemagick"),
+            ("snap", "imagemagick"),
+        ];
+
+        if !try_install_package("imagemagick", &imagemagick_packages) {
+            println!("WARNING: ImageMagick installation failed (optional)");
+            println!("  HEIC/HEIF image support will be disabled");
+            println!("  Install manually with your package manager");
         }
-        imagemagick_cmd.arg("imagemagick");
-        if let Err(e) = imagemagick_cmd.status() {
-            log::warn!("Failed to install imagemagick: {}", e);
-        }
+
+        // Ensure DNS is restored
+        restore_dns_linux();
 
         report_progress("Linux dependencies installed", 100);
     }
