@@ -701,12 +701,92 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                 let has_error = !output.status.success() ||
                                 stdout.contains("Failed to extract") ||
                                 stdout.contains("is not valid") ||
-                                stdout.contains("ERROR");
+                                stdout.contains("ERROR") ||
+                                stdout.contains("could not be resolved");
 
                 if has_error {
-                    msi_progress::report_action_data("WARNING: imagemagick installation failed (optional)");
-                    println!("WARNING: imagemagick installation failed (optional)");
-                    println!("  This may be due to missing 7zip or network issues");
+                    msi_progress::report_action_data("Scoop failed, trying Chocolatey fallback...");
+                    println!("WARNING: imagemagick installation via Scoop failed!");
+                    println!("  stdout: {}", stdout);
+                    println!("  stderr: {}", stderr);
+                    println!("Attempting fallback to Chocolatey...");
+
+                    // Try Chocolatey as fallback
+                    println!("=== DEBUG: Installing imagemagick via Chocolatey (fallback) ===");
+
+                    // Check if Chocolatey is installed
+                    // Refresh PATH first in case it was just installed
+                    let choco_check = Command::new("powershell")
+                        .arg("-NoProfile")
+                        .arg("-Command")
+                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
+                        .output();
+
+                    let choco_installed = choco_check
+                        .map(|o| o.status.success())
+                        .unwrap_or(false);
+
+                    if !choco_installed {
+                        println!("Chocolatey not found, installing...");
+                        msi_progress::report_action_data("Installing Chocolatey package manager...");
+
+                        // Install Chocolatey
+                        let choco_install = Command::new("powershell")
+                            .arg("-NoProfile")
+                            .arg("-ExecutionPolicy")
+                            .arg("Bypass")
+                            .arg("-Command")
+                            .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
+                            .output();
+
+                        match choco_install {
+                            Ok(output) if output.status.success() => {
+                                println!("Chocolatey installed successfully");
+                                msi_progress::report_action_data("Chocolatey installed");
+                            }
+                            _ => {
+                                msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (imagemagick is optional)");
+                                println!("WARNING: Both Scoop and Chocolatey installation attempts failed for imagemagick");
+                                println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
+                                println!("  You can install it manually later: choco install imagemagick -y");
+                            }
+                        }
+                    }
+
+                    // Try installing imagemagick via Chocolatey
+                    println!("Installing imagemagick via Chocolatey...");
+                    msi_progress::report_action_data("Installing imagemagick via Chocolatey...");
+
+                    let choco_imagemagick = Command::new("powershell")
+                        .arg("-NoProfile")
+                        .arg("-ExecutionPolicy")
+                        .arg("Bypass")
+                        .arg("-Command")
+                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install imagemagick -y --no-progress")
+                        .output();
+
+                    match choco_imagemagick {
+                        Ok(output) => {
+                            let choco_stdout = String::from_utf8_lossy(&output.stdout);
+                            let choco_stderr = String::from_utf8_lossy(&output.stderr);
+                            println!("Chocolatey imagemagick stdout: {}", choco_stdout);
+                            println!("Chocolatey imagemagick stderr: {}", choco_stderr);
+
+                            if output.status.success() && !choco_stdout.contains("ERROR") {
+                                println!("imagemagick installed successfully via Chocolatey");
+                                msi_progress::report_action_data("imagemagick installed via Chocolatey");
+                            } else {
+                                msi_progress::report_action_data("WARNING: imagemagick installation failed (optional)");
+                                println!("WARNING: Chocolatey installation also failed for imagemagick");
+                                println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
+                            }
+                        }
+                        Err(e) => {
+                            msi_progress::report_action_data("WARNING: Failed to execute Chocolatey for imagemagick");
+                            println!("WARNING: Failed to execute Chocolatey command: {}", e);
+                            println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
+                        }
+                    }
                 } else {
                     msi_progress::report_action_data("imagemagick installed successfully");
                     println!("imagemagick installed successfully");
