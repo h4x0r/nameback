@@ -169,8 +169,11 @@ pub const DEPENDENCIES: &[Dependency] = &[
 
 /// Checks if a command is available in the system PATH
 pub fn is_command_available(command: &str) -> bool {
+    // FFmpeg uses single dash (-version) instead of double dash (--version)
+    let version_flag = if command == "ffmpeg" { "-version" } else { "--version" };
+
     Command::new(command)
-        .arg("--version")
+        .arg(version_flag)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
