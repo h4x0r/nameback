@@ -13,5 +13,5 @@ mod scoop_installer;
 
 pub use chocolatey::{ensure_chocolatey_installed, install_package_via_chocolatey};
 pub use dns_fallback::{try_with_public_dns, restore_dns};
-pub use scoop::install_via_scoop;
+pub use scoop::install_dependencies_via_scoop;
 pub use scoop_installer::ensure_scoop_installed;
