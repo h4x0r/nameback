@@ -186,13 +186,20 @@ After each phase:
 
 ## Latest Commits
 
-1. `5677328` - refactor(deps): Phase 3.2 partial - move Chocolatey code to module
-   - Chocolatey helpers now in deps/windows/chocolatey.rs (98 lines)
-   - All 139 tests passing ✅
+1. `5677328` - refactor(deps): Phase 3.2a - move Chocolatey code to module
+   - Chocolatey helpers → deps/windows/chocolatey.rs (98 lines)
+   - deps.rs: 1,787 → 1,696 lines ✅
+
+2. `3658399` - refactor(deps): Phase 3.2b - move bundled installer to module
+   - Bundled installer → deps/bundled/windows.rs (117 lines)
+   - deps.rs: 1,696 → 1,546 lines ✅
+   - **Total reduction: 1,861 → 1,546 lines (315 lines, 17%)**
 
 ## Next Actions
 
-**Immediate:** Move remaining Windows code
-- Scoop installation → deps/windows/scoop.rs (~500 lines)
-- Bundled installer → deps/bundled/windows.rs (~50 lines)
-- This will reduce deps.rs by another ~550 lines
+**Immediate:** Phase 3.2c - Move Scoop installation code
+- Windows Scoop installation logic → deps/windows/scoop.rs (~500-600 lines)
+- This includes DNS fallback closures and all dependency installations
+- Expected reduction: deps.rs from 1,546 → ~900 lines
+
+**Then:** Phases 3.3-3.5 - macOS, Linux, final integration
