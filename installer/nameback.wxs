@@ -122,9 +122,19 @@
                   Impersonate="no"
                   Return="ignore" />
 
-    <!-- Schedule the custom action after files are installed -->
+    <!-- Custom Action to add Scoop shims to system PATH after dependency installation -->
+    <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
+    <CustomAction Id="AddScoopToPath"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$userProfile = [Environment]::GetEnvironmentVariable('USERPROFILE'); $scoopShims = Join-Path $userProfile 'scoop\shims'; if (Test-Path $scoopShims) { $currentPath = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($currentPath -notlike &quot;*$scoopShims*&quot;) { [Environment]::SetEnvironmentVariable('Path', &quot;$currentPath;$scoopShims&quot;, 'Machine'); Write-Host 'Added Scoop shims to system PATH'; } }&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!-- Schedule the custom actions after files are installed -->
     <InstallExecuteSequence>
       <Custom Action="InstallDependencies" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
+      <Custom Action="AddScoopToPath" After="InstallDependencies" Condition="NOT Installed AND NOT REMOVE" />
     </InstallExecuteSequence>
 
   </Package>
