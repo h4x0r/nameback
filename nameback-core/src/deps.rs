@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
 // Platform-specific dependency installation modules
 #[cfg(target_os = "windows")]
@@ -229,17 +230,36 @@ pub fn run_installer() -> Result<(), String> {
 /// Callback receives: (status_message, percentage)
 pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result<(), String> {
     let is_interactive = progress.is_none();
-    let reporter = ProgressReporter::new(&progress);
-    let report_progress = |msg: &str, pct: u8| {
-        if pct == 0 && is_interactive {
+
+    // Use Arc to share progress callback across closures (makes it Sync)
+    // AtomicBool for thread-safe header_printed flag
+    let progress_arc = Arc::new(progress);
+    let header_printed = Arc::new(AtomicBool::new(false));
+
+    let progress_arc_clone = Arc::clone(&progress_arc);
+    let header_printed_clone = Arc::clone(&header_printed);
+
+    let report_progress = move |msg: &str, pct: u8| {
+        // Print header on first call with pct == 0 in interactive mode
+        if pct == 0 && is_interactive && !header_printed_clone.swap(true, Ordering::Relaxed) {
             println!("\n==================================================");
             println!("  Installing Dependencies");
             println!("==================================================\n");
         }
-        reporter.report(msg, pct);
+
+        // Always report to MSI progress (noop on non-Windows)
+        msi_progress::report_action_data(msg);
+
+        // Report via callback or println
+        if let Some(ref cb) = *progress_arc_clone {
+            cb(msg, pct);
+        } else {
+            println!("[{}%] {}", pct, msg);
+        }
     };
 
-    reporter.report_action("Installing nameback dependencies");
+    // Report action start separately (doesn't need to be in closure)
+    msi_progress::report_action_start("Installing nameback dependencies");
 
     // Print version information at the start
     println!("=== NAMEBACK DEPENDENCY INSTALLER ===");
@@ -284,7 +304,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         return Err("Unsupported platform. Please install dependencies manually.".to_string());
     }
 
-    if progress.is_none() {
+    if is_interactive {
         println!("\n==================================================");
         println!("  Installation Complete!");
         println!("==================================================\n");
