@@ -13,5 +13,4 @@ mod homebrew;
 mod macports;
 
 pub use dns_fallback::{try_with_public_dns, restore_dns};
-pub use homebrew::install_via_homebrew;
-pub use macports::install_via_macports;
+pub use homebrew::install_dependencies;
