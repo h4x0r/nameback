@@ -34,7 +34,7 @@
         <Environment Id="PATH"
                      Name="PATH"
                      Value="[INSTALLFOLDER]"
-                     Permanent="no"
+                     Permanent="yes"
                      Part="last"
                      Action="set"
                      System="yes" />
@@ -135,12 +135,19 @@
     <!-- Custom Action to add Scoop shims and ImageMagick to system PATH after dependency installation -->
     <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
     <!-- Uses external PowerShell script to avoid complex quote escaping -->
+
+    <!-- Immediate action to set the script path for the deferred action -->
+    <SetProperty Id="AddScoopToPath"
+                 Before="AddScoopToPath"
+                 Sequence="execute"
+                 Value="&quot;[INSTALLFOLDER]add-scoop-to-path.ps1&quot;" />
+
+    <!-- Deferred action that runs PowerShell script -->
     <CustomAction Id="AddScoopToPath"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]add-scoop-to-path.ps1&quot;"
                   Execute="deferred"
                   Impersonate="no"
-                  Return="check" />
+                  Return="ignore"
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File [AddScoopToPath]" />
 
     <!-- Schedule the custom actions after files are installed -->
     <InstallExecuteSequence>
