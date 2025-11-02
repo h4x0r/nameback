@@ -273,10 +273,10 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         // Helper function to temporarily switch to public DNS servers
         // Returns original DNS settings for restoration
         // Ensure Scoop is installed and get the path to scoop.cmd
-        let scoop_cmd = windows::ensure_scoop_installed(report_progress)?;
+        let scoop_cmd = windows::ensure_scoop_installed(&report_progress)?;
 
         // Install all Windows dependencies via Scoop (with Chocolatey/bundled fallbacks)
-        windows::install_dependencies_via_scoop(&scoop_cmd, report_progress)?;
+        windows::install_dependencies_via_scoop(&scoop_cmd, &report_progress)?;
 
         // Ensure DNS is restored even if we didn't explicitly restore it earlier
         windows::restore_dns();
