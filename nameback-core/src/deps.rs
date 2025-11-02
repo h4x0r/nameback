@@ -218,7 +218,7 @@ pub fn print_dependency_status() {
 }
 
 /// Progress callback for dependency installation
-pub type ProgressCallback = Box<dyn Fn(&str, u8) + Send>;
+pub type ProgressCallback = Box<dyn Fn(&str, u8) + Send + Sync>;
 
 /// Runs the appropriate installer script based on the platform
 pub fn run_installer() -> Result<(), String> {
