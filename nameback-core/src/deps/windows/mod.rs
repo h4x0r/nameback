@@ -4,9 +4,12 @@
 //! - Scoop (primary package manager)
 //! - Chocolatey (fallback package manager)
 //! - Bundled installers (final fallback)
+//! - DNS fallback for network connectivity issues
 
 mod chocolatey;
+mod dns_fallback;
 mod scoop;
 
 pub use chocolatey::{ensure_chocolatey_installed, install_package_via_chocolatey};
+pub use dns_fallback::{try_with_public_dns, restore_dns};
 pub use scoop::install_via_scoop;
