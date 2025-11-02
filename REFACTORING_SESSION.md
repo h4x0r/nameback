@@ -175,10 +175,24 @@ After each phase:
 
 **Phase 3 Complete When:**
 - [x] Phase 3.1: Module structure created
-- [ ] Phase 3.2: Windows code split into modules
+- [x] Phase 3.2a: Chocolatey code moved to module (deps.rs: 1,787 → 1,696 lines)
+- [ ] Phase 3.2b: Scoop and bundled installer code to modules
 - [ ] Phase 3.3: macOS code split into modules
 - [ ] Phase 3.4: Linux code split into modules
 - [ ] Phase 3.5: All tests passing, imports updated
-- [ ] Final: deps.rs reduced from 1,787 lines to ~300-400 lines
+- [ ] Final: deps.rs reduced from 1,696 lines to ~300-400 lines
 
 **Target:** Each module file < 150 lines for easy comprehension
+
+## Latest Commits
+
+1. `5677328` - refactor(deps): Phase 3.2 partial - move Chocolatey code to module
+   - Chocolatey helpers now in deps/windows/chocolatey.rs (98 lines)
+   - All 139 tests passing ✅
+
+## Next Actions
+
+**Immediate:** Move remaining Windows code
+- Scoop installation → deps/windows/scoop.rs (~500 lines)
+- Bundled installer → deps/bundled/windows.rs (~50 lines)
+- This will reduce deps.rs by another ~550 lines
