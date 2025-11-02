@@ -153,8 +153,6 @@ pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<Fil
         subject: Option<String>,
         #[serde(rename = "Author")]
         author: Option<String>,
-        #[serde(rename = "Creator")]
-        creator: Option<String>,
         #[serde(rename = "LastModifiedBy")]
         last_modified_by: Option<String>,
         #[serde(rename = "CreationDate")]

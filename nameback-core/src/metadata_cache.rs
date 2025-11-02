@@ -59,7 +59,7 @@ impl MetadataCache {
             fs::create_dir_all(parent)?;
         }
 
-        let data = serde_json::to_string_pretty(&self.entries)?;
+        let data = serde_json::to_string_pretty(&self)?;
         fs::write(&self.cache_path, data)?;
         Ok(())
     }

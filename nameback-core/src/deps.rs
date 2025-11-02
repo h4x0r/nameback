@@ -1,5 +1,33 @@
 use std::process::Command;
 
+// Constants for external URLs and installation
+mod constants {
+    /// GitHub Release URLs
+    pub const GITHUB_RELEASES_BASE: &str = "https://github.com/h4x0r/nameback/releases/download";
+
+    /// Package manager installation URLs
+    #[allow(dead_code)] // Used in error messages and future refactoring
+    pub const SCOOP_INSTALL: &str = "https://get.scoop.sh";
+    #[allow(dead_code)]
+    pub const SCOOP_WEBSITE: &str = "https://scoop.sh";
+    #[allow(dead_code)]
+    pub const CHOCOLATEY_INSTALL: &str = "https://community.chocolatey.org/install.ps1";
+    #[allow(dead_code)]
+    pub const HOMEBREW_WEBSITE: &str = "https://brew.sh";
+    #[allow(dead_code)]
+    pub const MACPORTS_WEBSITE: &str = "https://www.macports.org";
+
+    /// Dependency download URLs
+    #[allow(dead_code)]
+    pub const EXIFTOOL_WEBSITE: &str = "https://exiftool.org/";
+    #[allow(dead_code)]
+    pub const TESSERACT_WEBSITE: &str = "https://github.com/UB-Mannheim/tesseract/wiki";
+    #[allow(dead_code)]
+    pub const FFMPEG_WEBSITE: &str = "https://ffmpeg.org/download.html";
+    #[allow(dead_code)]
+    pub const IMAGEMAGICK_WEBSITE: &str = "https://imagemagick.org/script/download.php";
+}
+
 // Windows MSI progress reporting
 #[cfg(windows)]
 mod msi_progress {
@@ -60,6 +88,35 @@ mod msi_progress {
 mod msi_progress {
     pub fn report_action_start(_action_name: &str) {}
     pub fn report_action_data(_message: &str) {}
+}
+
+/// Centralized progress reporting for dependency installation
+struct ProgressReporter<'a> {
+    callback: &'a Option<ProgressCallback>,
+}
+
+impl<'a> ProgressReporter<'a> {
+    fn new(callback: &'a Option<ProgressCallback>) -> Self {
+        Self { callback }
+    }
+
+    /// Report installation progress with message and percentage
+    fn report(&self, message: &str, percentage: u8) {
+        // Always report to MSI progress (noop on non-Windows)
+        msi_progress::report_action_data(message);
+
+        // Report via callback or println
+        if let Some(ref cb) = self.callback {
+            cb(message, percentage);
+        } else {
+            println!("[{}%] {}", percentage, message);
+        }
+    }
+
+    /// Report action start (primarily for MSI)
+    fn report_action(&self, action_name: &str) {
+        msi_progress::report_action_start(action_name);
+    }
 }
 
 /// Represents a dependency and its installation status
@@ -162,24 +219,18 @@ pub fn run_installer() -> Result<(), String> {
 /// Runs the installer with optional progress callback
 /// Callback receives: (status_message, percentage)
 pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result<(), String> {
+    let is_interactive = progress.is_none();
+    let reporter = ProgressReporter::new(&progress);
     let report_progress = |msg: &str, pct: u8| {
-        // Send to MSI installer UI (Windows only)
-        msi_progress::report_action_data(msg);
-
-        // Also send to callback or stdout
-        if let Some(ref cb) = progress {
-            cb(msg, pct);
-        } else {
-            if pct == 0 {
-                println!("\n==================================================");
-                println!("  Installing Dependencies");
-                println!("==================================================\n");
-            }
-            println!("{}", msg);
+        if pct == 0 && is_interactive {
+            println!("\n==================================================");
+            println!("  Installing Dependencies");
+            println!("==================================================\n");
         }
+        reporter.report(msg, pct);
     };
 
-    msi_progress::report_action_start("Installing nameback dependencies");
+    reporter.report_action("Installing nameback dependencies");
 
     // Print version information at the start
     println!("=== NAMEBACK DEPENDENCY INSTALLER ===");
@@ -187,6 +238,156 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
     println!("======================================\n");
 
     report_progress("Starting installation...", 0);
+
+    // Helper function to download and install from bundled GitHub Release assets
+    #[allow(unused_variables)] // Used only in Windows-specific code paths
+    let install_from_bundled = |dep_name: &str, platform: &str| -> Result<(), String> {
+        let version = env!("CARGO_PKG_VERSION");
+        let asset_name = format!("deps-{}-{}.zip", dep_name, platform);
+        let download_url = format!(
+            "{}/v{}/{}",
+            constants::GITHUB_RELEASES_BASE, version, asset_name
+        );
+
+        println!("\n=== BUNDLED INSTALLER FALLBACK ===");
+        println!("Downloading {} from GitHub Release...", dep_name);
+        println!("URL: {}", download_url);
+
+        // Use reqwest to download (already in dependencies)
+        let response = reqwest::blocking::get(&download_url)
+            .map_err(|e| format!("Failed to download bundled installer: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("GitHub Release asset not found: {} (HTTP {})", asset_name, response.status()));
+        }
+
+        // Save to temp directory
+        let temp_dir = std::env::temp_dir();
+        let installer_path = temp_dir.join(&asset_name);
+        let content = response.bytes()
+            .map_err(|e| format!("Failed to read response: {}", e))?;
+
+        std::fs::write(&installer_path, &content)
+            .map_err(|e| format!("Failed to write installer: {}", e))?;
+
+        println!("Downloaded to: {}", installer_path.display());
+        println!("Installing {}...", dep_name);
+
+        // Platform-specific extraction and installation
+        #[cfg(target_os = "windows")]
+        {
+            // Extract zip and run installer
+            let extract_dir = temp_dir.join(format!("{}-extract", dep_name));
+            std::fs::create_dir_all(&extract_dir)
+                .map_err(|e| format!("Failed to create extract dir: {}", e))?;
+
+            // Use PowerShell to extract
+            let extract_cmd = format!(
+                "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                installer_path.display(),
+                extract_dir.display()
+            );
+
+            let extract_result = Command::new("powershell")
+                .arg("-NoProfile")
+                .arg("-Command")
+                .arg(&extract_cmd)
+                .output();
+
+            if let Ok(output) = extract_result {
+                if !output.status.success() {
+                    return Err(format!("Failed to extract: {}", String::from_utf8_lossy(&output.stderr)));
+                }
+            } else {
+                return Err("Failed to run extraction command".to_string());
+            }
+
+            // Run the installer based on dependency type
+            match dep_name {
+                "tesseract" => {
+                    // Find and run the setup.exe
+                    let setup_exe = extract_dir.join("tesseract-windows-setup.exe");
+                    if setup_exe.exists() {
+                        Command::new(&setup_exe)
+                            .arg("/S")  // Silent install
+                            .status()
+                            .map_err(|e| format!("Failed to run installer: {}", e))?;
+                    }
+                }
+                "exiftool" | "ffmpeg" | "imagemagick" => {
+                    // For portable versions, copy to a standard location
+                    let install_dir = std::env::var("LOCALAPPDATA")
+                        .unwrap_or_else(|_| "C:\\Program Files".to_string());
+                    let target_dir = std::path::PathBuf::from(&install_dir).join("Nameback").join(dep_name);
+
+                    std::fs::create_dir_all(&target_dir)
+                        .map_err(|e| format!("Failed to create install dir: {}", e))?;
+
+                    // Copy files
+                    let copy_cmd = format!(
+                        "Copy-Item -Path '{}\\*' -Destination '{}' -Recurse -Force",
+                        extract_dir.display(),
+                        target_dir.display()
+                    );
+
+                    Command::new("powershell")
+                        .arg("-NoProfile")
+                        .arg("-Command")
+                        .arg(&copy_cmd)
+                        .output()
+                        .map_err(|e| format!("Failed to copy files: {}", e))?;
+
+                    println!("Installed to: {}", target_dir.display());
+                    println!("Note: You may need to add this to your PATH manually.");
+                }
+                _ => return Err(format!("Unknown dependency: {}", dep_name)),
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // macOS-specific installation
+            let extract_dir = temp_dir.join(format!("{}-extract", dep_name));
+            std::fs::create_dir_all(&extract_dir)
+                .map_err(|e| format!("Failed to create extract dir: {}", e))?;
+
+            // Extract tar.gz or dmg
+            if installer_path.extension().and_then(|s| s.to_str()) == Some("dmg") {
+                // Mount DMG and copy
+                Command::new("hdiutil")
+                    .args(["attach", installer_path.to_str().unwrap()])
+                    .output()
+                    .map_err(|e| format!("Failed to mount DMG: {}", e))?;
+            } else {
+                // Extract archive
+                Command::new("unzip")
+                    .args(["-q", installer_path.to_str().unwrap(), "-d", extract_dir.to_str().unwrap()])
+                    .output()
+                    .map_err(|e| format!("Failed to extract: {}", e))?;
+            }
+
+            println!("Extracted. Manual installation may be required.");
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            // Linux-specific installation
+            let extract_dir = temp_dir.join(format!("{}-extract", dep_name));
+            std::fs::create_dir_all(&extract_dir)
+                .map_err(|e| format!("Failed to create extract dir: {}", e))?;
+
+            // Extract tar.gz
+            Command::new("tar")
+                .args(&["-xzf", installer_path.to_str().unwrap(), "-C", extract_dir.to_str().unwrap()])
+                .output()
+                .map_err(|e| format!("Failed to extract: {}", e))?;
+
+            println!("Extracted to: {}", extract_dir.display());
+            println!("Note: Manual installation of .deb packages may be required.");
+        }
+
+        Ok(())
+    };
 
     #[cfg(target_os = "windows")]
     {
@@ -335,7 +536,8 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
             // Download the Scoop installer to a temp file
             let download_cmd = format!(
-                "Invoke-WebRequest -Uri 'https://get.scoop.sh' -OutFile '{}' -UseBasicParsing",
+                "Invoke-WebRequest -Uri '{}' -OutFile '{}' -UseBasicParsing",
+                constants::SCOOP_INSTALL,
                 installer_path
             );
 
@@ -660,18 +862,35 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                         msi_progress::report_action_data("Chocolatey installed");
                     }
                     _ => {
-                        msi_progress::report_action_data("ERROR: Both Scoop and Chocolatey failed");
-                        return Err(format!(
-                            "\n╔══════════════════════════════════════════════════════════════════╗\n\
-                             ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
-                             ╚══════════════════════════════════════════════════════════════════╝\n\n\
-                             ExifTool is required for Nameback to function.\n\n\
-                             Both Scoop and Chocolatey installation attempts failed.\n\n\
-                             Scoop error:\n{}\n\n\
-                             Please install manually:\n\
-                             • Download from: https://exiftool.org/\n\
-                             • Or run: choco install exiftool -y\n", stdout
-                        ));
+                        msi_progress::report_action_data("Chocolatey failed, trying bundled installer...");
+                        println!("Chocolatey installation also failed. Attempting bundled installer fallback...");
+
+                        // Try bundled installer as final fallback
+                        match install_from_bundled("exiftool", "windows") {
+                            Ok(()) => {
+                                println!("ExifTool installed successfully from bundled installer!");
+                                msi_progress::report_action_data("ExifTool installed from bundled fallback");
+                                // Skip the rest of the Chocolatey installation since bundled worked
+                                report_progress("ExifTool installed (bundled fallback)", 25);
+                                return Ok(()); // Exit early - dependency installed successfully
+                            }
+                            Err(bundle_err) => {
+                                msi_progress::report_action_data("ERROR: All installation methods failed");
+                                return Err(format!(
+                                    "\n╔══════════════════════════════════════════════════════════════════╗\n\
+                                     ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
+                                     ╚══════════════════════════════════════════════════════════════════╝\n\n\
+                                     ExifTool is required for Nameback to function.\n\n\
+                                     All installation methods failed:\n\
+                                     • Scoop: {}\n\
+                                     • Chocolatey: Failed to install Chocolatey\n\
+                                     • Bundled installer: {}\n\n\
+                                     Please install manually:\n\
+                                     • Download from: https://exiftool.org/\n\
+                                     • Or run: choco install exiftool -y\n", stdout, bundle_err
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -1130,7 +1349,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             let mut original_dns = Vec::new();
             for service in &active_services {
                 if let Ok(output) = Command::new("networksetup")
-                    .args(&["-getdnsservers", service])
+                    .args(["-getdnsservers", service])
                     .output()
                 {
                     let dns = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -1148,7 +1367,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             for service in &active_services {
                 println!("Setting public DNS for {}...", service);
                 let _ = Command::new("networksetup")
-                    .args(&["-setdnsservers", service, "8.8.8.8", "8.8.4.4", "1.1.1.1"])
+                    .args(["-setdnsservers", service, "8.8.8.8", "8.8.4.4", "1.1.1.1"])
                     .status();
             }
 
@@ -1167,7 +1386,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                         if dns.contains("There aren't any DNS Servers") || dns.is_empty() {
                             // Reset to DHCP
                             let _ = Command::new("networksetup")
-                                .args(&["-setdnsservers", &service, "empty"])
+                                .args(["-setdnsservers", &service, "empty"])
                                 .status();
                         } else {
                             // Restore specific DNS servers
@@ -1226,7 +1445,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         let install_with_brew = |package: &str| -> bool {
             println!("Installing {} with Homebrew...", package);
             let result = Command::new("brew")
-                .args(&["install", package])
+                .args(["install", package])
                 .output();
 
             match result {
@@ -1247,7 +1466,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                         if try_with_public_dns_macos().is_ok() {
                             println!("Retrying {} installation with public DNS...", package);
                             let retry = Command::new("brew")
-                                .args(&["install", package])
+                                .args(["install", package])
                                 .output();
 
                             restore_dns_macos();
@@ -1273,7 +1492,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         let install_with_port = |package: &str| -> bool {
             println!("Trying MacPorts as fallback for {}...", package);
             let result = Command::new("sudo")
-                .args(&["port", "install", package])
+                .args(["port", "install", package])
                 .status();
 
             match result {
@@ -1610,4 +1829,86 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_command_available_for_existing_command() {
+        // Test with commands that support --version on all platforms
+        #[cfg(unix)]
+        {
+            // Try common commands that support --version
+            let has_bash = is_command_available("bash");
+            let has_sh = is_command_available("sh");
+            let has_git = is_command_available("git");
+            // At least one of these should be available
+            assert!(has_bash || has_sh || has_git, "No common commands found");
+        }
+
+        #[cfg(windows)]
+        {
+            // PowerShell should be available on Windows
+            assert!(is_command_available("powershell"));
+        }
+    }
+
+    #[test]
+    fn test_is_command_available_for_nonexistent_command() {
+        // Test with a command that definitely doesn't exist
+        assert!(!is_command_available("this_command_definitely_does_not_exist_12345"));
+    }
+
+    #[test]
+    fn test_check_dependencies_returns_results() {
+        // Test that check_dependencies returns a non-empty vector
+        let deps = check_dependencies();
+        assert!(!deps.is_empty());
+
+        // Verify structure - should have at least exiftool
+        assert!(deps.iter().any(|(dep, _)| dep.name == "ExifTool"));
+    }
+
+    #[test]
+    fn test_dependencies_have_valid_names() {
+        // Test that all dependencies in DEPENDENCIES have proper names
+        assert_eq!(DEPENDENCIES.len(), 4);
+
+        let exiftool = DEPENDENCIES.iter().find(|d| d.name == "ExifTool");
+        assert!(exiftool.is_some());
+        assert_eq!(exiftool.unwrap().command, "exiftool");
+        assert!(exiftool.unwrap().required);
+
+        let tesseract = DEPENDENCIES.iter().find(|d| d.name == "Tesseract OCR");
+        assert!(tesseract.is_some());
+        assert_eq!(tesseract.unwrap().command, "tesseract");
+        assert!(!tesseract.unwrap().required);
+    }
+
+    #[test]
+    fn test_dependencies_have_descriptions() {
+        // Test that all dependencies have non-empty descriptions
+        for dep in DEPENDENCIES {
+            assert!(!dep.description.is_empty());
+            assert!(!dep.name.is_empty());
+            assert!(!dep.command.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_exiftool_is_required() {
+        // ExifTool should always be marked as required
+        let exiftool = DEPENDENCIES.iter().find(|d| d.name == "ExifTool");
+        assert!(exiftool.is_some());
+        assert!(exiftool.unwrap().required);
+    }
+
+    #[test]
+    fn test_optional_dependencies() {
+        // Tesseract, FFmpeg, and ImageMagick should be optional
+        let optional_count = DEPENDENCIES.iter().filter(|d| !d.required).count();
+        assert_eq!(optional_count, 3);
+    }
 }

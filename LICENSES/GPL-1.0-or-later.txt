@@ -1,0 +1,12 @@
+NOTE: This is a placeholder for GPL-1.0-or-later license text.
+
+The full license text should be obtained from:
+https://www.gnu.org/licenses/old-licenses/gpl-1.0.txt
+
+Or from SPDX:
+https://spdx.org/licenses/GPL-1.0-or-later.html
+
+ExifTool is dual-licensed under GPL-1.0-or-later OR Artistic-1.0-Perl.
+You may choose either license.
+
+For the complete GPL-1.0 license text, please visit the URLs above.

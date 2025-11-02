@@ -1,0 +1,43 @@
+# ExifTool
+
+**Copyright**: Copyright (c) 2003-2024 Phil Harvey
+
+**License**: Dual-licensed under GNU General Public License v1.0 or later, OR Perl Artistic License
+
+**Official Website**: https://exiftool.org/
+
+**Source Code**: https://github.com/exiftool/exiftool
+
+## License Information
+
+ExifTool is free software; you can redistribute it and/or modify it under the same terms as Perl itself, either:
+
+- GNU General Public License v1.0 or later (see `/LICENSES/GPL-1.0-or-later.txt`)
+- Perl Artistic License (see `/LICENSES/Artistic-1.0-Perl.txt`)
+
+## Description
+
+ExifTool is a platform-independent Perl library plus a command-line application for reading, writing and editing meta information in a wide variety of files.
+
+ExifTool supports many different metadata formats including EXIF, GPS, IPTC, XMP, JFIF, GeoTIFF, ICC Profile, Photoshop IRB, FlashPix, AFCP and ID3, as well as the maker notes of many digital cameras.
+
+## Usage in Nameback
+
+Nameback uses ExifTool as a command-line tool to extract metadata from files for intelligent renaming. ExifTool is a required dependency.
+
+## Version Information
+
+Current bundled version: 12.70 (or latest available)
+
+Check for updates: https://exiftool.org/
+
+## Attribution Required
+
+When distributing software that includes ExifTool, you must:
+- Include a copy of the GPL or Perl Artistic License
+- Retain all copyright notices
+- If modified, document the changes
+
+---
+
+This software uses ExifTool by Phil Harvey (https://exiftool.org/).

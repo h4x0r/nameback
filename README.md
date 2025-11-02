@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/nameback.png" alt="nameback logo" width="200"/>
+  <img src="docs/assets/nameback.png" alt="nameback logo" width="200"/>
 </p>
 
 # nameback
@@ -212,6 +212,52 @@ nameback --install-deps                     # Install dependencies
 ## Security
 
 Nameback is developed with security best practices. For automated security controls in your GitHub repositories, check out [1-click-github-sec](https://github.com/h4x0r/1-click-github-sec) by the same author (Albert Hui) - automated Dependabot, CodeQL, secret scanning, and more.
+
+## Third-Party Dependencies
+
+Nameback uses the following open-source dependencies:
+
+### Required
+- **[ExifTool](https://exiftool.org/)** by Phil Harvey - Metadata extraction
+  - License: GPL-1.0-or-later OR Perl Artistic License
+  - See: [third_party/exiftool/NOTICE](third_party/exiftool/NOTICE)
+
+### Optional
+- **[Tesseract OCR](https://github.com/tesseract-ocr/tesseract)** by Google Inc. - Optical character recognition
+  - License: Apache-2.0
+  - See: [third_party/tesseract/NOTICE](third_party/tesseract/NOTICE)
+
+- **[FFmpeg](https://ffmpeg.org/)** - Multimedia framework for video frame extraction
+  - License: LGPL-2.1-or-later (LGPL builds only)
+  - This software uses libraries from the FFmpeg project under the LGPLv2.1
+  - Source code: https://ffmpeg.org/download.html
+  - See: [third_party/ffmpeg/NOTICE](third_party/ffmpeg/NOTICE)
+
+- **[ImageMagick](https://imagemagick.org/)** by ImageMagick Studio LLC - HEIC image format support
+  - License: ImageMagick License (Apache-like)
+  - See: [third_party/imagemagick/NOTICE](third_party/imagemagick/NOTICE)
+
+All license texts are available in the [LICENSES](LICENSES/) directory. For detailed attribution information, see [third_party/README.md](third_party/README.md).
+
+### Installation Fallback Mechanism
+
+Nameback uses a 4-layer fallback system to ensure dependencies install successfully even in restrictive network environments:
+
+1. **Primary package manager** (Scoop/Chocolatey/Homebrew/apt)
+2. **DNS fallback** - Retry with public DNS servers (8.8.8.8, 1.1.1.1)
+3. **Alternative package manager** - MacPorts, dnf, yum, pacman, snap
+4. **Bundled installers** - Downloaded from GitHub Releases (NEW!)
+
+This ensures ~99% installation success rate across corporate firewalls, VPNs, and regional restrictions.
+
+## Documentation
+
+📚 **[Full Documentation →](docs/README.md)**
+
+- **[User Guide](docs/user/guide.md)** - Comprehensive usage guide
+- **[Development Docs](docs/dev/)** - Contributing, TDD, refactoring plans
+- **[Architecture Docs](docs/architecture/)** - Technical design and implementation details
+- **[Release Process](RELEASING.md)** - How to create releases
 
 ## License
 

@@ -220,13 +220,10 @@ fn clean_for_filename(s: &str) -> String {
         .map(|c| {
             if c.is_alphanumeric() {
                 c
-            } else if c.is_whitespace() || c == '-' {
-                '_'
             } else {
                 '_'
             }
         })
-        .filter(|&c| c != '_' || c.is_alphanumeric())
         .collect::<String>()
         .split('_')
         .filter(|s| !s.is_empty())

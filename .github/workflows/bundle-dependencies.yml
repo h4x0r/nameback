@@ -1,0 +1,219 @@
+name: Bundle Dependencies for Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:  # Allow manual trigger for testing
+
+jobs:
+  bundle-windows-deps:
+    name: Bundle Windows Dependencies
+    runs-on: windows-latest
+
+    steps:
+      - name: Download ExifTool for Windows
+        run: |
+          $version = "12.70"
+          $url = "https://exiftool.org/exiftool-$version.zip"
+          Invoke-WebRequest -Uri $url -OutFile "exiftool-windows.zip"
+
+      - name: Download Tesseract for Windows
+        run: |
+          $version = "5.3.3.20231005"
+          $url = "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-$version.exe"
+          Invoke-WebRequest -Uri $url -OutFile "tesseract-windows-setup.exe"
+
+          # Also download trained data
+          New-Item -ItemType Directory -Path "tessdata" -Force
+          $languages = @("eng", "chi_tra", "chi_sim")
+          foreach ($lang in $languages) {
+            $url = "https://github.com/tesseract-ocr/tessdata/raw/main/$lang.traineddata"
+            Invoke-WebRequest -Uri $url -OutFile "tessdata/$lang.traineddata"
+          }
+
+          # Create zip with installer and trained data
+          Compress-Archive -Path "tesseract-windows-setup.exe", "tessdata" -DestinationPath "tesseract-windows.zip"
+
+      - name: Download FFmpeg for Windows (LGPL)
+        run: |
+          # Use gyan.dev for LGPL builds
+          $url = "https://github.com/GyanD/codexffmpeg/releases/download/6.1/ffmpeg-6.1-essentials_build.zip"
+          Invoke-WebRequest -Uri $url -OutFile "ffmpeg-windows-lgpl.zip"
+
+      - name: Download FFmpeg Source (LGPL Compliance)
+        run: |
+          $version = "6.1"
+          $url = "https://ffmpeg.org/releases/ffmpeg-$version.tar.gz"
+          Invoke-WebRequest -Uri $url -OutFile "ffmpeg-source.tar.gz"
+
+      - name: Download ImageMagick for Windows
+        run: |
+          # Portable version
+          $url = "https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-28-portable-Q16-x64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "imagemagick-windows.zip"
+
+      - name: Upload ExifTool to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./exiftool-windows.zip
+          asset_name: deps-exiftool-windows.zip
+          asset_content_type: application/zip
+
+      - name: Upload Tesseract to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./tesseract-windows.zip
+          asset_name: deps-tesseract-windows.zip
+          asset_content_type: application/zip
+
+      - name: Upload FFmpeg to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./ffmpeg-windows-lgpl.zip
+          asset_name: deps-ffmpeg-windows-lgpl.zip
+          asset_content_type: application/zip
+
+      - name: Upload FFmpeg Source to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./ffmpeg-source.tar.gz
+          asset_name: deps-ffmpeg-source.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload ImageMagick to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./imagemagick-windows.zip
+          asset_name: deps-imagemagick-windows.zip
+          asset_content_type: application/zip
+
+  bundle-macos-deps:
+    name: Bundle macOS Dependencies
+    runs-on: macos-latest
+
+    steps:
+      - name: Download ExifTool for macOS
+        run: |
+          version="12.70"
+          url="https://exiftool.org/ExifTool-$version.dmg"
+          curl -L "$url" -o exiftool-macos.dmg
+
+      - name: Download Tesseract for macOS
+        run: |
+          # Use Homebrew bottle (pre-compiled binary)
+          brew fetch --force tesseract
+          brew fetch --force tesseract-lang
+
+          # Create a bundle
+          mkdir -p tesseract-bundle
+          cp -R "$(brew --cache)/downloads/*tesseract*" tesseract-bundle/ || true
+          zip -r tesseract-macos.zip tesseract-bundle
+
+      - name: Download FFmpeg for macOS (LGPL)
+        run: |
+          # Use Homebrew bottle
+          brew fetch --force ffmpeg
+          mkdir -p ffmpeg-bundle
+          cp -R "$(brew --cache)/downloads/*ffmpeg*" ffmpeg-bundle/ || true
+          zip -r ffmpeg-macos-lgpl.zip ffmpeg-bundle
+
+      - name: Upload ExifTool to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./exiftool-macos.dmg
+          asset_name: deps-exiftool-macos.dmg
+          asset_content_type: application/x-apple-diskimage
+
+      - name: Upload Tesseract to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./tesseract-macos.zip
+          asset_name: deps-tesseract-macos.zip
+          asset_content_type: application/zip
+
+      - name: Upload FFmpeg to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./ffmpeg-macos-lgpl.zip
+          asset_name: deps-ffmpeg-macos-lgpl.zip
+          asset_content_type: application/zip
+
+  bundle-linux-deps:
+    name: Bundle Linux Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download ExifTool for Linux
+        run: |
+          version="12.70"
+          url="https://exiftool.org/Image-ExifTool-$version.tar.gz"
+          curl -L "$url" -o exiftool-linux.tar.gz
+
+      - name: Download Tesseract for Linux
+        run: |
+          # Download .deb packages
+          mkdir -p tesseract-debs
+          cd tesseract-debs
+          apt-get download tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-tra tesseract-ocr-chi-sim || true
+          cd ..
+          tar -czf tesseract-linux.tar.gz tesseract-debs/
+
+      - name: Download FFmpeg for Linux (LGPL)
+        run: |
+          # Download static build from johnvansickle.com
+          url="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          curl -L "$url" -o ffmpeg-linux-lgpl.tar.xz
+
+      - name: Upload ExifTool to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./exiftool-linux.tar.gz
+          asset_name: deps-exiftool-linux.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Tesseract to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./tesseract-linux.tar.gz
+          asset_name: deps-tesseract-linux.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload FFmpeg to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./ffmpeg-linux-lgpl.tar.xz
+          asset_name: deps-ffmpeg-linux-lgpl.tar.xz
+          asset_content_type: application/x-xz

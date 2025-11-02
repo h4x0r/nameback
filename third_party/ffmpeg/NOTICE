@@ -1,0 +1,74 @@
+# FFmpeg
+
+**Copyright**: Copyright (c) 2000-2024 FFmpeg Developers
+
+**License**: LGPL-2.1-or-later (default build, used by Nameback)
+
+**Official Website**: https://ffmpeg.org/
+
+**Source Code**: https://ffmpeg.org/download.html
+
+## License Information
+
+FFmpeg is licensed under the GNU Lesser General Public License (LGPL) version 2.1 or later (see `/LICENSES/LGPL-2.1-or-later.txt`).
+
+**Note**: FFmpeg can also be built with GPL components, but Nameback only uses and redistributes LGPL builds (compiled without `--enable-gpl` or `--enable-nonfree` flags).
+
+## LGPL Compliance Statement
+
+**THIS SOFTWARE USES LIBRARIES FROM THE FFMPEG PROJECT UNDER THE LGPLv2.1**
+
+As required by the LGPL license:
+
+1. **Source Code Availability**: FFmpeg source code is available at https://ffmpeg.org/download.html
+   - For bundled distributions, source code archive is included in GitHub Releases
+   - You may download the source code directly from https://github.com/FFmpeg/FFmpeg
+
+2. **Attribution**: This product includes FFmpeg (https://ffmpeg.org/)
+
+3. **License Copy**: See `/LICENSES/LGPL-2.1-or-later.txt` for the full LGPL license text
+
+4. **Compilation Information**:
+   - Built without GPL components (`--enable-lgpl` only)
+   - Dynamically linkable
+   - No reverse-engineering restrictions imposed
+
+## Description
+
+FFmpeg is a complete, cross-platform solution to record, convert and stream audio and video. It includes libavcodec - the leading audio/video codec library.
+
+## Usage in Nameback
+
+Nameback uses FFmpeg as a command-line tool to extract frames from video files for OCR analysis. FFmpeg is an optional dependency that enables video OCR features.
+
+## Version Information
+
+Current bundled version: 6.1 or later (LGPL build)
+
+## Required Attribution
+
+When distributing software that uses FFmpeg under LGPL, you must:
+
+1. **Include in "About" box or documentation**:
+   - "This software uses libraries from the FFmpeg project under the LGPLv2.1"
+
+2. **Include in EULA** (if applicable):
+   - Mention that the program uses FFmpeg under LGPLv2.1
+   - State that you do not own FFmpeg code
+   - Do NOT prohibit reverse engineering
+
+3. **Provide source code access**:
+   - Include FFmpeg source code archive, OR
+   - Provide written offer to obtain source code, OR
+   - Link to official FFmpeg download page
+
+## Obtaining FFmpeg Source Code
+
+- **Official Download**: https://ffmpeg.org/download.html
+- **GitHub Repository**: https://github.com/FFmpeg/FFmpeg
+- **Bundled Archive**: Included in Nameback GitHub Releases (for LGPL compliance)
+
+---
+
+This software uses FFmpeg (https://ffmpeg.org/) licensed under the LGPLv2.1.
+FFmpeg source code is available at https://ffmpeg.org/download.html

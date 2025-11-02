@@ -1,0 +1,7 @@
+# This directory is for local testing of bundled installers only
+# Actual dependency installers are distributed via GitHub Releases
+# DO NOT commit binaries to the repository
+
+*
+!.gitignore
+!README.md

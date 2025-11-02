@@ -1,0 +1,71 @@
+# ImageMagick
+
+**Copyright**: Copyright © 1999-2024 ImageMagick Studio LLC
+
+**License**: ImageMagick License (Apache-like, very permissive)
+
+**Official Website**: https://imagemagick.org/
+
+**Source Code**: https://github.com/ImageMagick/ImageMagick
+
+## License Information
+
+ImageMagick is licensed under the ImageMagick License (see `/LICENSES/ImageMagick.txt`), which is an Apache-like permissive license.
+
+Full license text: https://imagemagick.org/script/license.php
+
+## Description
+
+ImageMagick® is a free, open-source software suite for displaying, converting, and editing raster image and vector image files. It can read and write over 200 image file formats.
+
+Key features used by Nameback:
+- HEIC/HEIF image format support
+- Image format conversion
+- Image processing and manipulation
+
+## Usage in Nameback
+
+Nameback uses ImageMagick (specifically the `magick` command) to enable HEIC/HEIF image support on Windows and Linux platforms. ImageMagick is an optional dependency that enables HEIC image format handling.
+
+Note: On macOS, HEIC support is provided natively by the system, so ImageMagick is not required.
+
+## Version Information
+
+Current bundled version: 7.1.1 or later
+
+Check for updates: https://imagemagick.org/script/download.php
+
+## Attribution Requirements
+
+When distributing software that includes ImageMagick, you must:
+
+1. **Include a copy of the ImageMagick license** in any redistribution
+2. **Provide clear attribution** to ImageMagick Studio LLC
+
+You are NOT required to:
+- Include source code
+- Submit changes back to the project (though feedback is encouraged)
+- Use the same license for your software
+- Obtain permission for commercial use
+
+## Commercial Use
+
+ImageMagick can be freely used in commercial products. The license explicitly allows:
+- Free redistribution (commercial or non-commercial)
+- Modification and derivative works
+- Sublicensing under different terms
+- Selling modified versions
+- Use in proprietary software
+
+## Additional Permissions
+
+The ImageMagick license is GPL-compatible and allows you to:
+- Link against libraries under different licenses
+- Merge ImageMagick code into works under different licenses
+- Create packages or distributions that include ImageMagick
+
+---
+
+This software optionally uses ImageMagick (https://imagemagick.org/) for HEIC image support.
+Copyright © 1999-2024 ImageMagick Studio LLC.
+Licensed under the ImageMagick License.

@@ -102,14 +102,14 @@ impl RenameEngine {
     }
 
     /// Create a rename engine with default configuration
-    pub fn default() -> Self {
+    pub fn with_defaults() -> Self {
         Self::new(RenameConfig::default())
     }
 
     /// Analyze all files in a directory and return proposed renames
     /// This does not perform any actual renaming - use for preview
     pub fn analyze_directory(&self, directory: &Path) -> Result<Vec<FileAnalysis>> {
-        let mut analyses = Vec::new();
+        let analyses;
 
         // Scan files
         let files = self.scan_files(directory)?;
@@ -256,16 +256,12 @@ impl RenameEngine {
                     Err(e) => {
                         log::warn!("Failed to analyze {}: {}", file_path.display(), e);
                         // Still add to results but with no proposed name
-                        if let Some(name) = file_path.file_name().and_then(|n| n.to_str()) {
-                            Some(FileAnalysis {
+                        file_path.file_name().and_then(|n| n.to_str()).map(|name| FileAnalysis {
                                 original_path: file_path.clone(),
                                 original_name: name.to_string(),
                                 proposed_name: None,
                                 file_category: FileCategory::Unknown,
                             })
-                        } else {
-                            None
-                        }
                     }
                 }
             })
@@ -389,58 +385,6 @@ impl RenameEngine {
         Ok(files)
     }
 
-    fn analyze_file(
-        &self,
-        file_path: &Path,
-        existing_names: &mut HashSet<String>,
-    ) -> Result<FileAnalysis> {
-        // Detect file type
-        let file_category = detector::detect_file_type(file_path)?;
-
-        let original_name = file_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown")
-            .to_string();
-
-        // Skip unknown file types
-        if file_category == FileCategory::Unknown {
-            return Ok(FileAnalysis {
-                original_path: file_path.to_path_buf(),
-                original_name,
-                proposed_name: None,
-                file_category,
-            });
-        }
-
-        // Extract metadata with configuration
-        let metadata = match extractor::extract_metadata(file_path, &self.config) {
-            Ok(m) => m,
-            Err(_) => {
-                return Ok(FileAnalysis {
-                    original_path: file_path.to_path_buf(),
-                    original_name,
-                    proposed_name: None,
-                    file_category,
-                });
-            }
-        };
-
-        // Extract candidate name
-        let candidate_name = metadata.extract_name(&file_category, file_path);
-
-        let proposed_name = candidate_name.map(|name| {
-            let extension = file_path.extension();
-            generator::generate_filename_with_metadata(&name, extension, existing_names, Some(&metadata))
-        });
-
-        Ok(FileAnalysis {
-            original_path: file_path.to_path_buf(),
-            original_name,
-            proposed_name,
-            file_category,
-        })
-    }
 
     /// Parallel version of analyze_file that uses Mutex-protected existing_names
     fn analyze_file_parallel(

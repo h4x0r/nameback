@@ -1,0 +1,11 @@
+NOTE: This is a placeholder for LGPL-2.1-or-later license text.
+
+The full license text should be obtained from:
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt
+
+Or from SPDX:
+https://spdx.org/licenses/LGPL-2.1-or-later.html
+
+FFmpeg (when built without --enable-gpl) is licensed under LGPL-2.1-or-later.
+
+For the complete LGPL-2.1 license text, please visit the URLs above.

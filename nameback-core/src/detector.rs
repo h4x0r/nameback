@@ -100,12 +100,218 @@ fn detect_by_extension(path: &Path) -> FileCategory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::path::PathBuf;
+    use tempfile::TempDir;
 
     #[test]
-    fn test_detect_file_type_exists() {
-        // Test that the function exists and returns a Result
-        let test_path = PathBuf::from("/dev/null");
-        let _ = detect_file_type(&test_path);
+    fn test_detect_by_extension_images() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("photo.jpg")),
+            FileCategory::Image
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("image.png")),
+            FileCategory::Image
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("graphic.gif")),
+            FileCategory::Image
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("photo.HEIC")),
+            FileCategory::Image
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_documents() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("report.pdf")),
+            FileCategory::Document
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("doc.docx")),
+            FileCategory::Document
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("sheet.xlsx")),
+            FileCategory::Document
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("notes.txt")),
+            FileCategory::Document
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("config.json")),
+            FileCategory::Document
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_audio() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("song.mp3")),
+            FileCategory::Audio
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("audio.wav")),
+            FileCategory::Audio
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("track.flac")),
+            FileCategory::Audio
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_video() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("movie.mp4")),
+            FileCategory::Video
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("clip.avi")),
+            FileCategory::Video
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("video.mkv")),
+            FileCategory::Video
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_email() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("message.eml")),
+            FileCategory::Email
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("email.msg")),
+            FileCategory::Email
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_web() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("page.html")),
+            FileCategory::Web
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("site.htm")),
+            FileCategory::Web
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("archive.mhtml")),
+            FileCategory::Web
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_archive() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("files.zip")),
+            FileCategory::Archive
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("backup.tar")),
+            FileCategory::Archive
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("archive.gz")),
+            FileCategory::Archive
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_source_code() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("script.py")),
+            FileCategory::SourceCode
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("app.js")),
+            FileCategory::SourceCode
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("main.rs")),
+            FileCategory::SourceCode
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_unknown() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("unknown.xyz")),
+            FileCategory::Unknown
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("noextension")),
+            FileCategory::Unknown
+        );
+    }
+
+    #[test]
+    fn test_detect_by_extension_case_insensitive() {
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("IMAGE.JPG")),
+            FileCategory::Image
+        );
+        assert_eq!(
+            detect_by_extension(&PathBuf::from("Document.PDF")),
+            FileCategory::Document
+        );
+    }
+
+    #[test]
+    fn test_detect_file_type_with_temp_file() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a simple PNG file (PNG magic bytes)
+        let png_path = temp_dir.path().join("test.png");
+        let png_magic = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        fs::write(&png_path, png_magic).unwrap();
+
+        let result = detect_file_type(&png_path).unwrap();
+        assert_eq!(result, FileCategory::Image);
+    }
+
+    #[test]
+    fn test_detect_file_type_jpeg() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a JPEG file (JPEG magic bytes: FF D8 FF)
+        let jpeg_path = temp_dir.path().join("test.jpg");
+        let jpeg_magic = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
+        fs::write(&jpeg_path, jpeg_magic).unwrap();
+
+        let result = detect_file_type(&jpeg_path).unwrap();
+        assert_eq!(result, FileCategory::Image);
+    }
+
+    #[test]
+    fn test_detect_file_type_pdf() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a PDF file (PDF magic bytes: %PDF)
+        let pdf_path = temp_dir.path().join("test.pdf");
+        let pdf_magic = b"%PDF-1.4\n".to_vec();
+        fs::write(&pdf_path, pdf_magic).unwrap();
+
+        let result = detect_file_type(&pdf_path).unwrap();
+        assert_eq!(result, FileCategory::Document);
+    }
+
+    #[test]
+    fn test_detect_file_type_falls_back_to_extension() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a text file with no magic bytes
+        let txt_path = temp_dir.path().join("test.txt");
+        fs::write(&txt_path, "Hello, world!").unwrap();
+
+        let result = detect_file_type(&txt_path).unwrap();
+        assert_eq!(result, FileCategory::Document);
     }
 }

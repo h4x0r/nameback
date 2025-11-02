@@ -254,7 +254,7 @@ fn is_platform_identifier(s: &str) -> bool {
     ];
 
     // Only use exact match to avoid false positives (e.g., "darwinian" matching "darwin")
-    platforms.iter().any(|p| clean == *p)
+    platforms.contains(&clean)
 }
 
 /// Detects software vendor names
@@ -276,10 +276,9 @@ fn is_software_product_id(s: &str) -> bool {
     let lower = s.to_lowercase();
 
     // Adobe Creative Suite/Cloud versions: CS3, CS4, CS5, CS5.5, CS6, CC, CC2019, etc.
-    if upper.starts_with("CS") {
-        let rest = &upper[2..];
+    if let Some(rest) = upper.strip_prefix("CS") {
         // CS followed by number or empty (CS6, CS5.5, CS, etc.)
-        if rest.is_empty() || rest.chars().next().map_or(false, |c| c.is_numeric() || c == '.') {
+        if rest.is_empty() || rest.chars().next().is_some_and(|c| c.is_numeric() || c == '.') {
             return true;
         }
     }

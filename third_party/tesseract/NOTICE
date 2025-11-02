@@ -1,0 +1,69 @@
+# Tesseract OCR
+
+**Copyright**: Copyright (c) 2006-2024 Google Inc.
+
+**License**: Apache License 2.0
+
+**Official Website**: https://github.com/tesseract-ocr/tesseract
+
+**Source Code**: https://github.com/tesseract-ocr/tesseract
+
+## License Information
+
+Tesseract is licensed under the Apache License, Version 2.0 (see `/LICENSES/Apache-2.0.txt`).
+
+You may obtain a copy of the License at:
+http://www.apache.org/licenses/LICENSE-2.0
+
+## Description
+
+Tesseract is an open source text recognition (OCR) Engine, available under the Apache 2.0 license. It can be used directly, or (for programmers) using an API to extract printed text from images.
+
+Tesseract supports over 100 languages and can recognize text in various scripts and formats.
+
+## Usage in Nameback
+
+Nameback uses Tesseract as a command-line tool to perform OCR on images and video frames to extract text for intelligent file renaming. Tesseract is an optional dependency that enables OCR features.
+
+## Trained Data
+
+Tesseract requires language-specific trained data files (.traineddata) to perform OCR. Nameback bundles the following language data:
+
+- **English** (eng.traineddata)
+- **Chinese Traditional** (chi_tra.traineddata)
+- **Chinese Simplified** (chi_sim.traineddata)
+
+Additional language data is available at: https://github.com/tesseract-ocr/tessdata
+
+## Dependencies
+
+Tesseract depends on:
+- **Leptonica** - Image processing library (BSD 2-Clause License)
+
+## Version Information
+
+Current bundled version: 5.3.3 or later
+
+Check for updates: https://github.com/tesseract-ocr/tesseract/releases
+
+## Attribution Requirements
+
+When distributing software that includes Tesseract under Apache 2.0, you must:
+
+1. Include a copy of the Apache License 2.0
+2. Retain all copyright, patent, trademark, and attribution notices
+3. If you modify Tesseract files, include prominent notices stating that you changed the files
+4. Include a copy of the NOTICE file if one exists in the distribution
+
+You are NOT required to:
+- Redistribute source code
+- Submit changes back to the project
+- Use the same license for your software
+
+## Commercial Use
+
+Tesseract can be used freely in commercial products without royalty fees under the Apache 2.0 license terms.
+
+---
+
+This software uses Tesseract OCR (https://github.com/tesseract-ocr/tesseract) licensed under Apache 2.0.
