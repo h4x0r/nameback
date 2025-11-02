@@ -9,6 +9,7 @@ mod macos;
 #[cfg(target_os = "linux")]
 mod linux;
 mod bundled;
+mod logger;
 
 // Constants for external URLs and installation
 mod constants {
@@ -231,13 +232,33 @@ pub fn run_installer() -> Result<(), String> {
 pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result<(), String> {
     let is_interactive = progress.is_none();
 
-    // Use Arc to share progress callback across closures (makes it Sync)
+    // Initialize logger
+    let logger = logger::InstallLogger::new()
+        .unwrap_or_else(|e| {
+            eprintln!("Warning: Failed to create log file: {}", e);
+            eprintln!("Continuing without file logging...");
+            // Return a dummy logger that won't work, but won't crash
+            panic!("Logger initialization failed");
+        });
+
+    // Clean up old log files (keep last 5)
+    let _ = logger::InstallLogger::cleanup_old_logs(5);
+
+    logger.info("=== NAMEBACK DEPENDENCY INSTALLER ===");
+    logger.info(&format!("Version: {}", env!("CARGO_PKG_VERSION")));
+    logger.info(&format!("Log file: {:?}", logger.log_path()));
+    logger.info("======================================");
+    logger.info("");
+
+    // Use Arc to share progress callback and logger across closures
     // AtomicBool for thread-safe header_printed flag
     let progress_arc = Arc::new(progress);
     let header_printed = Arc::new(AtomicBool::new(false));
+    let logger_arc = Arc::new(logger);
 
     let progress_arc_clone = Arc::clone(&progress_arc);
     let header_printed_clone = Arc::clone(&header_printed);
+    let logger_clone = Arc::clone(&logger_arc);
 
     let report_progress = move |msg: &str, pct: u8| {
         // Print header on first call with pct == 0 in interactive mode
@@ -246,6 +267,9 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             println!("  Installing Dependencies");
             println!("==================================================\n");
         }
+
+        // Log to file
+        logger_clone.info(&format!("[{}%] {}", pct, msg));
 
         // Always report to MSI progress (noop on non-Windows)
         msi_progress::report_action_data(msg);
@@ -260,11 +284,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
     // Report action start separately (doesn't need to be in closure)
     msi_progress::report_action_start("Installing nameback dependencies");
-
-    // Print version information at the start
-    println!("=== NAMEBACK DEPENDENCY INSTALLER ===");
-    println!("Version: {}", env!("CARGO_PKG_VERSION"));
-    println!("======================================\n");
 
     report_progress("Starting installation...", 0);
 
@@ -340,6 +359,11 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         println!("  Installation Complete!");
         println!("==================================================\n");
     }
+
+    // Finalize logger and report log location
+    logger_arc.finalize();
+    logger_arc.info(&format!("Installation completed successfully"));
+    logger_arc.info(&format!("Log saved to: {:?}", logger_arc.log_path()));
 
     Ok(())
 }
