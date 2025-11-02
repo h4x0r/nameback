@@ -61,7 +61,7 @@ impl DependencyNeeds {
 pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
     let mut needs_tesseract = false;
     let mut needs_ffmpeg = false;
-    let needs_imagemagick = false; // Reserved for future HEIC detection
+    let mut needs_imagemagick = false; // Reserved for future HEIC detection
 
     // Quick scan of file types (just check extensions)
     let mut file_count = 0;
