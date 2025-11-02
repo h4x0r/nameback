@@ -259,6 +259,10 @@ This ensures ~99% installation success rate across corporate firewalls, VPNs, an
 - **[Architecture Docs](docs/architecture/)** - Technical design and implementation details
 - **[Release Process](RELEASING.md)** - How to create releases
 
+## For Maintainers
+
+See [RELEASING.md](RELEASING.md) for the release process using cargo-release.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details

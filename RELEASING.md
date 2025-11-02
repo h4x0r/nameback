@@ -342,7 +342,7 @@ gh release view v0.5.1
 
 ```bash
 # Download artifact and verify
-gh attestation verify nameback-x86_64-pc-windows-msvc.msi --owner h4x0r
+gh attestation verify nameback-x86_64-pc-windows-msvc.msi --owner <your-github-username>
 ```
 
 ## Learn More

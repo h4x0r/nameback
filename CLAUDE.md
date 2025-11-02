@@ -307,7 +307,9 @@ cargo test --workspace
 
 ### Release Management
 
-This project uses cargo-release for automated version management. See /Users/4n6h4x0r/src/nameback/RELEASING.md for details.
+This project uses cargo-release for automated version management.
+
+**IMPORTANT:** See [RELEASING.md](/Users/4n6h4x0r/src/nameback/RELEASING.md) for the complete, authoritative release process documentation. The guide covers cargo-release usage, GitHub Actions workflows, platform-specific builds, and troubleshooting.
 
 **Quick release commands:**
 ```bash
