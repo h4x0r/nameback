@@ -831,123 +831,54 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             // Try Chocolatey as fallback
             println!("=== DEBUG: Installing exiftool via Chocolatey (fallback) ===");
 
-            // Check if Chocolatey is installed
-            // Refresh PATH first in case it was just installed by another process
-            let choco_check = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-Command")
-                .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
-                .output();
+            // Ensure Chocolatey is installed
+            if let Err(_) = windows_helpers::ensure_chocolatey_installed() {
+                msi_progress::report_action_data("Chocolatey failed, trying bundled installer...");
+                println!("Chocolatey installation also failed. Attempting bundled installer fallback...");
 
-            let choco_installed = choco_check
-                .map(|o| o.status.success())
-                .unwrap_or(false);
-
-            if !choco_installed {
-                println!("Chocolatey not found, installing...");
-                msi_progress::report_action_data("Installing Chocolatey package manager...");
-
-                // Install Chocolatey
-                let choco_install = Command::new("powershell")
-                    .arg("-NoProfile")
-                    .arg("-ExecutionPolicy")
-                    .arg("Bypass")
-                    .arg("-Command")
-                    .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
-                    .output();
-
-                match choco_install {
-                    Ok(output) if output.status.success() => {
-                        println!("Chocolatey installed successfully");
-                        msi_progress::report_action_data("Chocolatey installed");
+                // Try bundled installer as final fallback
+                match install_from_bundled("exiftool", "windows") {
+                    Ok(()) => {
+                        println!("ExifTool installed successfully from bundled installer!");
+                        msi_progress::report_action_data("ExifTool installed from bundled fallback");
+                        report_progress("ExifTool installed (bundled fallback)", 25);
+                        return Ok(()); // Exit early - dependency installed successfully
                     }
-                    _ => {
-                        msi_progress::report_action_data("Chocolatey failed, trying bundled installer...");
-                        println!("Chocolatey installation also failed. Attempting bundled installer fallback...");
-
-                        // Try bundled installer as final fallback
-                        match install_from_bundled("exiftool", "windows") {
-                            Ok(()) => {
-                                println!("ExifTool installed successfully from bundled installer!");
-                                msi_progress::report_action_data("ExifTool installed from bundled fallback");
-                                // Skip the rest of the Chocolatey installation since bundled worked
-                                report_progress("ExifTool installed (bundled fallback)", 25);
-                                return Ok(()); // Exit early - dependency installed successfully
-                            }
-                            Err(bundle_err) => {
-                                msi_progress::report_action_data("ERROR: All installation methods failed");
-                                return Err(format!(
-                                    "\n╔══════════════════════════════════════════════════════════════════╗\n\
-                                     ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
-                                     ╚══════════════════════════════════════════════════════════════════╝\n\n\
-                                     ExifTool is required for Nameback to function.\n\n\
-                                     All installation methods failed:\n\
-                                     • Scoop: {}\n\
-                                     • Chocolatey: Failed to install Chocolatey\n\
-                                     • Bundled installer: {}\n\n\
-                                     Please install manually:\n\
-                                     • Download from: https://exiftool.org/\n\
-                                     • Or run: choco install exiftool -y\n", stdout, bundle_err
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Try installing exiftool via Chocolatey
-            println!("Installing exiftool via Chocolatey...");
-            msi_progress::report_action_data("Installing exiftool via Chocolatey...");
-
-            // Chocolatey is installed to C:\ProgramData\chocolatey by default
-            // After installation, we need to either:
-            // 1. Use the full path to choco.exe
-            // 2. Refresh the environment in PowerShell
-            // We'll use approach #2 with environment refresh
-            let choco_exiftool = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-ExecutionPolicy")
-                .arg("Bypass")
-                .arg("-Command")
-                .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install exiftool -y --no-progress")
-                .output();
-
-            match choco_exiftool {
-                Ok(output) => {
-                    let choco_stdout = String::from_utf8_lossy(&output.stdout);
-                    let choco_stderr = String::from_utf8_lossy(&output.stderr);
-                    println!("Chocolatey exiftool stdout: {}", choco_stdout);
-                    println!("Chocolatey exiftool stderr: {}", choco_stderr);
-
-                    if output.status.success() && !choco_stdout.contains("ERROR") {
-                        println!("exiftool installed successfully via Chocolatey");
-                        msi_progress::report_action_data("exiftool installed via Chocolatey");
-                    } else {
-                        msi_progress::report_action_data("ERROR: Chocolatey installation also failed");
+                    Err(bundle_err) => {
+                        msi_progress::report_action_data("ERROR: All installation methods failed");
                         return Err(format!(
                             "\n╔══════════════════════════════════════════════════════════════════╗\n\
                              ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
                              ╚══════════════════════════════════════════════════════════════════╝\n\n\
                              ExifTool is required for Nameback to function.\n\n\
-                             Both Scoop and Chocolatey failed to install exiftool.\n\n\
-                             Scoop error:\n{}\n\n\
-                             Chocolatey error:\n{}\n\n\
+                             All installation methods failed:\n\
+                             • Scoop: {}\n\
+                             • Chocolatey: Failed to install Chocolatey\n\
+                             • Bundled installer: {}\n\n\
                              Please install manually:\n\
-                             • Download from: https://exiftool.org/\n", stdout, choco_stdout
+                             • Download from: https://exiftool.org/\n\
+                             • Or run: choco install exiftool -y\n", stdout, bundle_err
                         ));
                     }
                 }
-                Err(e) => {
-                    msi_progress::report_action_data("ERROR: Failed to execute Chocolatey");
+            }
+
+            // Try installing exiftool via Chocolatey
+            match windows_helpers::install_package_via_chocolatey("exiftool") {
+                Ok((choco_stdout, _choco_stderr)) => {
+                    // Installation succeeded
+                }
+                Err(_) => {
+                    msi_progress::report_action_data("ERROR: Chocolatey installation also failed");
                     return Err(format!(
                         "\n╔══════════════════════════════════════════════════════════════════╗\n\
                          ║  EXIFTOOL INSTALLATION FAILED                                    ║\n\
                          ╚══════════════════════════════════════════════════════════════════╝\n\n\
                          ExifTool is required for Nameback to function.\n\n\
-                         Scoop failed and Chocolatey could not be executed.\n\n\
-                         Error: {}\n\n\
+                         Both Scoop and Chocolatey failed to install exiftool.\n\n\
+                         Scoop error:\n{}\n\n\
                          Please install manually:\n\
-                         • Download from: https://exiftool.org/\n", e
+                         • Download from: https://exiftool.org/\n", stdout
                     ));
                 }
             }
@@ -993,75 +924,23 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                     // Try Chocolatey as fallback
                     println!("=== DEBUG: Installing tesseract via Chocolatey (fallback) ===");
 
-                    // Check if Chocolatey is installed
-                    let choco_check = Command::new("powershell")
-                        .arg("-NoProfile")
-                        .arg("-Command")
-                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
-                        .output();
-
-                    let choco_installed = choco_check
-                        .map(|o| o.status.success())
-                        .unwrap_or(false);
-
-                    if !choco_installed {
-                        println!("Chocolatey not found, installing...");
-                        msi_progress::report_action_data("Installing Chocolatey package manager...");
-
-                        let choco_install = Command::new("powershell")
-                            .arg("-NoProfile")
-                            .arg("-ExecutionPolicy")
-                            .arg("Bypass")
-                            .arg("-Command")
-                            .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
-                            .output();
-
-                        match choco_install {
-                            Ok(output) if output.status.success() => {
-                                println!("Chocolatey installed successfully");
-                                msi_progress::report_action_data("Chocolatey installed");
+                    // Ensure Chocolatey is installed
+                    if let Err(_) = windows_helpers::ensure_chocolatey_installed() {
+                        msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (tesseract is optional)");
+                        println!("WARNING: Both Scoop and Chocolatey installation attempts failed for tesseract");
+                        println!("  Tesseract is optional - only needed for OCR support");
+                        println!("  You can install it manually later: choco install tesseract -y");
+                    } else {
+                        // Try installing tesseract via Chocolatey
+                        match windows_helpers::install_package_via_chocolatey("tesseract") {
+                            Ok(_) => {
+                                // Installation succeeded
                             }
-                            _ => {
-                                msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (tesseract is optional)");
-                                println!("WARNING: Both Scoop and Chocolatey installation attempts failed for tesseract");
-                                println!("  Tesseract is optional - only needed for OCR support");
-                                println!("  You can install it manually later: choco install tesseract -y");
-                            }
-                        }
-                    }
-
-                    // Try installing tesseract via Chocolatey
-                    println!("Installing tesseract via Chocolatey...");
-                    msi_progress::report_action_data("Installing tesseract via Chocolatey...");
-
-                    let choco_tesseract = Command::new("powershell")
-                        .arg("-NoProfile")
-                        .arg("-ExecutionPolicy")
-                        .arg("Bypass")
-                        .arg("-Command")
-                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install tesseract -y --no-progress")
-                        .output();
-
-                    match choco_tesseract {
-                        Ok(output) => {
-                            let choco_stdout = String::from_utf8_lossy(&output.stdout);
-                            let choco_stderr = String::from_utf8_lossy(&output.stderr);
-                            println!("Chocolatey tesseract stdout: {}", choco_stdout);
-                            println!("Chocolatey tesseract stderr: {}", choco_stderr);
-
-                            if output.status.success() && !choco_stdout.contains("ERROR") {
-                                println!("tesseract installed successfully via Chocolatey");
-                                msi_progress::report_action_data("tesseract installed via Chocolatey");
-                            } else {
+                            Err(_) => {
                                 msi_progress::report_action_data("WARNING: tesseract installation failed (optional)");
                                 println!("WARNING: Chocolatey installation also failed for tesseract");
                                 println!("  Tesseract is optional - only needed for OCR support");
                             }
-                        }
-                        Err(e) => {
-                            msi_progress::report_action_data("WARNING: Failed to execute Chocolatey for tesseract");
-                            println!("WARNING: Failed to execute Chocolatey command: {}", e);
-                            println!("  Tesseract is optional - only needed for OCR support");
                         }
                     }
                 } else {
@@ -1112,75 +991,23 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                     // Try Chocolatey as fallback
                     println!("=== DEBUG: Installing ffmpeg via Chocolatey (fallback) ===");
 
-                    // Check if Chocolatey is installed
-                    let choco_check = Command::new("powershell")
-                        .arg("-NoProfile")
-                        .arg("-Command")
-                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
-                        .output();
-
-                    let choco_installed = choco_check
-                        .map(|o| o.status.success())
-                        .unwrap_or(false);
-
-                    if !choco_installed {
-                        println!("Chocolatey not found, installing...");
-                        msi_progress::report_action_data("Installing Chocolatey package manager...");
-
-                        let choco_install = Command::new("powershell")
-                            .arg("-NoProfile")
-                            .arg("-ExecutionPolicy")
-                            .arg("Bypass")
-                            .arg("-Command")
-                            .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
-                            .output();
-
-                        match choco_install {
-                            Ok(output) if output.status.success() => {
-                                println!("Chocolatey installed successfully");
-                                msi_progress::report_action_data("Chocolatey installed");
+                    // Ensure Chocolatey is installed
+                    if let Err(_) = windows_helpers::ensure_chocolatey_installed() {
+                        msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (ffmpeg is optional)");
+                        println!("WARNING: Both Scoop and Chocolatey installation attempts failed for ffmpeg");
+                        println!("  FFmpeg is optional - only needed for video frame extraction");
+                        println!("  You can install it manually later: choco install ffmpeg -y");
+                    } else {
+                        // Try installing ffmpeg via Chocolatey
+                        match windows_helpers::install_package_via_chocolatey("ffmpeg") {
+                            Ok(_) => {
+                                // Installation succeeded
                             }
-                            _ => {
-                                msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (ffmpeg is optional)");
-                                println!("WARNING: Both Scoop and Chocolatey installation attempts failed for ffmpeg");
-                                println!("  FFmpeg is optional - only needed for video frame extraction");
-                                println!("  You can install it manually later: choco install ffmpeg -y");
-                            }
-                        }
-                    }
-
-                    // Try installing ffmpeg via Chocolatey
-                    println!("Installing ffmpeg via Chocolatey...");
-                    msi_progress::report_action_data("Installing ffmpeg via Chocolatey...");
-
-                    let choco_ffmpeg = Command::new("powershell")
-                        .arg("-NoProfile")
-                        .arg("-ExecutionPolicy")
-                        .arg("Bypass")
-                        .arg("-Command")
-                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install ffmpeg -y --no-progress")
-                        .output();
-
-                    match choco_ffmpeg {
-                        Ok(output) => {
-                            let choco_stdout = String::from_utf8_lossy(&output.stdout);
-                            let choco_stderr = String::from_utf8_lossy(&output.stderr);
-                            println!("Chocolatey ffmpeg stdout: {}", choco_stdout);
-                            println!("Chocolatey ffmpeg stderr: {}", choco_stderr);
-
-                            if output.status.success() && !choco_stdout.contains("ERROR") {
-                                println!("ffmpeg installed successfully via Chocolatey");
-                                msi_progress::report_action_data("ffmpeg installed via Chocolatey");
-                            } else {
+                            Err(_) => {
                                 msi_progress::report_action_data("WARNING: ffmpeg installation failed (optional)");
                                 println!("WARNING: Chocolatey installation also failed for ffmpeg");
                                 println!("  FFmpeg is optional - only needed for video frame extraction");
                             }
-                        }
-                        Err(e) => {
-                            msi_progress::report_action_data("WARNING: Failed to execute Chocolatey for ffmpeg");
-                            println!("WARNING: Failed to execute Chocolatey command: {}", e);
-                            println!("  FFmpeg is optional - only needed for video frame extraction");
                         }
                     }
                 } else {
@@ -1231,77 +1058,23 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
                     // Try Chocolatey as fallback
                     println!("=== DEBUG: Installing imagemagick via Chocolatey (fallback) ===");
 
-                    // Check if Chocolatey is installed
-                    // Refresh PATH first in case it was just installed
-                    let choco_check = Command::new("powershell")
-                        .arg("-NoProfile")
-                        .arg("-Command")
-                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
-                        .output();
-
-                    let choco_installed = choco_check
-                        .map(|o| o.status.success())
-                        .unwrap_or(false);
-
-                    if !choco_installed {
-                        println!("Chocolatey not found, installing...");
-                        msi_progress::report_action_data("Installing Chocolatey package manager...");
-
-                        // Install Chocolatey
-                        let choco_install = Command::new("powershell")
-                            .arg("-NoProfile")
-                            .arg("-ExecutionPolicy")
-                            .arg("Bypass")
-                            .arg("-Command")
-                            .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
-                            .output();
-
-                        match choco_install {
-                            Ok(output) if output.status.success() => {
-                                println!("Chocolatey installed successfully");
-                                msi_progress::report_action_data("Chocolatey installed");
+                    // Ensure Chocolatey is installed
+                    if let Err(_) = windows_helpers::ensure_chocolatey_installed() {
+                        msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (imagemagick is optional)");
+                        println!("WARNING: Both Scoop and Chocolatey installation attempts failed for imagemagick");
+                        println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
+                        println!("  You can install it manually later: choco install imagemagick -y");
+                    } else {
+                        // Try installing imagemagick via Chocolatey
+                        match windows_helpers::install_package_via_chocolatey("imagemagick") {
+                            Ok(_) => {
+                                // Installation succeeded
                             }
-                            _ => {
-                                msi_progress::report_action_data("WARNING: Both Scoop and Chocolatey failed (imagemagick is optional)");
-                                println!("WARNING: Both Scoop and Chocolatey installation attempts failed for imagemagick");
-                                println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
-                                println!("  You can install it manually later: choco install imagemagick -y");
-                            }
-                        }
-                    }
-
-                    // Try installing imagemagick via Chocolatey
-                    println!("Installing imagemagick via Chocolatey...");
-                    msi_progress::report_action_data("Installing imagemagick via Chocolatey...");
-
-                    let choco_imagemagick = Command::new("powershell")
-                        .arg("-NoProfile")
-                        .arg("-ExecutionPolicy")
-                        .arg("Bypass")
-                        .arg("-Command")
-                        .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install imagemagick -y --no-progress")
-                        .output();
-
-                    match choco_imagemagick {
-                        Ok(output) => {
-                            let choco_stdout = String::from_utf8_lossy(&output.stdout);
-                            let choco_stderr = String::from_utf8_lossy(&output.stderr);
-                            println!("Chocolatey imagemagick stdout: {}", choco_stdout);
-                            println!("Chocolatey imagemagick stderr: {}", choco_stderr);
-
-                            if output.status.success() && !choco_stdout.contains("ERROR") {
-                                println!("imagemagick installed successfully via Chocolatey");
-                                msi_progress::report_action_data("imagemagick installed via Chocolatey");
-                            } else {
+                            Err(_) => {
                                 msi_progress::report_action_data("WARNING: imagemagick installation failed (optional)");
                                 println!("WARNING: Chocolatey installation also failed for imagemagick");
                                 println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
                             }
-                        }
-                        Err(e) => {
-                            msi_progress::report_action_data("WARNING: Failed to execute Chocolatey for imagemagick");
-                            println!("WARNING: Failed to execute Chocolatey command: {}", e);
-                            println!("  ImageMagick is optional - only needed for HEIC/HEIF image support");
                         }
                     }
                 } else {
@@ -1829,6 +1602,106 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
     }
 
     Ok(())
+}
+
+#[cfg(target_os = "windows")]
+mod windows_helpers {
+    use super::*;
+    use std::process::Command;
+
+    /// Ensures Chocolatey is installed, installing it if necessary
+    ///
+    /// # Returns
+    /// * `Ok(())` if Chocolatey is available (was already installed or just installed successfully)
+    /// * `Err(String)` if Chocolatey installation failed
+    pub fn ensure_chocolatey_installed() -> Result<(), String> {
+        // Check if Chocolatey is installed
+        // Refresh PATH first in case it was just installed by another process
+        let choco_check = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-Command")
+            .arg("$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Get-Command choco -ErrorAction SilentlyContinue")
+            .output();
+
+        let choco_installed = choco_check
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        if !choco_installed {
+            println!("Chocolatey not found, installing...");
+            msi_progress::report_action_data("Installing Chocolatey package manager...");
+
+            // Install Chocolatey
+            let choco_install = Command::new("powershell")
+                .arg("-NoProfile")
+                .arg("-ExecutionPolicy")
+                .arg("Bypass")
+                .arg("-Command")
+                .arg("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
+                .output();
+
+            match choco_install {
+                Ok(output) if output.status.success() => {
+                    println!("Chocolatey installed successfully");
+                    msi_progress::report_action_data("Chocolatey installed");
+                    Ok(())
+                }
+                _ => {
+                    msi_progress::report_action_data("Chocolatey installation failed");
+                    Err("Failed to install Chocolatey package manager".to_string())
+                }
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Installs a package via Chocolatey (assumes Chocolatey is already installed)
+    ///
+    /// # Arguments
+    /// * `package_name` - Name of the Chocolatey package (e.g., "exiftool", "tesseract")
+    ///
+    /// # Returns
+    /// * `Ok((stdout, stderr))` if installation succeeded
+    /// * `Err(String)` if installation failed
+    pub fn install_package_via_chocolatey(package_name: &str) -> Result<(String, String), String> {
+        println!("Installing {} via Chocolatey...", package_name);
+        msi_progress::report_action_data(&format!("Installing {} via Chocolatey...", package_name));
+
+        let choco_install_cmd = format!(
+            "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); choco install {} -y --no-progress",
+            package_name
+        );
+
+        let choco_result = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
+            .arg("-Command")
+            .arg(&choco_install_cmd)
+            .output();
+
+        match choco_result {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+                println!("Chocolatey {} stdout: {}", package_name, stdout);
+                println!("Chocolatey {} stderr: {}", package_name, stderr);
+
+                if output.status.success() && !stdout.contains("ERROR") {
+                    println!("{} installed successfully via Chocolatey", package_name);
+                    msi_progress::report_action_data(&format!("{} installed via Chocolatey", package_name));
+                    Ok((stdout, stderr))
+                } else {
+                    Err(format!("Chocolatey installation failed for {}", package_name))
+                }
+            }
+            Err(e) => {
+                Err(format!("Failed to execute Chocolatey command for {}: {}", package_name, e))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
