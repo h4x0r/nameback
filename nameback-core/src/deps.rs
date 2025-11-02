@@ -1,5 +1,14 @@
 use std::process::Command;
 
+// Platform-specific dependency installation modules
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "linux")]
+mod linux;
+mod bundled;
+
 // Constants for external URLs and installation
 mod constants {
     /// GitHub Release URLs
