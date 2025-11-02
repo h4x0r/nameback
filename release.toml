@@ -1,0 +1,19 @@
+[workspace]
+# Only allow releases from the main branch
+allow-branch = ["main"]
+
+# Create a single commit for all package version updates
+consolidate-commits = true
+
+# Use v0.x.x format for tags (not nameback-v0.x.x)
+tag-name = "v{{version}}"
+
+# Automatically upgrade workspace dependencies to match new versions
+dependent-version = "upgrade"
+
+# Push tags and commits to remote
+push = true
+
+# Create GitHub release (requires gh CLI or GITHUB_TOKEN)
+# Note: We handle GitHub releases via workflow, so disable here
+release = false
