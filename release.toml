@@ -1,4 +1,3 @@
-[workspace]
 # Only allow releases from the main branch
 allow-branch = ["main"]
 
