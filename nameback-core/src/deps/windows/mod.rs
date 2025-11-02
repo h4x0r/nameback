@@ -5,9 +5,6 @@
 //! - Chocolatey (fallback package manager)
 //! - Bundled installers (final fallback)
 
-use super::*;
-use std::process::Command;
-
 mod chocolatey;
 mod scoop;
 
