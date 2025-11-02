@@ -51,6 +51,15 @@
       </Component>
     </DirectoryRef>
 
+    <!-- PowerShell script for PATH configuration -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="PathConfigScript" Guid="E8A9C1D6-7B2F-4E3A-9A1B-8C5D4F6E7A9B">
+        <File Id="AddScoopToPathScript"
+              Source="installer\add-scoop-to-path.ps1"
+              KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <!-- Start Menu shortcut for GUI -->
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="GUIShortcut" Guid="1408AB73-CDB0-442E-910E-DE2C09B77B8E">
@@ -88,6 +97,7 @@
                Description="CLI tool accessible from any terminal (added to PATH)"
                Level="1">
         <ComponentRef Id="CLIExecutable" />
+        <ComponentRef Id="PathConfigScript" />
       </Feature>
 
       <Feature Id="GUIFeature"
@@ -122,14 +132,15 @@
                   Impersonate="no"
                   Return="ignore" />
 
-    <!-- Custom Action to add Scoop shims to system PATH after dependency installation -->
+    <!-- Custom Action to add Scoop shims and ImageMagick to system PATH after dependency installation -->
     <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
+    <!-- Uses external PowerShell script to avoid complex quote escaping -->
     <CustomAction Id="AddScoopToPath"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$userProfile = [Environment]::GetEnvironmentVariable('USERPROFILE'); $scoopShims = Join-Path $userProfile 'scoop\shims'; if (Test-Path $scoopShims) { $currentPath = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($currentPath -notlike &quot;*$scoopShims*&quot;) { [Environment]::SetEnvironmentVariable('Path', &quot;$currentPath;$scoopShims&quot;, 'Machine'); Write-Host 'Added Scoop shims to system PATH'; } }&quot;"
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]add-scoop-to-path.ps1&quot;"
                   Execute="deferred"
                   Impersonate="no"
-                  Return="ignore" />
+                  Return="check" />
 
     <!-- Schedule the custom actions after files are installed -->
     <InstallExecuteSequence>
