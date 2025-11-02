@@ -7,13 +7,8 @@
 //! - pacman (Arch Linux, Manjaro)
 //! - snap (Universal package manager)
 
-use super::*;
-use std::process::Command;
-
+mod dns_fallback;
 mod apt;
-mod dnf;
-mod pacman;
 
-pub use apt::install_via_apt;
-pub use dnf::install_via_dnf;
-pub use pacman::install_via_pacman;
+pub use dns_fallback::{try_with_public_dns, restore_dns};
+pub use apt::install_dependencies;
