@@ -28,6 +28,13 @@ pub fn install_dependencies_via_scoop(
     scoop_cmd: &str,
     report_progress: impl Fn(&str, u8) + Send + Sync + 'static
 ) -> Result<(), String> {
+    // Try switching to public DNS first to avoid SSL/network issues
+    report_progress("Checking network connectivity...", 10);
+    if let Err(e) = super::try_with_public_dns() {
+        println!("Warning: Failed to switch to public DNS: {}", e);
+        println!("Continuing with current DNS settings...");
+    }
+
     // Use full path to cmd.exe
     let cmd_exe = std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
 
@@ -102,14 +109,17 @@ pub fn install_dependencies_via_scoop(
     let stderr = String::from_utf8_lossy(&exiftool_result.stderr);
 
     // Scoop reports errors in stdout, not stderr, and still exits with code 0
-    // Check for common error patterns
+    // Check for common error patterns including SSL/TLS errors
     let has_error = !exiftool_result.status.success() ||
                     stdout.contains("is not valid") ||
                     stdout.contains("ERROR") ||
                     stdout.contains("Failed to") ||
                     stdout.contains("Authentication failed") ||
                     stdout.contains("Unable to connect") ||
-                    stdout.contains("could not be resolved");
+                    stdout.contains("could not be resolved") ||
+                    stdout.contains("SSL connection") ||
+                    stdout.contains("The SSL") ||
+                    stdout.contains("certificate");
 
     if has_error {
         msi_progress::report_action_data("Scoop failed, trying Chocolatey fallback...");
