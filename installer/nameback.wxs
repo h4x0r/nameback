@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.7.9"
+           Version="0.7.10"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -60,6 +60,15 @@
       </Component>
     </DirectoryRef>
 
+    <!-- PowerShell script for dependency installation with progress -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="InstallDepsScript" Guid="F9B0D2E7-8C3A-4F1B-9D2E-7A8B5C6D4E9F">
+        <File Id="InstallDepsProgressScript"
+              Source="installer\install-deps-with-progress.ps1"
+              KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
     <!-- Start Menu shortcut for GUI -->
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="GUIShortcut" Guid="1408AB73-CDB0-442E-910E-DE2C09B77B8E">
@@ -98,6 +107,7 @@
                Level="1">
         <ComponentRef Id="CLIExecutable" />
         <ComponentRef Id="PathConfigScript" />
+        <ComponentRef Id="InstallDepsScript" />
       </Feature>
 
       <Feature Id="GUIFeature"
@@ -114,7 +124,7 @@
 
     <!-- Action text for progress display (uses default Windows Installer UI) -->
     <UI>
-      <ProgressText Action="InstallDependencies">Installing dependencies (exiftool, tesseract, ffmpeg, imagemagick). This may take several minutes...</ProgressText>
+      <ProgressText Action="InstallDependencies">Installing dependencies</ProgressText>
     </UI>
 
     <!-- Add/Remove Programs metadata -->
@@ -124,24 +134,20 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Uses VBScript wrapper to run nameback.exe with MSI progress reporting -->
-    <!-- VBScript has access to Session object for proper MSI UI updates -->
+    <!-- Uses PowerShell wrapper to monitor log and report real-time progress -->
 
     <!-- Immediate action to set CustomActionData for deferred action -->
     <CustomAction Id="SetInstallDepsData"
                   Property="InstallDependencies"
                   Value="[INSTALLFOLDER]" />
 
-    <!-- Deferred action that runs VBScript -->
+    <!-- Deferred action that runs PowerShell script with progress monitoring -->
     <CustomAction Id="InstallDependencies"
-                  BinaryRef="InstallDepsVBSBinary"
-                  VBScriptCall=""
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]install-deps-with-progress.ps1&quot; -InstallFolder &quot;[InstallDependencies]&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
-
-    <!-- Binary for VBScript -->
-    <Binary Id="InstallDepsVBSBinary" SourceFile="installer\install-deps.vbs" />
 
     <!-- Custom Action to add Scoop shims and ImageMagick to system PATH after dependency installation -->
     <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
