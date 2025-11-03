@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.7.8"
+           Version="0.7.9"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -114,7 +114,7 @@
 
     <!-- Action text for progress display (uses default Windows Installer UI) -->
     <UI>
-      <ProgressText Action="InstallDependencies" Template="Installing dependencies (exiftool, tesseract, ffmpeg, imagemagick)..." />
+      <ProgressText Action="InstallDependencies">Installing dependencies (exiftool, tesseract, ffmpeg, imagemagick). This may take several minutes...</ProgressText>
     </UI>
 
     <!-- Add/Remove Programs metadata -->
@@ -124,13 +124,24 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Runs nameback.exe directly (no cmd window) - uses MSI progress reporting -->
+    <!-- Uses VBScript wrapper to run nameback.exe with MSI progress reporting -->
+    <!-- VBScript has access to Session object for proper MSI UI updates -->
+
+    <!-- Immediate action to set CustomActionData for deferred action -->
+    <CustomAction Id="SetInstallDepsData"
+                  Property="InstallDependencies"
+                  Value="[INSTALLFOLDER]" />
+
+    <!-- Deferred action that runs VBScript -->
     <CustomAction Id="InstallDependencies"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="&quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps"
+                  BinaryRef="InstallDepsVBSBinary"
+                  VBScriptCall=""
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
+
+    <!-- Binary for VBScript -->
+    <Binary Id="InstallDepsVBSBinary" SourceFile="installer\install-deps.vbs" />
 
     <!-- Custom Action to add Scoop shims and ImageMagick to system PATH after dependency installation -->
     <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
@@ -151,7 +162,8 @@
 
     <!-- Schedule the custom actions after files are installed -->
     <InstallExecuteSequence>
-      <Custom Action="InstallDependencies" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
+      <Custom Action="SetInstallDepsData" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
+      <Custom Action="InstallDependencies" After="SetInstallDepsData" Condition="NOT Installed AND NOT REMOVE" />
       <Custom Action="SetAddScoopToPathData" After="InstallDependencies" Condition="NOT Installed AND NOT REMOVE" />
       <Custom Action="AddScoopToPath" After="SetAddScoopToPathData" Condition="NOT Installed AND NOT REMOVE" />
     </InstallExecuteSequence>
