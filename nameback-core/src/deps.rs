@@ -301,22 +301,13 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
             }
         }
 
-        // Helper function to temporarily switch to public DNS servers
-        // Returns original DNS settings for restoration
         // Clone Arc for each function that needs 'static lifetime
         let progress_for_scoop = Arc::clone(&progress_arc);
-        let header_for_scoop = Arc::clone(&header_printed);
-
         let progress_for_deps = Arc::clone(&progress_arc);
-        let header_for_deps = Arc::clone(&header_printed);
 
         // Ensure Scoop is installed and get the path to scoop.cmd
         let scoop_cmd = windows::ensure_scoop_installed(move |msg: &str, pct: u8| {
-            if pct == 0 && is_interactive && !header_for_scoop.swap(true, Ordering::Relaxed) {
-                println!("\n==================================================");
-                println!("  Installing Dependencies");
-                println!("==================================================\n");
-            }
+            // Don't print header here - already printed by main report_progress
             msi_progress::report_action_data(msg);
             if let Some(ref cb) = *progress_for_scoop {
                 cb(msg, pct);
@@ -327,11 +318,7 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
         // Install all Windows dependencies via Scoop (with Chocolatey/bundled fallbacks)
         windows::install_dependencies_via_scoop(&scoop_cmd, move |msg: &str, pct: u8| {
-            if pct == 0 && is_interactive && !header_for_deps.swap(true, Ordering::Relaxed) {
-                println!("\n==================================================");
-                println!("  Installing Dependencies");
-                println!("==================================================\n");
-            }
+            // Don't print header here - already printed by main report_progress
             msi_progress::report_action_data(msg);
             if let Some(ref cb) = *progress_for_deps {
                 cb(msg, pct);
@@ -370,6 +357,9 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
         println!("\n==================================================");
         println!("  Installation Complete!");
         println!("==================================================\n");
+
+        // Automatically check and display dependency status
+        print_dependency_status();
     }
 
     // Finalize logger and report log location
