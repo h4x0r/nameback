@@ -136,23 +136,24 @@
     <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
     <!-- Uses external PowerShell script to avoid complex quote escaping -->
 
-    <!-- Immediate action to set the script path for the deferred action -->
-    <SetProperty Id="AddScoopToPath"
-                 Before="AddScoopToPath"
-                 Sequence="execute"
-                 Value="&quot;[INSTALLFOLDER]add-scoop-to-path.ps1&quot;" />
+    <!-- Immediate action to set the CustomActionData property for the deferred action -->
+    <CustomAction Id="SetAddScoopToPathData"
+                  Property="AddScoopToPath"
+                  Value="[INSTALLFOLDER]add-scoop-to-path.ps1" />
 
-    <!-- Deferred action that runs PowerShell script -->
+    <!-- Deferred action that runs PowerShell script using Directory and CustomActionData -->
     <CustomAction Id="AddScoopToPath"
+                  Directory="INSTALLFOLDER"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore"
-                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File [AddScoopToPath]" />
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[AddScoopToPath]&quot;" />
 
     <!-- Schedule the custom actions after files are installed -->
     <InstallExecuteSequence>
       <Custom Action="InstallDependencies" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
-      <Custom Action="AddScoopToPath" After="InstallDependencies" Condition="NOT Installed AND NOT REMOVE" />
+      <Custom Action="SetAddScoopToPathData" After="InstallDependencies" Condition="NOT Installed AND NOT REMOVE" />
+      <Custom Action="AddScoopToPath" After="SetAddScoopToPathData" Condition="NOT Installed AND NOT REMOVE" />
     </InstallExecuteSequence>
 
   </Package>
