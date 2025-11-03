@@ -292,6 +292,15 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
 
     #[cfg(target_os = "windows")]
     {
+        // Try switching to public DNS first to avoid SSL/network issues during Scoop installation
+        report_progress("Checking network connectivity...", 5);
+        if let Err(e) = windows::try_with_public_dns() {
+            if is_interactive {
+                println!("Warning: Failed to switch to public DNS: {}", e);
+                println!("Continuing with current DNS settings...");
+            }
+        }
+
         // Helper function to temporarily switch to public DNS servers
         // Returns original DNS settings for restoration
         // Clone Arc for each function that needs 'static lifetime

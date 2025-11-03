@@ -28,13 +28,7 @@ pub fn install_dependencies_via_scoop(
     scoop_cmd: &str,
     report_progress: impl Fn(&str, u8) + Send + Sync + 'static
 ) -> Result<(), String> {
-    // Try switching to public DNS first to avoid SSL/network issues
-    report_progress("Checking network connectivity...", 10);
-    if let Err(e) = super::try_with_public_dns() {
-        println!("Warning: Failed to switch to public DNS: {}", e);
-        println!("Continuing with current DNS settings...");
-    }
-
+    // DNS fallback is now handled before Scoop installation in deps.rs
     // Use full path to cmd.exe
     let cmd_exe = std::env::var("COMSPEC").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
 
