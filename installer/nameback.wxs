@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.7.6"
+           Version="0.7.7"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -124,10 +124,9 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Keep console window open for debugging with /k flag and pause -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="cmd /k &quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps &amp;&amp; pause"
+                  ExeCommand="cmd /c &quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />

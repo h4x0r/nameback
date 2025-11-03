@@ -89,10 +89,7 @@ impl InstallLogger {
             format!("[{}] [{}] {}", timestamp, level, message)
         };
 
-        // Write to console
-        println!("{}", message);
-
-        // Write to log file
+        // Write to log file only (console output handled by report_progress)
         if let Ok(mut file_opt) = self.log_file.lock() {
             if let Some(ref mut file) = *file_opt {
                 let _ = writeln!(file, "{}", formatted);

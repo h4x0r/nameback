@@ -247,12 +247,6 @@ pub fn run_installer_with_progress(progress: Option<ProgressCallback>) -> Result
     // Clean up old log files (keep last 5)
     let _ = logger::InstallLogger::cleanup_old_logs(5);
 
-    logger.info("=== NAMEBACK DEPENDENCY INSTALLER ===");
-    logger.info(&format!("Version: {}", env!("CARGO_PKG_VERSION")));
-    logger.info(&format!("Log file: {:?}", logger.log_path()));
-    logger.info("======================================");
-    logger.info("");
-
     // Use Arc to share progress callback and logger across closures
     // AtomicBool for thread-safe header_printed flag
     let progress_arc = Arc::new(progress);
