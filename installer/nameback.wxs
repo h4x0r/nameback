@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.7.11"
+           Version="0.7.12"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -60,15 +60,6 @@
       </Component>
     </DirectoryRef>
 
-    <!-- PowerShell script for dependency installation with progress -->
-    <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="InstallDepsScript" Guid="F9B0D2E7-8C3A-4F1B-9D2E-7A8B5C6D4E9F">
-        <File Id="InstallDepsProgressScript"
-              Source="installer\install-deps-with-progress.ps1"
-              KeyPath="yes" />
-      </Component>
-    </DirectoryRef>
-
     <!-- Start Menu shortcut for GUI -->
     <DirectoryRef Id="ApplicationProgramsFolder">
       <Component Id="GUIShortcut" Guid="1408AB73-CDB0-442E-910E-DE2C09B77B8E">
@@ -107,7 +98,6 @@
                Level="1">
         <ComponentRef Id="CLIExecutable" />
         <ComponentRef Id="PathConfigScript" />
-        <ComponentRef Id="InstallDepsScript" />
       </Feature>
 
       <Feature Id="GUIFeature"
@@ -129,17 +119,10 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Uses PowerShell wrapper to monitor log and report real-time progress -->
-
-    <!-- Immediate action to set CustomActionData for deferred action -->
-    <CustomAction Id="SetInstallDepsData"
-                  Property="InstallDependencies"
-                  Value="[INSTALLFOLDER]" />
-
-    <!-- Deferred action that runs PowerShell script with progress monitoring -->
+    <!-- Runs nameback.exe directly - no console window, automatic progress -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]install-deps-with-progress.ps1&quot; -InstallFolder &quot;[InstallDependencies]&quot;"
+                  ExeCommand="&quot;[INSTALLFOLDER]nameback.exe&quot; --install-deps"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
@@ -163,8 +146,7 @@
 
     <!-- Schedule the custom actions after files are installed -->
     <InstallExecuteSequence>
-      <Custom Action="SetInstallDepsData" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
-      <Custom Action="InstallDependencies" After="SetInstallDepsData" Condition="NOT Installed AND NOT REMOVE" />
+      <Custom Action="InstallDependencies" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
       <Custom Action="SetAddScoopToPathData" After="InstallDependencies" Condition="NOT Installed AND NOT REMOVE" />
       <Custom Action="AddScoopToPath" After="SetAddScoopToPathData" Condition="NOT Installed AND NOT REMOVE" />
     </InstallExecuteSequence>
