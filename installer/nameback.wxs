@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="nameback"
-           Version="0.7.13"
+           Version="0.7.14"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -64,7 +64,7 @@
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="InstallDepsScript" Guid="B7C3D8F1-9A2E-4B6C-8D1F-3E7A9C5B2D4E">
         <File Id="InstallDependenciesScript"
-              Source="installer\install-dependencies.ps1"
+              Source="installer\install-dependencies-with-ui.ps1"
               KeyPath="yes" />
       </Component>
     </DirectoryRef>
@@ -122,10 +122,22 @@
     <!-- UI configuration -->
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
-    <!-- Progress text for dependency installation -->
     <UI>
-      <ProgressText Action="InstallDependencies" />
+      <!-- Use Mondo UI which shows progress, completion screen, and has feature selection -->
+      <UIRef Id="WixUI_Mondo" />
+
+      <!-- Progress text for custom actions - [1] will be replaced with ActionData from script -->
+      <ProgressText Action="InstallDependencies">Installing dependencies: [1]</ProgressText>
+      <ProgressText Action="AddScoopToPath">Configuring system PATH: [1]</ProgressText>
+
+      <!-- Customize the completion dialog -->
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
     </UI>
+
+    <!-- Property for launch checkbox on exit dialog -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch nameback GUI now" />
+    <Property Id="WixShellExecTarget" Value="[#namebackGUI]" />
+    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA" DllEntry="WixShellExec" Impersonate="yes" />
 
     <!-- Add/Remove Programs metadata -->
     <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
@@ -134,10 +146,10 @@
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
     <!-- Custom Action to install dependencies automatically -->
-    <!-- Uses PowerShell script with advanced progress reporting and logging -->
+    <!-- Uses PowerShell script with UI progress reporting and logging -->
     <CustomAction Id="InstallDependencies"
                   Directory="INSTALLFOLDER"
-                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[INSTALLFOLDER]install-dependencies.ps1&quot;"
+                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]install-dependencies-with-ui.ps1&quot;"
                   Execute="deferred"
                   Impersonate="no"
                   Return="ignore" />
