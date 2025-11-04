@@ -126,12 +126,12 @@
       <!-- Use Mondo UI which shows progress, completion screen, and has feature selection -->
       <UIRef Id="WixUI_Mondo" />
 
-      <!-- Progress text for custom actions - [1] will be replaced with ActionData from script -->
-      <ProgressText Action="InstallDependencies">Installing dependencies: [1]</ProgressText>
-      <ProgressText Action="AddScoopToPath">Configuring system PATH: [1]</ProgressText>
+      <!-- Progress text for custom actions -->
+      <ProgressText Action="InstallDependencies">Installing external dependencies (ExifTool, Tesseract, FFmpeg, ImageMagick)...</ProgressText>
+      <ProgressText Action="AddScoopToPath">Configuring system PATH for dependency access...</ProgressText>
 
       <!-- Customize the completion dialog -->
-      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
     </UI>
 
     <!-- Property for launch checkbox on exit dialog -->
