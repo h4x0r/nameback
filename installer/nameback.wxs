@@ -127,8 +127,8 @@
       <UIRef Id="WixUI_Mondo" />
 
       <!-- Progress text for custom actions -->
-      <ProgressText Action="InstallDependencies">Installing external dependencies (ExifTool, Tesseract, FFmpeg, ImageMagick)...</ProgressText>
-      <ProgressText Action="AddScoopToPath">Configuring system PATH for dependency access...</ProgressText>
+      <ProgressText Action="InstallDependencies" Template="Installing external dependencies (ExifTool, Tesseract, FFmpeg, ImageMagick)..." />
+      <ProgressText Action="AddScoopToPath" Template="Configuring system PATH for dependency access..." />
 
       <!-- Customize the completion dialog -->
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
