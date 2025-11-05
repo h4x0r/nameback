@@ -131,10 +131,6 @@
       <!-- Use InstallDir UI for professional installation wizard -->
       <ui:WixUI Id="WixUI_InstallDir" />
 
-      <!-- ActionText for displaying real-time progress -->
-      <ProgressText Action="InstallDependencies">Installing external dependencies</ProgressText>
-      <ProgressText Action="AddScoopToPath">Configuring system PATH</ProgressText>
-
       <!-- Launch application after installation -->
       <Publish Dialog="ExitDialog"
                Control="Finish"
