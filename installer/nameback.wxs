@@ -131,10 +131,9 @@
       <!-- Use InstallDir UI for professional installation wizard -->
       <ui:WixUI Id="WixUI_InstallDir" />
 
-      <!-- Custom progress text with ActionData support -->
-      <!-- [1] will be replaced with real-time messages from PowerShell script -->
-      <ProgressText Action="InstallDependencies" Template="Installing dependencies: [1]" />
-      <ProgressText Action="AddScoopToPath" Template="Configuring PATH: [1]" />
+      <!-- ActionText for displaying real-time progress -->
+      <ProgressText Action="InstallDependencies">Installing external dependencies</ProgressText>
+      <ProgressText Action="AddScoopToPath">Configuring system PATH</ProgressText>
 
       <!-- Launch application after installation -->
       <Publish Dialog="ExitDialog"
