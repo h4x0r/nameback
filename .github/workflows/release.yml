@@ -520,6 +520,8 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool install --global wix
+          wix extension add WixToolset.UI.wixext
+          wix extension add WixToolset.Util.wixext
 
       - name: Build MSI installer (Windows only)
         if: matrix.os == 'windows-latest'
