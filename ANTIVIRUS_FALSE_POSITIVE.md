@@ -1,40 +1,26 @@
 # Windows Defender False Positive - Trojan:Win32/Wacatac.B!ml
 
-## Issue
+## Issue Resolved in v0.7.18+
 
-Windows Defender may quarantine `nameback.exe` with the detection name **Trojan:Win32/Wacatac.B!ml**. This is a **false positive** caused by heuristic analysis of legitimate functionality.
+**This issue has been fixed** by removing Windows API console manipulation code that triggered antivirus false positives.
 
-## Why This Happens
+## Historical Context (v0.7.17 and earlier)
 
-The CLI binary includes Windows API calls for console window management (lines 6-30 in nameback-cli/src/main.rs):
+Versions v0.7.17 and earlier of nameback.exe triggered Windows Defender false positives (Trojan:Win32/Wacatac.B!ml) due to Windows API calls for console window management:
 
 ```rust
+// This code was removed in v0.7.18
 #[cfg(windows)]
 fn hide_console_if_msi() {
-    // Hide console window during MSI installation to prevent flash
-    if let Ok(msihandle) = std::env::var("MSIHANDLE") {
-        if msihandle.parse::<u32>().is_ok() {
-            use windows::Win32::System::Console::GetConsoleWindow;
-            use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
-
-            unsafe {
-                let console_window = GetConsoleWindow();
-                if !console_window.0.is_null() {
-                    ShowWindow(console_window, SW_HIDE);
-                }
-            }
-        }
-    }
+    // Used GetConsoleWindow and ShowWindow to hide console during MSI install
 }
 ```
 
-**Why this triggers detection:**
-- Uses `unsafe` Windows API calls (GetConsoleWindow, ShowWindow)
-- Manipulates window visibility
+**Why this triggered detection:**
+- Used `unsafe` Windows API calls (GetConsoleWindow, ShowWindow)
+- Manipulated window visibility
 - Rust binaries have unusual binary patterns compared to MSVC-compiled code
 - Heuristic engines flag "suspicious" behavior patterns
-
-**This is legitimate functionality** needed to prevent console window flashing during MSI installation.
 
 ## Verification That This Is Safe
 
@@ -44,23 +30,24 @@ You can verify the source code:
 3. Check that the binary matches the published source (reproducible builds)
 4. Verify the SHA256 checksum matches the GitHub release
 
-## Solutions
+## Solution
 
-### For End Users
+**Upgrade to v0.7.18 or later** - The console hiding code has been removed, eliminating the false positive.
 
-**Option 1: Restore from quarantine and add exclusion**
+### If Stuck on v0.7.17 or Earlier
+
+**Option 1: Upgrade to latest version**
+Download the latest MSI installer from [releases](https://github.com/h4x0r/nameback/releases/latest)
+
+**Option 2: Use the GUI instead**
+The GUI executable (`nameback-gui.exe`) never included console manipulation code and doesn't trigger false positives.
+
+**Option 3: Restore from quarantine (not recommended)**
 1. Open Windows Security
 2. Go to "Virus & threat protection" → "Protection history"
 3. Find the quarantined `nameback.exe`
 4. Click "Actions" → "Restore"
-5. Add exclusion: "Virus & threat protection" → "Manage settings" → "Exclusions" → "Add or remove exclusions"
-6. Add the folder: `C:\Program Files\nameback\`
-
-**Option 2: Use the GUI instead**
-The GUI executable (`nameback-gui.exe`) does not include this console manipulation code and should not trigger false positives.
-
-**Option 3: Install via Chocolatey** (when available)
-Packages in the official Chocolatey repository undergo additional verification.
+5. Add exclusion for `C:\Program Files\nameback\`
 
 ### For Developers
 

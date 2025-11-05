@@ -25,9 +25,6 @@ log.workspace = true
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_System_Console", "Win32_UI_WindowsAndMessaging"] }
-
 # Security enhancements
 [profile.release]
 overflow-checks = true

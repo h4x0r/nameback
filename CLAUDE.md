@@ -31,22 +31,10 @@ The command-line interface at /Users/4n6h4x0r/src/nameback/nameback-cli/src/:
   - Argument parsing and validation
   - Logger initialization
   - Dependency checking and installation coordination
-  - Windows MSI console hiding (lines 6-30)
-    - Detects MSIHANDLE environment variable for MSI context
-    - Validates handle as u32 for safety
-    - Uses unsafe Windows API calls (GetConsoleWindow, ShowWindow)
-    - Comprehensive SAFETY documentation explaining why unsafe is safe
-    - Prevents console flash during silent installation
   - Root execution prevention on Unix (security measure)
   - Directory processing coordination
 
 - **cli.rs** - CLI argument definitions using clap derive macros
-
-**Platform-specific dependencies:**
-- Windows only: windows crate v0.58
-  - Win32_System_Console feature for GetConsoleWindow
-  - Win32_UI_WindowsAndMessaging feature for ShowWindow
-  - Conditional compilation with #[cfg(windows)]
 
 ### Core Modules (nameback-core/src/)
 
@@ -240,12 +228,6 @@ Recent bug fixes have added important safety mechanisms:
 - Dry-run mode for safe preview before making changes
 - Root execution blocked on Unix to prevent accidental system directory modification
 
-**Windows MSI Safety:**
-- Console window hiding validated with proper MSIHANDLE checking
-- Unsafe Windows API calls documented with comprehensive SAFETY comments
-- Environment variable validation (u32 parsing) before API usage
-- No memory allocation/deallocation in unsafe blocks
-
 ### Usage Examples
 
 **CLI tool** (see /Users/4n6h4x0r/src/nameback/nameback-cli/src/main.rs):
@@ -335,10 +317,6 @@ cargo-release automatically:
 **Windows:**
 - MSI installer built via WiX Toolset (see /Users/4n6h4x0r/src/nameback/installer/nameback.wxs)
 - Auto-installs all dependencies via Chocolatey
-- CLI includes console hiding functionality for silent MSI custom actions
-  - Detects MSIHANDLE environment variable (set by Windows Installer)
-  - Uses Windows API (GetConsoleWindow, ShowWindow) to hide console
-  - Prevents console flash during installation dependency checks
 
 **Linux:**
 - Debian package built via GitHub Actions (see /Users/4n6h4x0r/src/nameback/.github/workflows/release.yml)
