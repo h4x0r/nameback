@@ -169,7 +169,8 @@ pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
 }
 
 /// Unified helper to find a tool's executable path
-/// Checks PATH first, then Scoop shims on Windows, supports fallback names
+/// Checks PATH first, then platform-specific directories (Scoop shims, Chocolatey bin on Windows)
+/// Supports fallback names for platform-specific tool variants
 fn find_tool_path(primary_name: &str, fallback_names: &[&str]) -> Option<PathBuf> {
     // Try primary name in PATH
     if which::which(primary_name).is_ok() {
@@ -185,10 +186,11 @@ fn find_tool_path(primary_name: &str, fallback_names: &[&str]) -> Option<PathBuf
         }
     }
 
-    // On Windows, check Scoop shims directory
+    // On Windows, check Scoop shims and Chocolatey bin directories
     // This is needed because PATH changes don't take effect until process restart
     #[cfg(windows)]
     {
+        // Check Scoop shims (user-level package manager)
         if let Ok(userprofile) = std::env::var("USERPROFILE") {
             let scoop_shims = PathBuf::from(&userprofile).join("scoop").join("shims");
 
@@ -204,6 +206,28 @@ fn find_tool_path(primary_name: &str, fallback_names: &[&str]) -> Option<PathBuf
                 let fallback_path = scoop_shims.join(format!("{}.exe", name));
                 if fallback_path.exists() {
                     log::debug!("Found {} in Scoop shims (fallback for {}): {:?}",
+                               name, primary_name, fallback_path);
+                    return Some(fallback_path);
+                }
+            }
+        }
+
+        // Check Chocolatey bin (system-level package manager)
+        if let Ok(programdata) = std::env::var("PROGRAMDATA") {
+            let choco_bin = PathBuf::from(&programdata).join("chocolatey").join("bin");
+
+            // Check primary name
+            let primary_path = choco_bin.join(format!("{}.exe", primary_name));
+            if primary_path.exists() {
+                log::debug!("Found {} in Chocolatey bin: {:?}", primary_name, primary_path);
+                return Some(primary_path);
+            }
+
+            // Check fallback names
+            for name in fallback_names {
+                let fallback_path = choco_bin.join(format!("{}.exe", name));
+                if fallback_path.exists() {
+                    log::debug!("Found {} in Chocolatey bin (fallback for {}): {:?}",
                                name, primary_name, fallback_path);
                     return Some(fallback_path);
                 }
