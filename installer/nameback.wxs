@@ -120,24 +120,11 @@
     </Feature>
 
     <!-- UI configuration -->
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
-
     <UI>
-      <!-- Use Mondo UI which shows progress, completion screen, and has feature selection -->
-      <UIRef Id="WixUI_Mondo" />
-
       <!-- Progress text for custom actions -->
       <ProgressText Action="InstallDependencies" Template="Installing external dependencies (ExifTool, Tesseract, FFmpeg, ImageMagick)..." />
       <ProgressText Action="AddScoopToPath" Template="Configuring system PATH for dependency access..." />
-
-      <!-- Customize the completion dialog -->
-      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication" Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
     </UI>
-
-    <!-- Property for launch checkbox on exit dialog -->
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch nameback GUI now" />
-    <Property Id="WixShellExecTarget" Value="[#namebackGUI]" />
-    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA" DllEntry="WixShellExec" Impersonate="yes" />
 
     <!-- Add/Remove Programs metadata -->
     <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
