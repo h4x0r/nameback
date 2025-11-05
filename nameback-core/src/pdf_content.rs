@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use image::DynamicImage;
 use log::debug;
 use std::path::Path;
-use std::process::Command;
 
 /// Extracts text content from a PDF file and returns the first useful portion
 pub fn extract_pdf_content(path: &Path) -> Result<Option<String>> {
@@ -140,11 +139,7 @@ fn extract_pdf_with_ocr(path: &Path) -> Result<Option<String>> {
 
 /// Checks if tesseract-ocr is installed and available
 fn is_tesseract_available() -> bool {
-    Command::new("tesseract")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    crate::deps_check::Dependency::Tesseract.is_available()
 }
 
 /// Converts first page of PDF to image using pdftoppm
@@ -154,7 +149,10 @@ fn pdf_page_to_image(path: &Path) -> Result<DynamicImage> {
     let temp_prefix = temp_dir.join(format!("nameback_pdf_{}", std::process::id()));
 
     // Run pdftoppm to convert first page to PNG
-    let output = Command::new("pdftoppm")
+    let pdftoppm_path = which::which("pdftoppm")
+        .context("pdftoppm not found - is poppler-utils installed?")?;
+
+    let output = std::process::Command::new(pdftoppm_path)
         .arg("-png")
         .arg("-f")
         .arg("1")
@@ -164,7 +162,7 @@ fn pdf_page_to_image(path: &Path) -> Result<DynamicImage> {
         .arg(path)
         .arg(&temp_prefix)
         .output()
-        .context("Failed to run pdftoppm - is poppler-utils installed?")?;
+        .context("Failed to run pdftoppm")?;
 
     if !output.status.success() {
         anyhow::bail!("pdftoppm failed");

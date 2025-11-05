@@ -25,6 +25,7 @@ tesseract.workspace = true
 reqwest.workspace = true
 lazy_static.workspace = true
 rayon.workspace = true
+which.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true

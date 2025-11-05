@@ -1,5 +1,6 @@
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use walkdir::WalkDir;
 
 /// Represents a dependency that might be needed
@@ -30,12 +31,44 @@ impl Dependency {
         }
     }
 
+    /// Find the executable path for this dependency
+    /// Returns Some(path) if found, None otherwise
+    pub fn find_executable(&self) -> Option<PathBuf> {
+        find_tool_path(self.name(), self.fallback_names())
+    }
+
+    /// Create a Command for this dependency
+    /// Returns None if the tool is not available
+    pub fn create_command(&self) -> Option<Command> {
+        self.find_executable().map(Command::new)
+    }
+
+    /// Check if this dependency is available
     pub fn is_available(&self) -> bool {
+        if let Some(mut cmd) = self.create_command() {
+            // Try to run version check
+            let result = match self {
+                Dependency::ExifTool => cmd.arg("-ver").output(),
+                Dependency::Tesseract => cmd.arg("--version").output(),
+                Dependency::FFmpeg => cmd.arg("-version").output(),
+                Dependency::ImageMagick => cmd.arg("-version").output(),
+            };
+
+            let available = result.map(|o| o.status.success()).unwrap_or(false);
+            log::debug!("Dependency check - {}: {}", self.name(),
+                       if available { "available" } else { "missing" });
+            available
+        } else {
+            log::debug!("Dependency check - {}: missing", self.name());
+            false
+        }
+    }
+
+    /// Get fallback executable names (for ImageMagick which can be "convert" on Linux/macOS)
+    fn fallback_names(&self) -> &[&str] {
         match self {
-            Dependency::ExifTool => check_exiftool(),
-            Dependency::Tesseract => check_tesseract(),
-            Dependency::FFmpeg => check_ffmpeg(),
-            Dependency::ImageMagick => check_imagemagick(),
+            Dependency::ImageMagick => &["magick", "convert"],
+            _ => &[],
         }
     }
 }
@@ -135,168 +168,59 @@ pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
     })
 }
 
-// Helper functions to check if dependencies are available
-
-fn check_exiftool() -> bool {
-    // Try standard PATH lookup first
-    let result = std::process::Command::new("exiftool")
-        .arg("-ver")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if result {
-        log::debug!("Dependency check - exiftool: available (in PATH)");
-        return true;
+/// Unified helper to find a tool's executable path
+/// Checks PATH first, then Scoop shims on Windows, supports fallback names
+fn find_tool_path(primary_name: &str, fallback_names: &[&str]) -> Option<PathBuf> {
+    // Try primary name in PATH
+    if which::which(primary_name).is_ok() {
+        log::debug!("Found {} in PATH", primary_name);
+        return Some(PathBuf::from(primary_name));
     }
 
-    // On Windows, also check common Scoop installation locations
-    // This helps when the GUI is launched before PATH is refreshed
+    // Try fallback names in PATH (e.g., "convert" for ImageMagick)
+    for name in fallback_names {
+        if which::which(name).is_ok() {
+            log::debug!("Found {} in PATH (fallback for {})", name, primary_name);
+            return Some(PathBuf::from(name));
+        }
+    }
+
+    // On Windows, check Scoop shims directory
+    // This is needed because PATH changes don't take effect until process restart
     #[cfg(windows)]
     {
         if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_exiftool = std::path::PathBuf::from(&userprofile)
-                .join("scoop")
-                .join("shims")
-                .join("exiftool.exe");
+            let scoop_shims = PathBuf::from(&userprofile).join("scoop").join("shims");
 
-            if scoop_exiftool.exists() {
-                log::debug!("Dependency check - exiftool: available (found in Scoop shims)");
-                return true;
+            // Check primary name
+            let primary_path = scoop_shims.join(format!("{}.exe", primary_name));
+            if primary_path.exists() {
+                log::debug!("Found {} in Scoop shims: {:?}", primary_name, primary_path);
+                return Some(primary_path);
+            }
+
+            // Check fallback names
+            for name in fallback_names {
+                let fallback_path = scoop_shims.join(format!("{}.exe", name));
+                if fallback_path.exists() {
+                    log::debug!("Found {} in Scoop shims (fallback for {}): {:?}",
+                               name, primary_name, fallback_path);
+                    return Some(fallback_path);
+                }
             }
         }
     }
 
-    log::debug!("Dependency check - exiftool: missing");
-    false
+    log::debug!("Tool not found: {}", primary_name);
+    None
 }
 
-fn check_tesseract() -> bool {
-    // Try standard PATH lookup first
-    let result = std::process::Command::new("tesseract")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if result {
-        log::debug!("Dependency check - tesseract: available (in PATH)");
-        return true;
-    }
-
-    // On Windows, also check common Scoop installation locations
-    #[cfg(windows)]
-    {
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_tesseract = std::path::PathBuf::from(&userprofile)
-                .join("scoop")
-                .join("shims")
-                .join("tesseract.exe");
-
-            if scoop_tesseract.exists() {
-                log::debug!("Dependency check - tesseract: available (found in Scoop shims)");
-                return true;
-            }
-        }
-    }
-
-    log::debug!("Dependency check - tesseract: missing");
-    false
-}
-
-fn check_ffmpeg() -> bool {
-    // Try standard PATH lookup first
-    let result = std::process::Command::new("ffmpeg")
-        .arg("-version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if result {
-        log::debug!("Dependency check - ffmpeg: available (in PATH)");
-        return true;
-    }
-
-    // On Windows, also check common Scoop installation locations
-    #[cfg(windows)]
-    {
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_ffmpeg = std::path::PathBuf::from(&userprofile)
-                .join("scoop")
-                .join("shims")
-                .join("ffmpeg.exe");
-
-            if scoop_ffmpeg.exists() {
-                log::debug!("Dependency check - ffmpeg: available (found in Scoop shims)");
-                return true;
-            }
-        }
-    }
-
-    log::debug!("Dependency check - ffmpeg: missing");
-    false
-}
-
-fn check_imagemagick() -> bool {
-    // Try standard PATH lookup first (magick on Windows, convert on Linux/macOS)
-    let result = std::process::Command::new("magick")
-        .arg("-version")
-        .output()
-        .or_else(|_| {
-            std::process::Command::new("convert")
-                .arg("-version")
-                .output()
-        })
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if result {
-        log::debug!("Dependency check - imagemagick: available (in PATH)");
-        return true;
-    }
-
-    // On Windows, also check common Scoop installation locations
-    #[cfg(windows)]
-    {
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_magick = std::path::PathBuf::from(&userprofile)
-                .join("scoop")
-                .join("shims")
-                .join("magick.exe");
-
-            if scoop_magick.exists() {
-                log::debug!("Dependency check - imagemagick: available (found in Scoop shims)");
-                return true;
-            }
-        }
-    }
-
-    log::debug!("Dependency check - imagemagick: missing");
-    false
-}
-
-/// Helper function to create a Command with the full path to an executable,
-/// checking Scoop shims on Windows. This is needed because PATH changes don't
-/// take effect until process restart.
-pub fn create_command(tool_name: &str) -> std::process::Command {
-    // On Windows, check if we need to use explicit Scoop path
-    #[cfg(windows)]
-    {
-        if let Ok(userprofile) = std::env::var("USERPROFILE") {
-            let scoop_path = std::path::PathBuf::from(&userprofile)
-                .join("scoop")
-                .join("shims")
-                .join(format!("{}.exe", tool_name));
-
-            if scoop_path.exists() {
-                log::debug!("Using explicit Scoop path for {}: {:?}", tool_name, scoop_path);
-                return std::process::Command::new(scoop_path);
-            }
-        }
-    }
-
-    // Fall back to just the tool name (rely on PATH)
-    std::process::Command::new(tool_name)
+/// Legacy helper for backward compatibility
+/// Prefer using Dependency::create_command() instead
+pub fn create_command(tool_name: &str) -> Command {
+    find_tool_path(tool_name, &[])
+        .map(Command::new)
+        .unwrap_or_else(|| Command::new(tool_name))
 }
 
 #[cfg(test)]

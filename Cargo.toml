@@ -52,6 +52,7 @@ lazy_static = "1.4"
 
 # Platform-specific
 libc = "0.2"
+which = "6.0"
 
 # Testing
 tempfile = "3.8"

@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use log::debug;
 use std::path::Path;
-use std::process::Command;
 
 /// Extracts text from a video by extracting a frame and running OCR
 /// (requires ffmpeg and tesseract-ocr installed)
@@ -171,7 +170,11 @@ fn extract_video_frame_at_time(video_path: &Path, time: &str) -> Result<std::pat
         temp_frame.display()
     );
 
-    let output = Command::new("ffmpeg")
+    let mut cmd = crate::deps_check::Dependency::FFmpeg
+        .create_command()
+        .context("FFmpeg not available for video frame extraction")?;
+
+    let output = cmd
         .arg("-i")
         .arg(video_path)
         .arg("-ss")
@@ -200,20 +203,12 @@ fn extract_video_frame_at_time(video_path: &Path, time: &str) -> Result<std::pat
 
 /// Checks if ffmpeg is installed and available
 fn is_ffmpeg_available() -> bool {
-    Command::new("ffmpeg")
-        .arg("-version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    crate::deps_check::Dependency::FFmpeg.is_available()
 }
 
 /// Checks if tesseract-ocr is installed and available
 fn is_tesseract_available() -> bool {
-    Command::new("tesseract")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    crate::deps_check::Dependency::Tesseract.is_available()
 }
 
 /// Extracts a single frame from a video file using ffmpeg
@@ -229,7 +224,11 @@ fn extract_video_frame(video_path: &Path) -> Result<std::path::PathBuf> {
     );
 
     // Extract frame at 1 second mark
-    let output = Command::new("ffmpeg")
+    let mut cmd = crate::deps_check::Dependency::FFmpeg
+        .create_command()
+        .context("FFmpeg not available for video frame extraction")?;
+
+    let output = cmd
         .arg("-i")
         .arg(video_path)
         .arg("-ss")

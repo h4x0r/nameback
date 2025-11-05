@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use log::debug;
 use std::path::Path;
-use std::process::Command;
 
 /// Extracts text from an image using OCR (requires tesseract-ocr installed)
 pub fn extract_image_text(path: &Path) -> Result<Option<String>> {
@@ -51,11 +50,7 @@ pub fn extract_image_text(path: &Path) -> Result<Option<String>> {
 
 /// Checks if tesseract-ocr is installed and available
 fn is_tesseract_available() -> bool {
-    Command::new("tesseract")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    crate::deps_check::Dependency::Tesseract.is_available()
 }
 
 /// Runs tesseract OCR on an image file
@@ -144,30 +139,36 @@ fn convert_heic_to_png(heic_path: &Path) -> Result<std::path::PathBuf> {
     );
 
     // Try sips first (available on macOS)
-    let sips_result = Command::new("sips")
-        .arg("-s")
-        .arg("format")
-        .arg("png")
-        .arg(heic_path)
-        .arg("--out")
-        .arg(&temp_png)
-        .output();
+    if let Some(mut cmd) = which::which("sips").ok().map(std::process::Command::new) {
+        let sips_result = cmd
+            .arg("-s")
+            .arg("format")
+            .arg("png")
+            .arg(heic_path)
+            .arg("--out")
+            .arg(&temp_png)
+            .output();
 
-    if let Ok(output) = sips_result {
-        if output.status.success() {
-            debug!("Successfully converted HEIC using sips");
-            return Ok(temp_png);
+        if let Ok(output) = sips_result {
+            if output.status.success() {
+                debug!("Successfully converted HEIC using sips");
+                return Ok(temp_png);
+            }
         }
     }
 
     // Fallback to ImageMagick's magick command
     debug!("sips not available or failed, trying ImageMagick");
-    let output = Command::new("magick")
+    let mut cmd = crate::deps_check::Dependency::ImageMagick
+        .create_command()
+        .context("ImageMagick not available for HEIC conversion")?;
+
+    let output = cmd
         .arg("convert")
         .arg(heic_path)
         .arg(&temp_png)
         .output()
-        .context("Failed to run magick command - neither sips nor ImageMagick available")?;
+        .context("Failed to run magick command")?;
 
     if !output.status.success() {
         anyhow::bail!("HEIC conversion failed with both sips and magick");
