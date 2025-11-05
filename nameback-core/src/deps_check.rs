@@ -275,6 +275,30 @@ fn check_imagemagick() -> bool {
     false
 }
 
+/// Helper function to create a Command with the full path to an executable,
+/// checking Scoop shims on Windows. This is needed because PATH changes don't
+/// take effect until process restart.
+pub fn create_command(tool_name: &str) -> std::process::Command {
+    // On Windows, check if we need to use explicit Scoop path
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let scoop_path = std::path::PathBuf::from(&userprofile)
+                .join("scoop")
+                .join("shims")
+                .join(format!("{}.exe", tool_name));
+
+            if scoop_path.exists() {
+                log::debug!("Using explicit Scoop path for {}: {:?}", tool_name, scoop_path);
+                return std::process::Command::new(scoop_path);
+            }
+        }
+    }
+
+    // Fall back to just the tool name (rely on PATH)
+    std::process::Command::new(tool_name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

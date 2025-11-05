@@ -124,7 +124,7 @@ impl FileMetadata {
 
 /// Extracts metadata from a file using exiftool
 pub fn extract_metadata(path: &Path, config: &crate::RenameConfig) -> Result<FileMetadata> {
-    let output = Command::new("exiftool")
+    let output = crate::deps_check::create_command("exiftool")
         .arg("-json")
         .arg(path)
         .output()
