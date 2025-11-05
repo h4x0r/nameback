@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="nameback"
-           Version="0.7.17"
+           Version="0.7.18"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
