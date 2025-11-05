@@ -44,6 +44,8 @@ No manual setup required - everything works out of the box!
 
 **Silent installation:** `msiexec /i nameback-x86_64-pc-windows-msvc.msi /quiet`
 
+> **⚠️ Windows Defender False Positive:** Windows Defender may flag `nameback.exe` as a threat (Trojan:Win32/Wacatac.B!ml). This is a **false positive** caused by console window management code needed for the MSI installer. See [ANTIVIRUS_FALSE_POSITIVE.md](ANTIVIRUS_FALSE_POSITIVE.md) for details on why this happens and how to resolve it. The GUI (`nameback-gui.exe`) does not trigger this warning.
+
 ### Linux
 
 #### CLI Tool (Command-line)
