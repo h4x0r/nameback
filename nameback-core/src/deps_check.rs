@@ -138,39 +138,107 @@ pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
 // Helper functions to check if dependencies are available
 
 fn check_exiftool() -> bool {
+    // Try standard PATH lookup first
     let result = std::process::Command::new("exiftool")
         .arg("-ver")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    log::debug!("Dependency check - exiftool: {}", if result { "available" } else { "missing" });
-    result
+    if result {
+        log::debug!("Dependency check - exiftool: available (in PATH)");
+        return true;
+    }
+
+    // On Windows, also check common Scoop installation locations
+    // This helps when the GUI is launched before PATH is refreshed
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let scoop_exiftool = std::path::PathBuf::from(&userprofile)
+                .join("scoop")
+                .join("shims")
+                .join("exiftool.exe");
+
+            if scoop_exiftool.exists() {
+                log::debug!("Dependency check - exiftool: available (found in Scoop shims)");
+                return true;
+            }
+        }
+    }
+
+    log::debug!("Dependency check - exiftool: missing");
+    false
 }
 
 fn check_tesseract() -> bool {
+    // Try standard PATH lookup first
     let result = std::process::Command::new("tesseract")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    log::debug!("Dependency check - tesseract: {}", if result { "available" } else { "missing" });
-    result
+    if result {
+        log::debug!("Dependency check - tesseract: available (in PATH)");
+        return true;
+    }
+
+    // On Windows, also check common Scoop installation locations
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let scoop_tesseract = std::path::PathBuf::from(&userprofile)
+                .join("scoop")
+                .join("shims")
+                .join("tesseract.exe");
+
+            if scoop_tesseract.exists() {
+                log::debug!("Dependency check - tesseract: available (found in Scoop shims)");
+                return true;
+            }
+        }
+    }
+
+    log::debug!("Dependency check - tesseract: missing");
+    false
 }
 
 fn check_ffmpeg() -> bool {
+    // Try standard PATH lookup first
     let result = std::process::Command::new("ffmpeg")
         .arg("-version")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    log::debug!("Dependency check - ffmpeg: {}", if result { "available" } else { "missing" });
-    result
+    if result {
+        log::debug!("Dependency check - ffmpeg: available (in PATH)");
+        return true;
+    }
+
+    // On Windows, also check common Scoop installation locations
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let scoop_ffmpeg = std::path::PathBuf::from(&userprofile)
+                .join("scoop")
+                .join("shims")
+                .join("ffmpeg.exe");
+
+            if scoop_ffmpeg.exists() {
+                log::debug!("Dependency check - ffmpeg: available (found in Scoop shims)");
+                return true;
+            }
+        }
+    }
+
+    log::debug!("Dependency check - ffmpeg: missing");
+    false
 }
 
 fn check_imagemagick() -> bool {
+    // Try standard PATH lookup first (magick on Windows, convert on Linux/macOS)
     let result = std::process::Command::new("magick")
         .arg("-version")
         .output()
@@ -182,8 +250,29 @@ fn check_imagemagick() -> bool {
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    log::debug!("Dependency check - imagemagick: {}", if result { "available" } else { "missing" });
-    result
+    if result {
+        log::debug!("Dependency check - imagemagick: available (in PATH)");
+        return true;
+    }
+
+    // On Windows, also check common Scoop installation locations
+    #[cfg(windows)]
+    {
+        if let Ok(userprofile) = std::env::var("USERPROFILE") {
+            let scoop_magick = std::path::PathBuf::from(&userprofile)
+                .join("scoop")
+                .join("shims")
+                .join("magick.exe");
+
+            if scoop_magick.exists() {
+                log::debug!("Dependency check - imagemagick: available (found in Scoop shims)");
+                return true;
+            }
+        }
+    }
+
+    log::debug!("Dependency check - imagemagick: missing");
+    false
 }
 
 #[cfg(test)]
