@@ -525,7 +525,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          wix build -arch x64 -o nameback-${{ matrix.target }}.msi installer/nameback.wxs
+          wix build -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext -o nameback-${{ matrix.target }}.msi installer/nameback.wxs
 
       - name: Generate MSI checksum (Windows only)
         if: matrix.os == 'windows-latest'

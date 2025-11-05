@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="nameback"
            Version="0.7.14"
            Manufacturer="4n6h4x0r"
@@ -55,7 +57,7 @@
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="PathConfigScript" Guid="E8A9C1D6-7B2F-4E3A-9A1B-8C5D4F6E7A9B">
         <File Id="AddScoopToPathScript"
-              Source="installer\add-scoop-to-path.ps1"
+              Source="installer\add-scoop-to-path-with-ui.ps1"
               KeyPath="yes" />
       </Component>
     </DirectoryRef>
@@ -120,11 +122,34 @@
     </Feature>
 
     <!-- UI configuration -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Nameback GUI" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#namebackGUI]" />
+
     <UI>
-      <!-- Progress text for custom actions -->
-      <ProgressText Action="InstallDependencies" Template="Installing external dependencies (ExifTool, Tesseract, FFmpeg, ImageMagick)..." />
-      <ProgressText Action="AddScoopToPath" Template="Configuring system PATH for dependency access..." />
+      <!-- Use InstallDir UI for professional installation wizard -->
+      <ui:WixUI Id="WixUI_InstallDir" />
+
+      <!-- Custom progress text with ActionData support -->
+      <!-- [1] will be replaced with real-time messages from PowerShell script -->
+      <ProgressText Action="InstallDependencies" Template="Installing dependencies: [1]" />
+      <ProgressText Action="AddScoopToPath" Template="Configuring PATH: [1]" />
+
+      <!-- Launch application after installation -->
+      <Publish Dialog="ExitDialog"
+               Control="Finish"
+               Event="DoAction"
+               Value="LaunchApplication"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
     </UI>
+
+    <!-- Custom action to launch the GUI after installation -->
+    <CustomAction Id="LaunchApplication"
+                  Impersonate="yes"
+                  Return="asyncNoWait"
+                  FileRef="namebackGUI"
+                  ExeCommand="" />
 
     <!-- Add/Remove Programs metadata -->
     <Property Id="ARPPRODUCTICON" Value="NamebackIcon" />
@@ -148,7 +173,7 @@
     <!-- Immediate action to set the CustomActionData property for the deferred action -->
     <CustomAction Id="SetAddScoopToPathData"
                   Property="AddScoopToPath"
-                  Value="[INSTALLFOLDER]add-scoop-to-path.ps1" />
+                  Value="[INSTALLFOLDER]add-scoop-to-path-with-ui.ps1" />
 
     <!-- Deferred action that runs PowerShell script using Directory and CustomActionData -->
     <CustomAction Id="AddScoopToPath"
