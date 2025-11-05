@@ -163,7 +163,7 @@
                   Directory="INSTALLFOLDER"
                   ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]install-dependencies-with-ui.ps1&quot;"
                   Execute="deferred"
-                  Impersonate="no"
+                  Impersonate="yes"
                   Return="ignore" />
 
     <!-- Custom Action to add Scoop shims and ImageMagick to system PATH after dependency installation -->
@@ -179,7 +179,7 @@
     <CustomAction Id="AddScoopToPath"
                   Directory="INSTALLFOLDER"
                   Execute="deferred"
-                  Impersonate="no"
+                  Impersonate="yes"
                   Return="ignore"
                   ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[AddScoopToPath]&quot;" />
 
