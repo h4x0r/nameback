@@ -96,42 +96,57 @@ prepare_ffmpeg() {
 # ImageMagick (portable build)
 prepare_imagemagick() {
     echo "📦 Preparing ImageMagick..."
-    # Use GitHub releases for more reliable downloads
-    local imagemagick_url="https://github.com/ImageMagick/ImageMagick/releases/download/7.1.1-43/ImageMagick-7.1.1-43-portable-Q16-HDRI-x64.zip"
     local work_dir="$TEMP_DIR/imagemagick"
-
     mkdir -p "$work_dir"
 
-    # Download with error checking
-    if ! curl -L -f "$imagemagick_url" -o "$work_dir/imagemagick.zip"; then
-        echo "⚠️  Failed to download ImageMagick from GitHub, trying official site..."
-        imagemagick_url="https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-43-portable-Q16-HDRI-x64.zip"
-        if ! curl -L -f "$imagemagick_url" -o "$work_dir/imagemagick.zip"; then
-            echo "❌ ImageMagick download failed from all sources"
-            echo "⚠️  Skipping ImageMagick (optional dependency)"
-            return 0
+    # Try multiple sources in order of reliability
+    # Source 1: GitHub releases (7z format, most reliable)
+    echo "Trying GitHub releases (7z)..."
+    if curl -L -f "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-8/ImageMagick-7.1.2-8-portable-Q16-HDRI-x64.7z" -o "$work_dir/imagemagick.7z" 2>/dev/null; then
+        # Extract 7z file (7z is pre-installed on GitHub Actions runners)
+        if 7z x "$work_dir/imagemagick.7z" -o"$work_dir" > /dev/null 2>&1; then
+            echo "✓ Downloaded and extracted from GitHub releases"
+        else
+            echo "⚠️  Failed to extract 7z, trying next source..."
+            rm -f "$work_dir/imagemagick.7z"
         fi
     fi
 
-    # Verify it's actually a ZIP file
-    if ! file "$work_dir/imagemagick.zip" | grep -q "Zip archive"; then
-        echo "❌ Downloaded file is not a valid ZIP archive:"
-        file "$work_dir/imagemagick.zip"
-        cat "$work_dir/imagemagick.zip"
-        echo "⚠️  Skipping ImageMagick (optional dependency)"
-        return 0
+    # Source 2: ImageMagick download mirror (zip format)
+    if [ ! -f "$work_dir"/*.exe ] && [ ! -f "$work_dir"/*/*/*.exe ]; then
+        echo "⚠️  Trying ImageMagick download mirror..."
+        if curl -L -f "https://download.imagemagick.org/ImageMagick/download/windows/releases/ImageMagick-7.1.2-8-portable-Q16-HDRI-x64.zip" -o "$work_dir/imagemagick.zip" 2>/dev/null; then
+            cd "$work_dir"
+            if unzip -q imagemagick.zip 2>/dev/null; then
+                echo "✓ Downloaded and extracted from download mirror"
+            else
+                echo "⚠️  Failed to extract, trying next source..."
+                rm -f imagemagick.zip
+            fi
+        fi
     fi
 
-    # Extract and package
-    cd "$work_dir"
-    unzip -q imagemagick.zip
+    # Source 3: Official archive site
+    if [ ! -f "$work_dir"/*.exe ] && [ ! -f "$work_dir"/*/*/*.exe ]; then
+        echo "⚠️  Trying official archive site..."
+        if curl -L -f "https://imagemagick.org/archive/binaries/ImageMagick-7.1.2-8-portable-Q16-HDRI-x64.zip" -o "$work_dir/imagemagick.zip" 2>/dev/null; then
+            cd "$work_dir"
+            if unzip -q imagemagick.zip 2>/dev/null; then
+                echo "✓ Downloaded and extracted from archive site"
+            else
+                echo "⚠️  Failed to extract from archive"
+            fi
+        fi
+    fi
 
-    # Find and package exe/dll files
-    if compgen -G "*.exe" > /dev/null; then
-        zip -q -r "$OUTPUT_DIR/deps-imagemagick-windows.zip" *.exe *.dll
+    # Check if we successfully got the executables
+    cd "$work_dir"
+    if compgen -G "*.exe" > /dev/null 2>&1 || compgen -G "*/*/*.exe" > /dev/null 2>&1; then
+        # Package all exe and dll files found (handling nested directories)
+        find . -name "*.exe" -o -name "*.dll" | zip -q "$OUTPUT_DIR/deps-imagemagick-windows.zip" -@
         echo "✓ Created: deps-imagemagick-windows.zip"
     else
-        echo "❌ No exe files found after extraction"
+        echo "❌ ImageMagick download failed from all sources"
         echo "⚠️  Skipping ImageMagick (optional dependency)"
         return 0
     fi
