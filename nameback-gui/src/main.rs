@@ -22,6 +22,7 @@ fn load_icon() -> egui::IconData {
 
 /// Ensure common tool paths are in PATH for dependency detection
 /// This fixes the issue where GUI launched from Finder doesn't inherit shell PATH
+/// On Windows, fixes issue where GUI launched from MSI doesn't inherit updated system PATH
 fn setup_path() {
     use std::env;
 
@@ -39,17 +40,51 @@ fn setup_path() {
             "/usr/local/bin",
             "/usr/bin",
         ]
+    } else if cfg!(windows) {
+        // On Windows, add Scoop and Chocolatey directories
+        // This ensures dependencies are found even when GUI is launched from MSI
+        // before system PATH changes take effect
+        let mut paths = Vec::new();
+
+        // Scoop user-level package manager
+        if let Ok(userprofile) = env::var("USERPROFILE") {
+            let scoop_shims = format!("{}\\scoop\\shims", userprofile);
+            paths.push(scoop_shims);
+
+            // ImageMagick app directory (Scoop installs here)
+            let imagemagick_app = format!("{}\\scoop\\apps\\imagemagick\\current", userprofile);
+            paths.push(imagemagick_app);
+        }
+
+        // Chocolatey system-level package manager
+        if let Ok(programdata) = env::var("PROGRAMDATA") {
+            let choco_bin = format!("{}\\chocolatey\\bin", programdata);
+            paths.push(choco_bin);
+        }
+
+        paths
     } else {
-        vec![] // Windows uses different mechanism
+        vec![]
     };
 
     // Build new PATH with additional directories prepended
-    let mut path_components: Vec<&str> = additional_paths.clone();
-    path_components.push(&current_path);
-    let new_path = path_components.join(":");
-
-    log::debug!("Enhanced PATH for dependency detection: {}", new_path);
-    env::set_var("PATH", new_path);
+    if cfg!(windows) {
+        // Windows uses semicolons
+        let new_path = if additional_paths.is_empty() {
+            current_path
+        } else {
+            format!("{};{}", additional_paths.join(";"), current_path)
+        };
+        log::debug!("Enhanced PATH for dependency detection: {}", new_path);
+        env::set_var("PATH", new_path);
+    } else {
+        // Unix uses colons
+        let mut path_components: Vec<&str> = additional_paths.iter().map(|s| s.as_str()).collect();
+        path_components.push(&current_path);
+        let new_path = path_components.join(":");
+        log::debug!("Enhanced PATH for dependency detection: {}", new_path);
+        env::set_var("PATH", new_path);
+    }
 }
 
 fn main() -> eframe::Result<()> {
