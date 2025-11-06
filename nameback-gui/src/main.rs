@@ -29,19 +29,18 @@ fn setup_path() {
     let current_path = env::var("PATH").unwrap_or_default();
 
     // Common installation locations for dependencies
-    let additional_paths = if cfg!(target_os = "macos") {
+    let mut additional_paths: Vec<String> = if cfg!(target_os = "macos") {
         vec![
-            "/opt/homebrew/bin",      // Apple Silicon Homebrew
-            "/usr/local/bin",          // Intel Homebrew
-            "/opt/local/bin",          // MacPorts
+            "/opt/homebrew/bin".to_string(),      // Apple Silicon Homebrew
+            "/usr/local/bin".to_string(),          // Intel Homebrew
+            "/opt/local/bin".to_string(),          // MacPorts
         ]
     } else if cfg!(target_os = "linux") {
         vec![
-            "/usr/local/bin",
-            "/usr/bin",
+            "/usr/local/bin".to_string(),
+            "/usr/bin".to_string(),
         ]
     } else if cfg!(windows) {
-        // On Windows, prioritize bundled MSI dependencies, then fall back to package managers
         let mut paths = Vec::new();
 
         // Bundled MSI installer dependencies (HIGHEST PRIORITY)
@@ -86,9 +85,8 @@ fn setup_path() {
         env::set_var("PATH", new_path);
     } else {
         // Unix uses colons
-        let mut path_components: Vec<&str> = additional_paths.iter().map(|s| s.as_str()).collect();
-        path_components.push(&current_path);
-        let new_path = path_components.join(":");
+        additional_paths.push(current_path);
+        let new_path = additional_paths.join(":");
         log::debug!("Enhanced PATH for dependency detection: {}", new_path);
         env::set_var("PATH", new_path);
     }
