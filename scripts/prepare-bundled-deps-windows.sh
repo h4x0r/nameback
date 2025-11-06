@@ -34,8 +34,21 @@ prepare_exiftool() {
     cd "$work_dir"
     unzip -q exiftool.zip
 
+    # ExifTool extracts into a subdirectory (e.g., exiftool-13.41_64/)
+    # Find the exe file recursively
+    local exe_file=$(find . -name "*.exe" -type f | head -n 1)
+    if [ -n "$exe_file" ]; then
+        cp "$exe_file" exiftool.exe
+        echo "Found and copied $exe_file to exiftool.exe"
+    else
+        echo "ERROR: No .exe file found after extraction"
+        echo "Contents of extraction:"
+        find . -type f
+        exit 1
+    fi
+
     # Create portable package
-    zip -q -r "$OUTPUT_DIR/deps-exiftool-windows.zip" exiftool.exe
+    zip -q "$OUTPUT_DIR/deps-exiftool-windows.zip" exiftool.exe
 
     echo "✓ Created: deps-exiftool-windows.zip"
 }
@@ -83,20 +96,45 @@ prepare_ffmpeg() {
 # ImageMagick (portable build)
 prepare_imagemagick() {
     echo "📦 Preparing ImageMagick..."
-    local imagemagick_url="https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-43-portable-Q16-x64.zip"
+    # Use GitHub releases for more reliable downloads
+    local imagemagick_url="https://github.com/ImageMagick/ImageMagick/releases/download/7.1.1-43/ImageMagick-7.1.1-43-portable-Q16-HDRI-x64.zip"
     local work_dir="$TEMP_DIR/imagemagick"
 
     mkdir -p "$work_dir"
-    curl -L "$imagemagick_url" -o "$work_dir/imagemagick.zip"
+
+    # Download with error checking
+    if ! curl -L -f "$imagemagick_url" -o "$work_dir/imagemagick.zip"; then
+        echo "⚠️  Failed to download ImageMagick from GitHub, trying official site..."
+        imagemagick_url="https://imagemagick.org/archive/binaries/ImageMagick-7.1.1-43-portable-Q16-HDRI-x64.zip"
+        if ! curl -L -f "$imagemagick_url" -o "$work_dir/imagemagick.zip"; then
+            echo "❌ ImageMagick download failed from all sources"
+            echo "⚠️  Skipping ImageMagick (optional dependency)"
+            return 0
+        fi
+    fi
+
+    # Verify it's actually a ZIP file
+    if ! file "$work_dir/imagemagick.zip" | grep -q "Zip archive"; then
+        echo "❌ Downloaded file is not a valid ZIP archive:"
+        file "$work_dir/imagemagick.zip"
+        cat "$work_dir/imagemagick.zip"
+        echo "⚠️  Skipping ImageMagick (optional dependency)"
+        return 0
+    fi
 
     # Extract and package
     cd "$work_dir"
     unzip -q imagemagick.zip
 
-    # Package the portable version
-    zip -q -r "$OUTPUT_DIR/deps-imagemagick-windows.zip" *.exe *.dll
-
-    echo "✓ Created: deps-imagemagick-windows.zip"
+    # Find and package exe/dll files
+    if compgen -G "*.exe" > /dev/null; then
+        zip -q -r "$OUTPUT_DIR/deps-imagemagick-windows.zip" *.exe *.dll
+        echo "✓ Created: deps-imagemagick-windows.zip"
+    else
+        echo "❌ No exe files found after extraction"
+        echo "⚠️  Skipping ImageMagick (optional dependency)"
+        return 0
+    fi
 }
 
 # Main execution
@@ -109,7 +147,8 @@ prepare_tesseract
 prepare_ffmpeg
 prepare_imagemagick
 
-# Cleanup
+# Cleanup (change permissions first to handle read-only files)
+chmod -R u+w "$TEMP_DIR" 2>/dev/null || true
 rm -rf "$TEMP_DIR"
 
 echo
