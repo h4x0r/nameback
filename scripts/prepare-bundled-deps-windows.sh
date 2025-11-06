@@ -52,14 +52,37 @@ prepare_exiftool() {
 # Tesseract OCR (portable build)
 prepare_tesseract() {
     echo "📦 Preparing Tesseract OCR..."
-    local tesseract_version="5.5.0.20241111"
-    local tesseract_url="https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-${tesseract_version}.exe"
     local work_dir="$TEMP_DIR/tesseract"
 
     mkdir -p "$work_dir"
 
-    # Download installer
-    curl -L "$tesseract_url" -o "$work_dir/tesseract-setup.exe"
+    # Try multiple sources for Tesseract
+    local downloaded=false
+
+    # Source 1: UB Mannheim (primary)
+    echo "Trying UB Mannheim..."
+    if curl -L -f --connect-timeout 30 --max-time 120 \
+        "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.5.0.20241111.exe" \
+        -o "$work_dir/tesseract-setup.exe" 2>/dev/null; then
+        echo "✓ Downloaded from UB Mannheim"
+        downloaded=true
+    fi
+
+    # Source 2: GitHub unofficial builds (fallback)
+    if [ "$downloaded" = false ]; then
+        echo "Trying GitHub tesseract-ocr-w64..."
+        if curl -L -f --connect-timeout 30 --max-time 120 \
+            "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe" \
+            -o "$work_dir/tesseract-setup.exe" 2>/dev/null; then
+            echo "✓ Downloaded from GitHub"
+            downloaded=true
+        fi
+    fi
+
+    if [ "$downloaded" = false ]; then
+        echo "⚠️  Tesseract download failed, skipping (optional dependency)"
+        return
+    fi
 
     # Extract using 7z (available on GitHub Actions)
     cd "$work_dir"
