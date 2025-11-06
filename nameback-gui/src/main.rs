@@ -41,12 +41,19 @@ fn setup_path() {
             "/usr/bin",
         ]
     } else if cfg!(windows) {
-        // On Windows, add Scoop and Chocolatey directories
-        // This ensures dependencies are found even when GUI is launched from MSI
-        // before system PATH changes take effect
+        // On Windows, prioritize bundled MSI dependencies, then fall back to package managers
         let mut paths = Vec::new();
 
-        // Scoop user-level package manager
+        // Bundled MSI installer dependencies (HIGHEST PRIORITY)
+        // Installed to C:\Program Files\nameback\deps\{tool_name}
+        if let Ok(programfiles) = env::var("PROGRAMFILES") {
+            paths.push(format!("{}\\nameback\\deps\\exiftool", programfiles));
+            paths.push(format!("{}\\nameback\\deps\\tesseract", programfiles));
+            paths.push(format!("{}\\nameback\\deps\\ffmpeg", programfiles));
+            paths.push(format!("{}\\nameback\\deps\\imagemagick", programfiles));
+        }
+
+        // Scoop user-level package manager (fallback)
         if let Ok(userprofile) = env::var("USERPROFILE") {
             let scoop_shims = format!("{}\\scoop\\shims", userprofile);
             paths.push(scoop_shims);
@@ -56,19 +63,10 @@ fn setup_path() {
             paths.push(imagemagick_app);
         }
 
-        // Chocolatey system-level package manager
+        // Chocolatey system-level package manager (fallback)
         if let Ok(programdata) = env::var("PROGRAMDATA") {
             let choco_bin = format!("{}\\chocolatey\\bin", programdata);
             paths.push(choco_bin);
-        }
-
-        // Bundled installer locations (fallback when Scoop/Chocolatey fail)
-        if let Ok(localappdata) = env::var("LOCALAPPDATA") {
-            // Bundled installer places tools in %LOCALAPPDATA%\Nameback\{tool_name}
-            paths.push(format!("{}\\Nameback\\exiftool", localappdata));
-            paths.push(format!("{}\\Nameback\\tesseract", localappdata));
-            paths.push(format!("{}\\Nameback\\ffmpeg", localappdata));
-            paths.push(format!("{}\\Nameback\\imagemagick", localappdata));
         }
 
         paths

@@ -542,6 +542,47 @@ jobs:
           wix extension add WixToolset.UI.wixext
           wix extension add WixToolset.Util.wixext
 
+      - name: Download and extract bundled dependencies (Windows only)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Wait for bundled deps to be uploaded
+          Write-Host "Waiting for bundled dependencies to be available..."
+          $maxRetries = 30
+          $retryCount = 0
+          $version = "${{ needs.create-release.outputs.version }}"
+
+          while ($retryCount -lt $maxRetries) {
+            try {
+              $url = "https://github.com/h4x0r/nameback/releases/download/$version/deps-windows.zip"
+              Write-Host "Attempting to download from: $url"
+              Invoke-WebRequest -Uri $url -OutFile "deps-windows.zip" -ErrorAction Stop
+              Write-Host "Download successful!"
+              break
+            } catch {
+              $retryCount++
+              Write-Host "Attempt $retryCount/$maxRetries failed: $_"
+              if ($retryCount -lt $maxRetries) {
+                Write-Host "Waiting 10 seconds before retry..."
+                Start-Sleep -Seconds 10
+              }
+            }
+          }
+
+          if (-not (Test-Path "deps-windows.zip")) {
+            Write-Error "Failed to download deps-windows.zip after $maxRetries attempts"
+            exit 1
+          }
+
+          # Extract to target/bundled-deps (matching prepare script output structure)
+          Write-Host "Extracting bundled dependencies..."
+          New-Item -ItemType Directory -Force -Path "target/bundled-deps"
+          Expand-Archive -Path "deps-windows.zip" -DestinationPath "target/bundled-deps" -Force
+
+          # Verify extraction
+          Write-Host "Verifying extracted files:"
+          Get-ChildItem -Path "target/bundled-deps" -Recurse | Select-Object FullName
+
       - name: Build MSI installer (Windows only)
         if: matrix.os == 'windows-latest'
         shell: pwsh

@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="nameback"
-           Version="0.7.23"
+           Version="0.8.0"
            Manufacturer="4n6h4x0r"
            UpgradeCode="AFA422AA-7DF2-48F9-A667-488E91D082CE"
            Language="1033"
@@ -53,21 +53,79 @@
       </Component>
     </DirectoryRef>
 
-    <!-- PowerShell script for PATH configuration -->
+    <!-- Bundled Dependencies Directory Structure -->
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="PathConfigScript" Guid="E8A9C1D6-7B2F-4E3A-9A1B-8C5D4F6E7A9B">
-        <File Id="AddScoopToPathScript"
-              Source="installer\add-scoop-to-path-with-ui.ps1"
+      <Directory Id="DEPSFOLDER" Name="deps">
+        <Directory Id="EXIFTOOLFOLDER" Name="exiftool" />
+        <Directory Id="TESSERACTFOLDER" Name="tesseract" />
+        <Directory Id="FFMPEGFOLDER" Name="ffmpeg" />
+        <Directory Id="IMAGEMAGICKFOLDER" Name="imagemagick" />
+      </Directory>
+    </DirectoryRef>
+
+    <!-- ExifTool Component -->
+    <DirectoryRef Id="EXIFTOOLFOLDER">
+      <Component Id="ExifToolDep" Guid="D1E2F3A4-B5C6-47D8-9E0F-1A2B3C4D5E6F">
+        <File Id="ExifToolExe"
+              Source="target\bundled-deps\exiftool\exiftool.exe"
               KeyPath="yes" />
+        <Environment Id="PATH_EXIFTOOL"
+                     Name="PATH"
+                     Value="[EXIFTOOLFOLDER]"
+                     Permanent="yes"
+                     Part="last"
+                     Action="set"
+                     System="yes" />
       </Component>
     </DirectoryRef>
 
-    <!-- PowerShell script for dependency installation -->
-    <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="InstallDepsScript" Guid="B7C3D8F1-9A2E-4B6C-8D1F-3E7A9C5B2D4E">
-        <File Id="InstallDependenciesScript"
-              Source="installer\install-dependencies-with-ui.ps1"
+    <!-- Tesseract Component -->
+    <DirectoryRef Id="TESSERACTFOLDER">
+      <Component Id="TesseractDep" Guid="E2F3A4B5-C6D7-48E9-0F1A-2B3C4D5E6F7A">
+        <File Id="TesseractExe"
+              Source="target\bundled-deps\tesseract\tesseract.exe"
               KeyPath="yes" />
+        <Environment Id="PATH_TESSERACT"
+                     Name="PATH"
+                     Value="[TESSERACTFOLDER]"
+                     Permanent="yes"
+                     Part="last"
+                     Action="set"
+                     System="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- FFmpeg Component -->
+    <DirectoryRef Id="FFMPEGFOLDER">
+      <Component Id="FFmpegDep" Guid="F3A4B5C6-D7E8-49FA-1B2C-3D4E5F6A7B8C">
+        <File Id="FFmpegExe"
+              Source="target\bundled-deps\ffmpeg\ffmpeg.exe"
+              KeyPath="yes" />
+        <File Id="FFprobeExe"
+              Source="target\bundled-deps\ffmpeg\ffprobe.exe" />
+        <Environment Id="PATH_FFMPEG"
+                     Name="PATH"
+                     Value="[FFMPEGFOLDER]"
+                     Permanent="yes"
+                     Part="last"
+                     Action="set"
+                     System="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- ImageMagick Component -->
+    <DirectoryRef Id="IMAGEMAGICKFOLDER">
+      <Component Id="ImageMagickDep" Guid="A4B5C6D7-E8F9-4A0B-1C2D-3E4F5A6B7C8D">
+        <File Id="MagickExe"
+              Source="target\bundled-deps\imagemagick\magick.exe"
+              KeyPath="yes" />
+        <Environment Id="PATH_IMAGEMAGICK"
+                     Name="PATH"
+                     Value="[IMAGEMAGICKFOLDER]"
+                     Permanent="yes"
+                     Part="last"
+                     Action="set"
+                     System="yes" />
       </Component>
     </DirectoryRef>
 
@@ -108,8 +166,6 @@
                Description="CLI tool accessible from any terminal (added to PATH)"
                Level="1">
         <ComponentRef Id="CLIExecutable" />
-        <ComponentRef Id="PathConfigScript" />
-        <ComponentRef Id="InstallDepsScript" />
       </Feature>
 
       <Feature Id="GUIFeature"
@@ -118,6 +174,16 @@
                Level="1">
         <ComponentRef Id="GUIExecutable" />
         <ComponentRef Id="GUIShortcut" />
+      </Feature>
+
+      <Feature Id="DependenciesFeature"
+               Title="External dependencies"
+               Description="Bundled tools: exiftool, tesseract, ffmpeg, imagemagick"
+               Level="1">
+        <ComponentRef Id="ExifToolDep" />
+        <ComponentRef Id="TesseractDep" />
+        <ComponentRef Id="FFmpegDep" />
+        <ComponentRef Id="ImageMagickDep" />
       </Feature>
     </Feature>
 
@@ -152,38 +218,6 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/h4x0r/nameback" />
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
 
-    <!-- Custom Action to install dependencies automatically -->
-    <!-- Uses PowerShell script with UI progress reporting and logging -->
-    <CustomAction Id="InstallDependencies"
-                  Directory="INSTALLFOLDER"
-                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]install-dependencies-with-ui.ps1&quot;"
-                  Execute="deferred"
-                  Impersonate="yes"
-                  Return="ignore" />
-
-    <!-- Custom Action to add Scoop shims and ImageMagick to system PATH after dependency installation -->
-    <!-- This ensures exiftool, tesseract, ffmpeg, and imagemagick are accessible system-wide -->
-    <!-- Uses external PowerShell script to avoid complex quote escaping -->
-
-    <!-- Immediate action to set the CustomActionData property for the deferred action -->
-    <CustomAction Id="SetAddScoopToPathData"
-                  Property="AddScoopToPath"
-                  Value="[INSTALLFOLDER]add-scoop-to-path-with-ui.ps1" />
-
-    <!-- Deferred action that runs PowerShell script using Directory and CustomActionData -->
-    <CustomAction Id="AddScoopToPath"
-                  Directory="INSTALLFOLDER"
-                  Execute="deferred"
-                  Impersonate="yes"
-                  Return="ignore"
-                  ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[AddScoopToPath]&quot;" />
-
-    <!-- Schedule the custom actions after files are installed -->
-    <InstallExecuteSequence>
-      <Custom Action="InstallDependencies" After="InstallFiles" Condition="NOT Installed AND NOT REMOVE" />
-      <Custom Action="SetAddScoopToPathData" After="InstallDependencies" Condition="NOT Installed AND NOT REMOVE" />
-      <Custom Action="AddScoopToPath" After="SetAddScoopToPathData" Condition="NOT Installed AND NOT REMOVE" />
-    </InstallExecuteSequence>
 
   </Package>
 </Wix>

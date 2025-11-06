@@ -1,19 +1,21 @@
 #!/bin/bash
 #
-# Prepare bundled Windows dependency installers
+# Prepare bundled Windows dependencies (portable versions)
 #
-# Creates ZIP files containing portable versions of dependencies
-# for use as final fallback when Scoop/Chocolatey fail.
+# Creates a single deps-windows.zip containing all portable dependency executables
+# for inclusion in the MSI installer. No Scoop/Chocolatey needed.
 #
-# Output: deps-{name}-windows.zip files ready for GitHub Release
+# Output: deps-windows.zip ready for MSI inclusion
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMP_DIR="$(mktemp -d)"
 OUTPUT_DIR="${SCRIPT_DIR}/../target/bundled-deps"
+DEPS_DIR="$TEMP_DIR/deps"
 
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$DEPS_DIR"
 
 echo "=== Preparing Bundled Windows Dependencies ==="
 echo "Temp dir: $TEMP_DIR"
@@ -30,30 +32,24 @@ prepare_exiftool() {
     mkdir -p "$work_dir"
     curl -L "$exiftool_url" -o "$work_dir/exiftool.zip"
 
-    # Extract and repackage
+    # Extract
     cd "$work_dir"
     unzip -q exiftool.zip
 
-    # ExifTool extracts into a subdirectory (e.g., exiftool-13.41_64/)
     # Find the exe file recursively
     local exe_file=$(find . -name "*.exe" -type f | head -n 1)
     if [ -n "$exe_file" ]; then
-        cp "$exe_file" exiftool.exe
-        echo "Found and copied $exe_file to exiftool.exe"
+        # Copy to deps folder
+        mkdir -p "$DEPS_DIR/exiftool"
+        cp "$exe_file" "$DEPS_DIR/exiftool/exiftool.exe"
+        echo "✓ ExifTool ready"
     else
         echo "ERROR: No .exe file found after extraction"
-        echo "Contents of extraction:"
-        find . -type f
         exit 1
     fi
-
-    # Create portable package
-    zip -q "$OUTPUT_DIR/deps-exiftool-windows.zip" exiftool.exe
-
-    echo "✓ Created: deps-exiftool-windows.zip"
 }
 
-# Tesseract OCR (installer executable)
+# Tesseract OCR (portable build)
 prepare_tesseract() {
     echo "📦 Preparing Tesseract OCR..."
     local tesseract_version="5.5.0.20241111"
@@ -61,13 +57,32 @@ prepare_tesseract() {
     local work_dir="$TEMP_DIR/tesseract"
 
     mkdir -p "$work_dir"
-    curl -L "$tesseract_url" -o "$work_dir/tesseract-windows-setup.exe"
 
-    # Package the installer
+    # Download installer
+    curl -L "$tesseract_url" -o "$work_dir/tesseract-setup.exe"
+
+    # Extract using 7z (available on GitHub Actions)
     cd "$work_dir"
-    zip -q "$OUTPUT_DIR/deps-tesseract-windows.zip" tesseract-windows-setup.exe
+    7z x tesseract-setup.exe -o"extracted" > /dev/null 2>&1 || true
 
-    echo "✓ Created: deps-tesseract-windows.zip"
+    # Find tesseract.exe
+    local tesseract_exe=$(find extracted -name "tesseract.exe" -type f | head -n 1)
+
+    if [ -n "$tesseract_exe" ]; then
+        mkdir -p "$DEPS_DIR/tesseract"
+        # Copy tesseract and tessdata
+        cp "$tesseract_exe" "$DEPS_DIR/tesseract/"
+
+        # Copy tessdata directory if it exists
+        local tessdata_dir=$(dirname "$tesseract_exe")/tessdata
+        if [ -d "$tessdata_dir" ]; then
+            cp -r "$tessdata_dir" "$DEPS_DIR/tesseract/"
+        fi
+
+        echo "✓ Tesseract ready"
+    else
+        echo "⚠️  Tesseract extraction failed, skipping (optional dependency)"
+    fi
 }
 
 # FFmpeg (portable build)
@@ -79,18 +94,22 @@ prepare_ffmpeg() {
     mkdir -p "$work_dir"
     curl -L "$ffmpeg_url" -o "$work_dir/ffmpeg.zip"
 
-    # Extract just the binaries we need
+    # Extract
     cd "$work_dir"
     unzip -q ffmpeg.zip
 
-    # Find the extracted directory (name varies)
+    # Find the extracted directory
     local extracted_dir=$(find . -maxdepth 1 -type d -name "ffmpeg-*" | head -n 1)
 
-    # Package just the executables
-    cd "$extracted_dir/bin"
-    zip -q "$OUTPUT_DIR/deps-ffmpeg-windows.zip" ffmpeg.exe ffprobe.exe
-
-    echo "✓ Created: deps-ffmpeg-windows.zip"
+    if [ -n "$extracted_dir" ] && [ -d "$extracted_dir/bin" ]; then
+        mkdir -p "$DEPS_DIR/ffmpeg"
+        cp "$extracted_dir/bin/ffmpeg.exe" "$DEPS_DIR/ffmpeg/"
+        cp "$extracted_dir/bin/ffprobe.exe" "$DEPS_DIR/ffmpeg/"
+        echo "✓ FFmpeg ready"
+    else
+        echo "ERROR: FFmpeg extraction failed"
+        exit 1
+    fi
 }
 
 # ImageMagick (portable build)
@@ -99,56 +118,25 @@ prepare_imagemagick() {
     local work_dir="$TEMP_DIR/imagemagick"
     mkdir -p "$work_dir"
 
-    # Try multiple sources in order of reliability
-    # Source 1: GitHub releases (7z format, most reliable)
-    echo "Trying GitHub releases (7z)..."
+    # Try multiple sources
+    echo "Trying GitHub releases..."
     if curl -L -f "https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-8/ImageMagick-7.1.2-8-portable-Q16-HDRI-x64.7z" -o "$work_dir/imagemagick.7z" 2>/dev/null; then
-        # Extract 7z file (7z is pre-installed on GitHub Actions runners)
-        if 7z x "$work_dir/imagemagick.7z" -o"$work_dir" > /dev/null 2>&1; then
-            echo "✓ Downloaded and extracted from GitHub releases"
+        if 7z x "$work_dir/imagemagick.7z" -o"$work_dir/extracted" > /dev/null 2>&1; then
+            echo "✓ Downloaded from GitHub releases"
         else
-            echo "⚠️  Failed to extract 7z, trying next source..."
+            echo "⚠️  Failed to extract, trying next source..."
             rm -f "$work_dir/imagemagick.7z"
         fi
     fi
 
-    # Source 2: ImageMagick download mirror (zip format)
-    if [ ! -f "$work_dir"/*.exe ] && [ ! -f "$work_dir"/*/*/*.exe ]; then
-        echo "⚠️  Trying ImageMagick download mirror..."
-        if curl -L -f "https://download.imagemagick.org/ImageMagick/download/windows/releases/ImageMagick-7.1.2-8-portable-Q16-HDRI-x64.zip" -o "$work_dir/imagemagick.zip" 2>/dev/null; then
-            cd "$work_dir"
-            if unzip -q imagemagick.zip 2>/dev/null; then
-                echo "✓ Downloaded and extracted from download mirror"
-            else
-                echo "⚠️  Failed to extract, trying next source..."
-                rm -f imagemagick.zip
-            fi
-        fi
-    fi
-
-    # Source 3: Official archive site
-    if [ ! -f "$work_dir"/*.exe ] && [ ! -f "$work_dir"/*/*/*.exe ]; then
-        echo "⚠️  Trying official archive site..."
-        if curl -L -f "https://imagemagick.org/archive/binaries/ImageMagick-7.1.2-8-portable-Q16-HDRI-x64.zip" -o "$work_dir/imagemagick.zip" 2>/dev/null; then
-            cd "$work_dir"
-            if unzip -q imagemagick.zip 2>/dev/null; then
-                echo "✓ Downloaded and extracted from archive site"
-            else
-                echo "⚠️  Failed to extract from archive"
-            fi
-        fi
-    fi
-
-    # Check if we successfully got the executables
-    cd "$work_dir"
-    if compgen -G "*.exe" > /dev/null 2>&1 || compgen -G "*/*/*.exe" > /dev/null 2>&1; then
-        # Package all exe and dll files found (handling nested directories)
-        find . -name "*.exe" -o -name "*.dll" | zip -q "$OUTPUT_DIR/deps-imagemagick-windows.zip" -@
-        echo "✓ Created: deps-imagemagick-windows.zip"
+    # Check if extraction succeeded
+    if [ -d "$work_dir/extracted" ] && compgen -G "$work_dir/extracted/*.exe" > /dev/null; then
+        mkdir -p "$DEPS_DIR/imagemagick"
+        cp "$work_dir/extracted"/*.exe "$DEPS_DIR/imagemagick/" 2>/dev/null || true
+        cp "$work_dir/extracted"/*.dll "$DEPS_DIR/imagemagick/" 2>/dev/null || true
+        echo "✓ ImageMagick ready"
     else
-        echo "❌ ImageMagick download failed from all sources"
-        echo "⚠️  Skipping ImageMagick (optional dependency)"
-        return 0
+        echo "⚠️  ImageMagick download failed, skipping (optional dependency)"
     fi
 }
 
@@ -162,14 +150,21 @@ prepare_tesseract
 prepare_ffmpeg
 prepare_imagemagick
 
-# Cleanup (change permissions first to handle read-only files)
+# Create single ZIP file with all deps
+cd "$DEPS_DIR"
+zip -qr "$OUTPUT_DIR/deps-windows.zip" .
+
+# Cleanup
 chmod -R u+w "$TEMP_DIR" 2>/dev/null || true
 rm -rf "$TEMP_DIR"
 
 echo
 echo "=== Summary ==="
-echo "All bundled dependencies created in: $OUTPUT_DIR"
-ls -lh "$OUTPUT_DIR"/*.zip
+echo "Created bundled dependencies package:"
+ls -lh "$OUTPUT_DIR/deps-windows.zip"
+echo
+echo "Contents:"
+unzip -l "$OUTPUT_DIR/deps-windows.zip" | head -20
 
 echo
-echo "✅ Done! Upload these files to GitHub Release as fallback installers."
+echo "✅ Done! Include deps-windows.zip in MSI installer."
