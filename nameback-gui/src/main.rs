@@ -62,6 +62,15 @@ fn setup_path() {
             paths.push(choco_bin);
         }
 
+        // Bundled installer locations (fallback when Scoop/Chocolatey fail)
+        if let Ok(localappdata) = env::var("LOCALAPPDATA") {
+            // Bundled installer places tools in %LOCALAPPDATA%\Nameback\{tool_name}
+            paths.push(format!("{}\\Nameback\\exiftool", localappdata));
+            paths.push(format!("{}\\Nameback\\tesseract", localappdata));
+            paths.push(format!("{}\\Nameback\\ffmpeg", localappdata));
+            paths.push(format!("{}\\Nameback\\imagemagick", localappdata));
+        }
+
         paths
     } else {
         vec![]

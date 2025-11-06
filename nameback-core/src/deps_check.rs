@@ -233,6 +233,28 @@ fn find_tool_path(primary_name: &str, fallback_names: &[&str]) -> Option<PathBuf
                 }
             }
         }
+
+        // Check bundled installer locations (final fallback)
+        if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+            let bundled_dir = PathBuf::from(&localappdata).join("Nameback").join(primary_name);
+
+            // Check primary name
+            let primary_path = bundled_dir.join(format!("{}.exe", primary_name));
+            if primary_path.exists() {
+                log::debug!("Found {} in bundled location: {:?}", primary_name, primary_path);
+                return Some(primary_path);
+            }
+
+            // Check fallback names
+            for name in fallback_names {
+                let fallback_path = bundled_dir.join(format!("{}.exe", name));
+                if fallback_path.exists() {
+                    log::debug!("Found {} in bundled location (fallback for {}): {:?}",
+                               name, primary_name, fallback_path);
+                    return Some(fallback_path);
+                }
+            }
+        }
     }
 
     log::debug!("Tool not found: {}", primary_name);
