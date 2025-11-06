@@ -111,11 +111,27 @@ prepare_tesseract() {
 # FFmpeg (portable build)
 prepare_ffmpeg() {
     echo "📦 Preparing FFmpeg..."
-    local ffmpeg_url="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    local ffmpeg_version="7.1"
+    local ffmpeg_url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-11-04-12-55/ffmpeg-n${ffmpeg_version}-latest-win64-gpl-${ffmpeg_version}.zip"
     local work_dir="$TEMP_DIR/ffmpeg"
 
     mkdir -p "$work_dir"
-    curl -L "$ffmpeg_url" -o "$work_dir/ffmpeg.zip"
+
+    # Try specific version first
+    echo "Trying FFmpeg ${ffmpeg_version}..."
+    if curl -L -f --connect-timeout 30 --max-time 120 \
+        "$ffmpeg_url" -o "$work_dir/ffmpeg.zip" 2>/dev/null; then
+        echo "✓ Downloaded FFmpeg ${ffmpeg_version}"
+    else
+        # Fallback to known stable version
+        echo "Trying FFmpeg 7.0.2 (fallback)..."
+        if ! curl -L -f --connect-timeout 30 --max-time 120 \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-08-19-12-52/ffmpeg-n7.0.2-latest-win64-gpl-7.0.zip" \
+            -o "$work_dir/ffmpeg.zip" 2>/dev/null; then
+            echo "ERROR: FFmpeg download failed"
+            exit 1
+        fi
+    fi
 
     # Extract
     cd "$work_dir"
