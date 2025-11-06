@@ -127,6 +127,25 @@ jobs:
           draft: false
           prerelease: false
 
+  prepare-bundled-deps:
+    name: Prepare Bundled Dependencies
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Prepare bundled Windows dependencies
+        run: |
+          chmod +x scripts/prepare-bundled-deps-windows.sh
+          ./scripts/prepare-bundled-deps-windows.sh
+
+      - name: Upload bundled dependencies to release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            target/bundled-deps/deps-*.zip
+
   build-release:
     name: Build ${{ matrix.target }}
     needs: create-release

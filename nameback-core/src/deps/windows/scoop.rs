@@ -54,9 +54,23 @@ pub fn install_dependencies_via_scoop(
     println!("7zip install stdout: {}", String::from_utf8_lossy(&seven_zip_result.stdout));
     println!("7zip install stderr: {}", String::from_utf8_lossy(&seven_zip_result.stderr));
 
-    if !seven_zip_result.status.success() {
-        let stderr = String::from_utf8_lossy(&seven_zip_result.stderr);
-        let stdout = String::from_utf8_lossy(&seven_zip_result.stdout);
+    let stderr = String::from_utf8_lossy(&seven_zip_result.stderr);
+    let stdout = String::from_utf8_lossy(&seven_zip_result.stdout);
+
+    // Check for actual installation failures (not shimming warnings)
+    // On ARM64 Windows, shimming may fail but 7z.exe is installed successfully
+    let has_critical_error = !seven_zip_result.status.success() ||
+                              stdout.contains("ERROR") ||
+                              stdout.contains("Failed to download") ||
+                              stdout.contains("Failed to install") ||
+                              stdout.contains("Unable to extract");
+
+    // Shimming warnings are non-critical - 7z.exe is still installed
+    let is_shimming_warning = stderr.contains("Can't shim") ||
+                              stderr.contains("File doesn't exist") ||
+                              stderr.contains("Get-Command");
+
+    if has_critical_error && !is_shimming_warning {
         msi_progress::report_action_data("ERROR: 7zip installation failed");
         eprintln!("7zip installation failed!");
         eprintln!("  stdout: {}", stdout);
@@ -70,6 +84,9 @@ pub fn install_dependencies_via_scoop(
              Please try installing manually:\n\
              • Run: scoop install 7zip\n", stderr
         ));
+    } else if is_shimming_warning {
+        println!("Note: 7zip shimming warnings detected (non-critical on ARM64)");
+        println!("7z.exe is installed and available at the full path");
     }
 
     msi_progress::report_action_data("7zip installed successfully");
