@@ -139,16 +139,16 @@ jobs:
           chmod +x scripts/prepare-bundled-deps-windows.sh
           ./scripts/prepare-bundled-deps-windows.sh
 
-      - name: Upload bundled dependencies to release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+      - name: Upload bundled dependencies as artifact
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: |
-            target/bundled-deps/deps-*.zip
+          name: bundled-deps-windows
+          path: target/bundled-deps/deps-windows.zip
+          retention-days: 7
 
   build-release:
     name: Build ${{ matrix.target }}
-    needs: create-release
+    needs: [create-release, prepare-bundled-deps]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -542,44 +542,21 @@ jobs:
           wix extension add WixToolset.UI.wixext
           wix extension add WixToolset.Util.wixext
 
-      - name: Download and extract bundled dependencies (Windows only)
+      - name: Download bundled dependencies artifact (Windows only)
+        if: matrix.os == 'windows-latest'
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: bundled-deps-windows
+          path: .
+
+      - name: Extract bundled dependencies (Windows only)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          # Wait for bundled deps to be uploaded
-          Write-Host "Waiting for bundled dependencies to be available..."
-          $maxRetries = 30
-          $retryCount = 0
-          $version = "${{ needs.create-release.outputs.version }}"
-
-          while ($retryCount -lt $maxRetries) {
-            try {
-              $url = "https://github.com/h4x0r/nameback/releases/download/$version/deps-windows.zip"
-              Write-Host "Attempting to download from: $url"
-              Invoke-WebRequest -Uri $url -OutFile "deps-windows.zip" -ErrorAction Stop
-              Write-Host "Download successful!"
-              break
-            } catch {
-              $retryCount++
-              Write-Host "Attempt $retryCount/$maxRetries failed: $_"
-              if ($retryCount -lt $maxRetries) {
-                Write-Host "Waiting 10 seconds before retry..."
-                Start-Sleep -Seconds 10
-              }
-            }
-          }
-
-          if (-not (Test-Path "deps-windows.zip")) {
-            Write-Error "Failed to download deps-windows.zip after $maxRetries attempts"
-            exit 1
-          }
-
-          # Extract to target/bundled-deps (matching prepare script output structure)
           Write-Host "Extracting bundled dependencies..."
           New-Item -ItemType Directory -Force -Path "target/bundled-deps"
           Expand-Archive -Path "deps-windows.zip" -DestinationPath "target/bundled-deps" -Force
 
-          # Verify extraction
           Write-Host "Verifying extracted files:"
           Get-ChildItem -Path "target/bundled-deps" -Recurse | Select-Object FullName
 
