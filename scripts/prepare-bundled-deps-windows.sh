@@ -111,26 +111,47 @@ prepare_tesseract() {
 # FFmpeg (portable build)
 prepare_ffmpeg() {
     echo "📦 Preparing FFmpeg..."
-    local ffmpeg_version="7.1"
-    local ffmpeg_url="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-11-04-12-55/ffmpeg-n${ffmpeg_version}-latest-win64-gpl-${ffmpeg_version}.zip"
     local work_dir="$TEMP_DIR/ffmpeg"
 
     mkdir -p "$work_dir"
 
-    # Try specific version first
-    echo "Trying FFmpeg ${ffmpeg_version}..."
+    # Try multiple FFmpeg sources
+    local downloaded=false
+
+    # Source 1: Latest stable autobuild (Nov 2024)
+    echo "Trying FFmpeg autobuild 2024-11-04..."
     if curl -L -f --connect-timeout 30 --max-time 120 \
-        "$ffmpeg_url" -o "$work_dir/ffmpeg.zip" 2>/dev/null; then
-        echo "✓ Downloaded FFmpeg ${ffmpeg_version}"
-    else
-        # Fallback to known stable version
-        echo "Trying FFmpeg 7.0.2 (fallback)..."
-        if ! curl -L -f --connect-timeout 30 --max-time 120 \
+        "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-11-04-12-55/ffmpeg-n7.1-latest-win64-gpl-7.1.zip" \
+        -o "$work_dir/ffmpeg.zip" 2>/dev/null; then
+        echo "✓ Downloaded FFmpeg 7.1"
+        downloaded=true
+    fi
+
+    # Source 2: Fallback to autobuild Aug 2024
+    if [ "$downloaded" = false ]; then
+        echo "Trying FFmpeg autobuild 2024-08-19..."
+        if curl -L -f --connect-timeout 30 --max-time 120 \
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2024-08-19-12-52/ffmpeg-n7.0.2-latest-win64-gpl-7.0.zip" \
             -o "$work_dir/ffmpeg.zip" 2>/dev/null; then
-            echo "ERROR: FFmpeg download failed"
-            exit 1
+            echo "✓ Downloaded FFmpeg 7.0.2"
+            downloaded=true
         fi
+    fi
+
+    # Source 3: Latest release (fallback)
+    if [ "$downloaded" = false ]; then
+        echo "Trying FFmpeg latest release..."
+        if curl -L -f --connect-timeout 30 --max-time 120 \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" \
+            -o "$work_dir/ffmpeg.zip" 2>/dev/null; then
+            echo "✓ Downloaded FFmpeg (latest)"
+            downloaded=true
+        fi
+    fi
+
+    if [ "$downloaded" = false ]; then
+        echo "ERROR: FFmpeg download failed from all sources"
+        exit 1
     fi
 
     # Extract
