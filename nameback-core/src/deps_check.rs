@@ -22,6 +22,26 @@ impl Dependency {
         }
     }
 
+    /// Get the bundled directory name (for MSI installer location)
+    fn bundled_dir_name(&self) -> &str {
+        match self {
+            Dependency::ExifTool => "exiftool",
+            Dependency::Tesseract => "tesseract",
+            Dependency::FFmpeg => "ffmpeg",
+            Dependency::ImageMagick => "imagemagick",
+        }
+    }
+
+    /// Get the primary executable name (may differ from tool name)
+    fn exe_name(&self) -> &str {
+        match self {
+            Dependency::ExifTool => "exiftool",
+            Dependency::Tesseract => "tesseract",
+            Dependency::FFmpeg => "ffmpeg",
+            Dependency::ImageMagick => "magick",  // ImageMagick v7+ uses "magick.exe"
+        }
+    }
+
     pub fn description(&self) -> &str {
         match self {
             Dependency::ExifTool => "Core metadata extraction (required)",
@@ -34,7 +54,47 @@ impl Dependency {
     /// Find the executable path for this dependency
     /// Returns Some(path) if found, None otherwise
     pub fn find_executable(&self) -> Option<PathBuf> {
-        find_tool_path(self.name(), self.fallback_names())
+        // On Windows, check bundled installer location first (installed via MSI)
+        #[cfg(windows)]
+        {
+            if let Ok(programfiles) = std::env::var("PROGRAMFILES") {
+                log::debug!("Checking bundled location for {}: PROGRAMFILES={}", self.name(), programfiles);
+
+                let bundled_dir = PathBuf::from(&programfiles)
+                    .join("nameback")
+                    .join("deps")
+                    .join(self.bundled_dir_name());
+
+                log::debug!("Constructed bundled directory path: {:?}", bundled_dir);
+                log::debug!("Does bundled directory exist? {}", bundled_dir.exists());
+
+                // Check primary executable name
+                let primary_path = bundled_dir.join(format!("{}.exe", self.exe_name()));
+                log::debug!("Checking primary path: {:?}, exists: {}", primary_path, primary_path.exists());
+
+                if primary_path.exists() {
+                    log::info!("Found {} in bundled installer location: {:?}", self.name(), primary_path);
+                    return Some(primary_path);
+                }
+
+                // Check fallback names
+                for name in self.fallback_names() {
+                    let fallback_path = bundled_dir.join(format!("{}.exe", name));
+                    log::debug!("Checking fallback path: {:?}, exists: {}", fallback_path, fallback_path.exists());
+
+                    if fallback_path.exists() {
+                        log::info!("Found {} in bundled installer location (fallback for {}): {:?}",
+                                   name, self.name(), fallback_path);
+                        return Some(fallback_path);
+                    }
+                }
+            } else {
+                log::warn!("PROGRAMFILES environment variable not found!");
+            }
+        }
+
+        // Use the generic find_tool_path for other locations (PATH, Scoop, Chocolatey)
+        find_tool_path(self.exe_name(), self.fallback_names())
     }
 
     /// Create a Command for this dependency
@@ -175,35 +235,6 @@ pub fn detect_needed_dependencies(directory: &Path) -> Result<DependencyNeeds> {
 /// 3. Windows-specific: Scoop shims, Chocolatey bin (fallback)
 /// Supports fallback names for platform-specific tool variants
 fn find_tool_path(primary_name: &str, fallback_names: &[&str]) -> Option<PathBuf> {
-    // On Windows, check bundled installer location first (installed via MSI)
-    #[cfg(windows)]
-    {
-        // Check PROGRAMFILES for bundled dependencies
-        if let Ok(programfiles) = std::env::var("PROGRAMFILES") {
-            let bundled_dir = PathBuf::from(&programfiles)
-                .join("nameback")
-                .join("deps")
-                .join(primary_name);
-
-            // Check primary name
-            let primary_path = bundled_dir.join(format!("{}.exe", primary_name));
-            if primary_path.exists() {
-                log::debug!("Found {} in bundled installer location: {:?}", primary_name, primary_path);
-                return Some(primary_path);
-            }
-
-            // Check fallback names
-            for name in fallback_names {
-                let fallback_path = bundled_dir.join(format!("{}.exe", name));
-                if fallback_path.exists() {
-                    log::debug!("Found {} in bundled installer location (fallback for {}): {:?}",
-                               name, primary_name, fallback_path);
-                    return Some(fallback_path);
-                }
-            }
-        }
-    }
-
     // Try primary name in PATH
     if which::which(primary_name).is_ok() {
         log::debug!("Found {} in PATH", primary_name);
